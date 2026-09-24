@@ -1,0 +1,20 @@
+# Deploy compose file - copy to the deploy host (e.g. OpenMediaVault).
+# The image is built and published to GHCR by CI (.github/workflows/docker-build.yml);
+# this file only pulls and runs it. Set env values in a .env file next to it.
+services:
+  wantlist:
+    image: ghcr.io/ackervekenbm/wantlist:latest
+    container_name: wantlist
+    ports:
+      - "8091:3000"
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY in .env}
+      # WORKER_INTERVAL_MS: 900000
+      # WORKER_QUEUE_CAP: 3
+      # GEMINI_MODEL: gemini-2.5-flash
+    volumes:
+      - wantlist-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  wantlist-data:
