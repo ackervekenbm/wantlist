@@ -99,7 +99,10 @@ pick = one product, with one or more buy links.
   retired for new users — it 404s on `generateContent` even though it still
   appears in the models-list endpoint, and Google's own 404 error recommends
   3.8-flash as the successor. Grounding/search-tools are paid-only on 3.x (429
-  `RESOURCE_EXHAUSTED` on a fresh key, both `v1beta` and `v1alpha`).
+  `RESOURCE_EXHAUSTED` on a fresh key, both `v1beta` and `v1alpha`;
+  re-verified Oct 2026 on 3.5/3.8/flash-latest — grounding 429s while plain
+  generation on the same model succeeds, i.e. tool access needs a billing
+  account, not free-tier quota).
   `gemini-3.5-flash` remains a proven fallback (`GEMINI_MODEL=gemini-3.5-flash`)
   — it was the default until Oct 2026 because 3.6-flash was observed 503ing
   ("experiencing high demand") on heavy JSON-schema calls while 3.5 kept
