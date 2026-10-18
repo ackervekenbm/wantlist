@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import Database from 'better-sqlite3'
 import {
   createIdea,
   deleteIdea,
@@ -33,6 +34,10 @@ function samplePicks(ideaId: number): Pick[] {
       why: 'quiet at low rpm',
       sourceUrls: ['https://shop.be/fan'],
       fetchedAt: '2026-01-01T00:00:00.000Z',
+      suppliers: [
+        { shop: 'Shop Be', url: 'https://shop.be/fan', price: '89' },
+        { shop: 'Alt Shop', url: 'https://alt.eu/fan', price: '99' },
+      ],
     },
     {
       id: 0,
@@ -45,6 +50,7 @@ function samplePicks(ideaId: number): Pick[] {
       why: null,
       sourceUrls: [],
       fetchedAt: null,
+      suppliers: [],
     },
   ]
 }
@@ -81,6 +87,25 @@ describe('db', () => {
     expect(idea.picks[0].title).toBe('A fan')
     expect(idea.picks[0].sourceUrls).toEqual(['https://shop.be/fan'])
     expect(idea.picks[0].fetchedAt).not.toBeNull()
+    expect(idea.picks[0].suppliers).toHaveLength(2)
+    expect(idea.picks[0].suppliers[1].shop).toBe('Alt Shop')
+    db.close()
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('migrates an existing picks table by adding the suppliers column', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wantlist-test-'))
+    const dbPath = path.join(dir, 'wantlist.db')
+    const old = new Database(dbPath) as WlDb
+    old.exec(`
+      CREATE TABLE ideas (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', created_at TEXT NOT NULL DEFAULT (datetime('now')), researched_at TEXT, error TEXT);
+      CREATE TABLE picks (id INTEGER PRIMARY KEY AUTOINCREMENT, idea_id INTEGER NOT NULL, rank INTEGER NOT NULL, title TEXT NOT NULL, shop TEXT, url TEXT NOT NULL, price TEXT, why TEXT, source_urls TEXT, fetched_at TEXT);
+    `)
+    old.close()
+
+    const db = openDb(dir)
+    const cols = db.prepare('PRAGMA table_info(picks)').all() as Array<{ name: string }>
+    expect(cols.some((c) => c.name === 'suppliers')).toBe(true)
     db.close()
     fs.rmSync(dir, { recursive: true, force: true })
   })

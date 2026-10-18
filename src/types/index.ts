@@ -2,6 +2,12 @@ export type IdeaStatus = 'queued' | 'researching' | 'done' | 'error'
 
 export type UrlStatus = 'live' | 'dead' | 'unknown'
 
+export interface PickSupplier {
+  shop: string
+  url: string
+  price: string | null
+}
+
 export interface Pick {
   id: number
   ideaId: number
@@ -13,6 +19,7 @@ export interface Pick {
   why: string | null
   sourceUrls: string[]
   fetchedAt: string | null
+  suppliers: PickSupplier[]
 }
 
 export interface Idea {
@@ -64,6 +71,11 @@ export interface FinalPick {
   url: string
   price: string | null
   why: string
+  /**
+   * Every known shop offer for this product, best (lowest) price first. The
+   * top-level shop/url/price mirror suppliers[0].
+   */
+  suppliers: PickSupplier[]
 }
 
 export interface ResearchRequest {

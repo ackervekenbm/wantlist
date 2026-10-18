@@ -2,7 +2,7 @@
 
 A single-user, **deferred shopping researcher**. You type a vague buying idea
 ("a good fan to add to my indoor biking setup") and walk away. A background
-worker researches it — Belgium-focused, EUR, tilted toward specialist shops —
+worker researches it — Belgium-focused, EUR, whole-market (big players + specialists) —
 and later you get 3–5 ranked picks with shop, ballpark price, reason, live link.
 English summaries. Runs on a Raspberry Pi / OpenMediaVault at €0.
 
@@ -46,13 +46,16 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   `WORKER_INTERVAL_MS` (default 15 min), processes up to `WORKER_QUEUE_CAP`
   (default 3) per run, one idea at a time. UI never blocks on live calls.
 - `src/server/research/pipeline.ts` — `GeminiEngine` implements `ResearchEngine`
-  with a **two-pass** flow: pass 1 discovery (grounded), pass 2 verification
-  (fetch top pages, re-ask), then URL-liveness filter. 429/503 → exponential
-  backoff, then the idea is marked `error`.
+  with a **no-grounding** flow: plan (queries) → Serper search → candidate
+  selection → fetch top pages → verify → URL-liveness filter. Gemini cannot
+  browse on the free tier, so all real searching/reading happens server-side.
+  429/503 → exponential backoff, then the idea is marked `error`.
 - `src/server/research/gemini.ts` — raw `fetch` client for the Gemini REST API,
   prompts, JSON schemas, and the parsers presenters rely on. Pinned model
-  `gemini-2.5-flash` (the only stable Flash with grounding on the **free tier**;
-  Gemini 3.x grounding is paid-only — see `docs/plan.md`).
+  `gemini-3.8-flash` (current free-tier Flash, spike-validated Oct 2026; 3.x
+  grounding-with-search is paid-only, 2.5-flash is retired for new users, and
+  3.6-flash has been seen 503ing on heavy JSON calls — `gemini-3.5-flash` is
+  the proven fallback, see `docs/plan.md`).
 - `src/server/research/http.ts` — page fetch (browser-like UA), HTML→text,
   link liveness (HEAD, GET fallback).
 - `src/client/` — React UI: capture box + check-in list, polls every 8 s.
@@ -61,9 +64,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 
 ## Platform caveats (important)
 
-- **No API key in the repo.** `GEMINI_API_KEY` comes only from the
-  environment (compose `.env` on the Pi, or `.env`/env var in dev). The repo
-  is public.
+- **No API keys in the repo.** `GEMINI_API_KEY` + `SERPER_API_KEY` come only
+  from the environment (compose `.env` on the Pi, or `.env`/env var in dev).
+  The repo is public.
 - **Free-tier quotas move.** Google does not publish fixed limits; they are
   per-project and only visible in AI Studio. Backoff on 429s, cap the queue,
   surface errors per idea instead of failing the run.

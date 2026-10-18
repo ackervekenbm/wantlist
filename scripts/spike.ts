@@ -1,32 +1,35 @@
 import { loadEnv } from '../src/server/env'
 import { GeminiEngine } from '../src/server/research/pipeline'
+import { SerperProvider } from '../src/server/research/search'
 
 loadEnv()
 
 async function main() {
   const ideaText = process.argv[2] ?? 'A good fan to add to my indoor biking setup'
   const apiKey = process.env.GEMINI_API_KEY
+  const serperKey = process.env.SERPER_API_KEY
 
-  console.log(`model will be the Gemini free tier (gemini-2.5-flash)\n`)
-  if (!apiKey) {
+  if (!apiKey || !serperKey) {
     console.error(
-      'error: GEMINI_API_KEY is not set.\n\n' +
-        'Get a free key at https://aistudio.google.com/apikey (no credit card), then either\n' +
-        '  export GEMINI_API_KEY=...\n' +
-        "  or add it to a .env file next to package.json (see .env.example).\n",
+      'error: missing API key(s).\n\n' +
+        '  GEMINI_API_KEY  https://aistudio.google.com/apikey          (free, no card)\n' +
+        '  SERPER_API_KEY  https://serper.dev                           (free: 2,500 one-time search credits)\n\n' +
+        "Set them in your environment or in a .env file (see .env.example).\n",
     )
     process.exit(1)
   }
 
   const engine = new GeminiEngine({
     apiKey,
-    model: process.env.GEMINI_MODEL ?? 'gemini-2.5-flash',
+    model: process.env.GEMINI_MODEL ?? 'gemini-3.8-flash',
+    search: new SerperProvider(serperKey),
     maxCandidatesToFetch: 3,
     onProgress: (msg) => console.log(`  ${msg}`),
   })
 
+  console.log(`model: ${process.env.GEMINI_MODEL ?? 'gemini-3.8-flash'} (free tier, no grounding)\n`)
   console.log(`idea: ${ideaText}\n`)
-  console.log('running two-pass research…\n')
+  console.log('running plan -> search -> candidates -> page reads -> verify -> liveness…\n')
 
   const starts = Date.now()
   const picks = await engine.research({ ideaId: 0, text: ideaText })

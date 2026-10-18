@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "dev": "concurrently -k -n server,client \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:server": "tsx watch src/server/index.ts",
+    "dev:server": "PORT=3091 tsx watch src/server/index.ts",
     "dev:client": "vite",
     "build": "npm run typecheck && npm run lint && vite build && tsc -p tsconfig.server.json",
     "typecheck": "tsc -p tsconfig.json",

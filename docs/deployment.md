@@ -42,9 +42,10 @@ services:
       - "8091:3000"
     environment:
       GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY in .env}
+      SERPER_API_KEY: ${SERPER_API_KEY:?set SERPER_API_KEY in .env}
       # WORKER_INTERVAL_MS: 900000
       # WORKER_QUEUE_CAP: 3
-      # GEMINI_MODEL: gemini-2.5-flash
+      # GEMINI_MODEL: gemini-3.8-flash
     volumes:
       - wantlist-data:/app/data
     restart: unless-stopped
@@ -53,13 +54,17 @@ volumes:
   wantlist-data:
 ```
 
-Create a `.env` **in the same folder** with the API key:
+Create a `.env` **in the same folder** with the API keys:
 
 ```bash
 GEMINI_API_KEY=AIza...your-key...
+SERPER_API_KEY=...your-serper-key...
 ```
 
-Get the key at **https://aistudio.google.com/apikey** (free, no card needed).
+Keys (both free, no card):
+- **Gemini**: https://aistudio.google.com/apikey
+2. **Serper** (search layer, 2,500 one-time free search credits): https://serper.dev
+
 `.env` is never committed and never appears in the repo.
 
 ## 4. Start
@@ -82,9 +87,9 @@ LAN: **http://<pi-ip>:8091**
 | Symptom | Fix |
 |---|---|
 | **Pull** fails with an auth error | Re-run the GHCR login from step 2, then Pull → Up again |
-| Container starts but ideas stay `queued` | Check `GEMINI_API_KEY` is actually set: `sudo docker exec wantlist printenv GEMINI_API_KEY` (non-empty). The server logs a warning at boot when the key is missing |
+| Container starts but ideas stay `queued` | Check both keys are set: `sudo docker exec wantlist printenv GEMINI_API_KEY SERPER_API_KEY` (non-empty). The server logs a warning at boot when either is missing |
 | Research errors on an idea | The card shows the reason; `POST /api/ideas/:id/rerun` (or the *research again* button) requeues it |
-| Gemnn/API 429 rate limits | Expected on free tier when quota is exhausted; ideas go to `error` with the rate-limit message, re-run later. Monitor: `aistudio.google.com/rate-limit` |
+| Gemnn/API 429 rate limits | Expected on free tier when the daily request quota is spent (fresh projects start at 20 req/day/model, grows with maturity); ideas go to `error` with the rate-limit message, re-run later. Monitor: `https://ai.dev/rate-limit` |
 | Logs | `sudo docker logs wantlist` |
 | Query the API directly | `curl http://<pi-ip>:8091/api/health` → `{"ok":true}`; inspect state at `/api/status` and `/api/ideas` |
 

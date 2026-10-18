@@ -11,7 +11,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY in .env}
       # WORKER_INTERVAL_MS: 900000
       # WORKER_QUEUE_CAP: 3
-      # GEMINI_MODEL: gemini-2.5-flash
+      # GEMINI_MODEL: gemini-3.8-flash
     volumes:
       - wantlist-data:/app/data
     restart: unless-stopped

@@ -5,6 +5,7 @@ import type {
   Idea,
   IdeaStatus,
   Pick,
+  PickSupplier,
   WorkerRuntime,
 } from '../types'
 
@@ -41,7 +42,20 @@ export function openDb(dataDir: string): WlDb {
     CREATE INDEX IF NOT EXISTS idx_picks_idea ON picks(idea_id);
     CREATE INDEX IF NOT EXISTS idx_ideas_status ON ideas(status);
   `)
+  migrate(db)
   return db
+}
+
+function columnNames(db: WlDb, table: string): Set<string> {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+  return new Set(rows.map((r) => r.name))
+}
+
+function migrate(db: WlDb): void {
+  const picksColumns = columnNames(db, 'picks')
+  if (!picksColumns.has('suppliers')) {
+    db.exec(`ALTER TABLE picks ADD COLUMN suppliers TEXT`)
+  }
 }
 
 export function createIdea(db: WlDb, text: string): number {
@@ -67,7 +81,7 @@ export function getIdea(db: WlDb, id: number): Idea | null {
   const picks = db
     .prepare(
       `SELECT id, idea_id AS ideaId, rank, title, shop, url, price, why,
-              source_urls AS sourceUrls, fetched_at AS fetchedAt
+              source_urls AS sourceUrls, fetched_at AS fetchedAt, suppliers
        FROM picks WHERE idea_id = ? ORDER BY rank ASC`,
     )
     .all(id) as PickRow[]
@@ -76,6 +90,7 @@ export function getIdea(db: WlDb, id: number): Idea | null {
     picks: picks.map((p) => ({
       ...p,
       sourceUrls: parseSourceUrls(p.sourceUrls),
+      suppliers: parseSuppliers(p.suppliers),
     })),
   }
 }
@@ -100,6 +115,7 @@ interface PickRow {
   why: string | null
   sourceUrls: string
   fetchedAt: string | null
+  suppliers: string | null
 }
 
 function parseSourceUrls(raw: string | null): string[] {
@@ -107,6 +123,25 @@ function parseSourceUrls(raw: string | null): string[] {
   try {
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function parseSuppliers(raw: string | null): PickSupplier[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter(
+        (s): s is PickSupplier =>
+          !!s &&
+          typeof s.shop === 'string' &&
+          typeof s.url === 'string' &&
+          (typeof s.price === 'string' || s.price === null),
+      )
+      .map((s) => ({ shop: s.shop, url: s.url, price: s.price }))
   } catch {
     return []
   }
@@ -133,8 +168,8 @@ export function requeueIdea(db: WlDb, id: number): void {
 export function replacePicks(db: WlDb, ideaId: number, picks: Pick[]): void {
   const del = db.prepare('DELETE FROM picks WHERE idea_id = ?')
   const ins = db.prepare(
-    `INSERT INTO picks (idea_id, rank, title, shop, url, price, why, source_urls, fetched_at)
-     VALUES (@ideaId, @rank, @title, @shop, @url, @price, @why, @sourceUrls, @fetchedAt)`,
+    `INSERT INTO picks (idea_id, rank, title, shop, url, price, why, source_urls, fetched_at, suppliers)
+     VALUES (@ideaId, @rank, @title, @shop, @url, @price, @why, @sourceUrls, @fetchedAt, @suppliers)`,
   )
   const tx = db.transaction(() => {
     del.run(ideaId)
@@ -149,6 +184,7 @@ export function replacePicks(db: WlDb, ideaId: number, picks: Pick[]): void {
         why: p.why,
         sourceUrls: JSON.stringify(p.sourceUrls ?? []),
         fetchedAt: p.fetchedAt ?? new Date().toISOString(),
+        suppliers: JSON.stringify(p.suppliers ?? []),
       })
     }
   })

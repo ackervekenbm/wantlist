@@ -466,6 +466,48 @@ body {
   font-weight: 500;
 }
 
+.pick-alts {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.pick-alt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.pick-alt-label {
+  color: var(--faint);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pick-alt-shop {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.pick-alt-shop:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.pick-alt-price {
+  margin-left: auto;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
 /* ---------- idea actions ---------- */
 
 .idea-actions {

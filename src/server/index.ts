@@ -5,6 +5,7 @@ import { env, envInt, loadEnv } from './env'
 import { openDb } from './db'
 import { createWorker } from './worker'
 import { GeminiEngine } from './research/pipeline'
+import { SerperProvider } from './research/search'
 import {
   createIdea,
   deleteIdea,
@@ -20,8 +21,13 @@ app.use(express.json())
 
 const db = openDb(env('DATA_DIR', path.join(process.cwd(), 'data')))
 const apiKey = process.env.GEMINI_API_KEY
-const engine = apiKey
-  ? new GeminiEngine({ apiKey, model: env('GEMINI_MODEL', 'gemini-2.5-flash') })
+const serperKey = process.env.SERPER_API_KEY
+const engine = apiKey && serperKey
+  ? new GeminiEngine({
+      apiKey,
+      model: env('GEMINI_MODEL', 'gemini-3.8-flash'),
+      search: new SerperProvider(serperKey),
+    })
   : null
 
 const worker = createWorker({
@@ -98,7 +104,10 @@ const port = envInt('PORT', 3000)
 app.listen(port, host, () => {
   console.log(`wantlist listening on http://${host}:${port}`)
   if (!engine) {
-    console.log('warning: GEMINI_API_KEY not set - research worker is disabled')
+    const missing = [apiKey ? '' : 'GEMINI_API_KEY', serperKey ? '' : 'SERPER_API_KEY']
+      .filter(Boolean)
+      .join(' + ')
+    console.log(`warning: ${missing} not set - research worker is disabled`)
   }
   // One immediate run at boot to clear anything left queued from a restart.
   setTimeout(() => void worker.runOnce(), 1500)

@@ -2,7 +2,7 @@
 
 A single-user, **deferred shopping researcher**. Type a vague buying idea
 ("a good fan to add to my indoor biking setup") and walk away. A background
-worker researches it — Belgium-focused, in EUR, tilted toward specialist shops —
+worker researches it — Belgium-focused, in EUR, covering the whole market including specialists —
 and when you check in later you get 3–5 ranked picks with shops, ballpark
 prices, reasons, and live links. Summarized in English. Costs nothing.
 
