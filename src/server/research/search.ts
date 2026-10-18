@@ -1,4 +1,5 @@
 import { normalizeUrl } from './gemini'
+import { ModelError } from './llm'
 
 export type { CandidateInputRow } from './gemini'
 
@@ -29,7 +30,17 @@ export class SerperProvider implements SearchProvider {
         num: 10,
       }),
     })
-    if (!res.ok) throw new Error(`serper HTTP ${res.status}`)
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '')
+      const retryable = res.status === 429 || res.status >= 500
+      throw new ModelError(
+        `serper HTTP ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`,
+        res.status,
+        retryable,
+        res.status === 429 ? 10_000 : null,
+        res.status === 429,
+      )
+    }
     const json = (await res.json()) as SerperResponse
 
     const out: SearchResult[] = []

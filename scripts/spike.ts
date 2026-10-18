@@ -1,33 +1,35 @@
 import { loadEnv } from '../src/server/env'
-import { GeminiEngine } from '../src/server/research/pipeline'
+import { buildModelRouter } from '../src/server/research/chain'
+import { PipelineEngine } from '../src/server/research/pipeline'
 import { SerperProvider } from '../src/server/research/search'
 
 loadEnv()
 
 async function main() {
   const ideaText = process.argv[2] ?? 'A good fan to add to my indoor biking setup'
-  const apiKey = process.env.GEMINI_API_KEY
   const serperKey = process.env.SERPER_API_KEY
+  const onProgress = (msg: string) => console.log(`  ${msg}`)
+  const router = buildModelRouter(process.env, onProgress)
 
-  if (!apiKey || !serperKey) {
+  if (!router || !serperKey) {
     console.error(
       'error: missing API key(s).\n\n' +
         '  GEMINI_API_KEY  https://aistudio.google.com/apikey          (free, no card)\n' +
-        '  SERPER_API_KEY  https://serper.dev                           (free: 2,500 one-time search credits)\n\n' +
+        '  SERPER_API_KEY  https://serper.dev                           (free: 2,500 one-time search credits)\n' +
+        '  GROQ_API_KEY    https://console.groq.com/keys                (optional fallback, free, no card)\n\n' +
         "Set them in your environment or in a .env file (see .env.example).\n",
     )
     process.exit(1)
   }
 
-  const engine = new GeminiEngine({
-    apiKey,
-    model: process.env.GEMINI_MODEL ?? 'gemini-3.8-flash',
+  const engine = new PipelineEngine({
+    router,
     search: new SerperProvider(serperKey),
     maxCandidatesToFetch: 3,
-    onProgress: (msg) => console.log(`  ${msg}`),
+    onProgress,
   })
 
-  console.log(`model: ${process.env.GEMINI_MODEL ?? 'gemini-3.8-flash'} (free tier, no grounding)\n`)
+  console.log(`chain: ${router.ids.join(' -> ')} (free tier, no grounding)\n`)
   console.log(`idea: ${ideaText}\n`)
   console.log('running plan -> search -> candidates -> page reads -> verify -> liveness…\n')
 

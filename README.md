@@ -27,8 +27,10 @@ npm test          # vitest unit tests (db + parsing/extraction)
 ## Architecture
 
 - One npm package. `src/server/` — Express + better-sqlite3 + in-process worker
-  (polls the queue every 15 min). `src/server/research/` — the two-pass Gemini
-  research engine behind a single `ResearchEngine` interface.
+  (polls the queue every 15 min). `src/server/research/` — the no-grounding
+  research engine behind a single `ResearchEngine` interface, with a model
+  fallback chain (several Gemini models, then optional Groq/OpenRouter — all
+  free tiers, no card).
   `src/client/` — React + Vite UI. `dist/` served by the server in production.
 - Data: SQLite in `data/wantlist.db` (`DATA_DIR`), named volume `wantlist-data`.
 
