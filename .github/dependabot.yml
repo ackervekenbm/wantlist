@@ -1,0 +1,24 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm:
+        patterns:
+          - '*'
+    ignore:
+      # TypeScript majors can outrun typescript-eslint's peer range and leave
+      # the weekly group uninstallable. We still want 5.x patches, so block
+      # only the major (same setup as vinyl-vault). Revisit when
+      # typescript-eslint supports the new major.
+      - dependency-name: 'typescript'
+        update-types:
+          - 'version-update:semver-major'
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
