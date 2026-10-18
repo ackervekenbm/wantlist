@@ -45,17 +45,27 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 - `src/server/worker.ts` — in-process worker: polls queued/error ideas every
   `WORKER_INTERVAL_MS` (default 15 min), processes up to `WORKER_QUEUE_CAP`
   (default 3) per run, one idea at a time. UI never blocks on live calls.
-- `src/server/research/pipeline.ts` — `GeminiEngine` implements `ResearchEngine`
+- `src/server/research/pipeline.ts` — `PipelineEngine` implements `ResearchEngine`
   with a **no-grounding** flow: plan (queries) → Serper search → candidate
   selection → fetch top pages → verify → URL-liveness filter. Gemini cannot
   browse on the free tier, so all real searching/reading happens server-side.
-  429/503 → exponential backoff, then the idea is marked `error`.
-- `src/server/research/gemini.ts` — raw `fetch` client for the Gemini REST API,
-  prompts, JSON schemas, and the parsers presenters rely on. Pinned model
-  `gemini-3.8-flash` (current free-tier Flash, spike-validated Oct 2026; 3.x
-  grounding-with-search is paid-only, 2.5-flash is retired for new users, and
-  3.6-flash has been seen 503ing on heavy JSON calls — `gemini-3.5-flash` is
-  the proven fallback, see `docs/plan.md`).
+- `src/server/research/llm.ts` — `ModelError`, `LlmProvider` interface, and
+  `ModelRouter`: an ordered fallback chain across models/providers. A
+  daily-quota 429 memoizes that model as unavailable (until Retry-After / next
+  00:00 UTC) and advances immediately; 5xx/network get exponential backoff on
+  the same entry (max 3) before advancing; non-retryable errors fail the idea.
+- `src/server/research/gemini.ts` — `GeminiProvider` (`fetch` client for the
+  Gemini REST API) plus the prompts, JSON schemas, and the parsers presenters
+  rely on. 3.x grounding-with-search is paid-only, 2.5-flash is retired for new
+  users, and 3.6-flash has been seen 503ing on heavy JSON calls — see
+  `docs/plan.md`.
+- `src/server/research/openai.ts` — generic OpenAI-compatible chat-completions
+  provider (JSON via `response_format` + schema-in-prompt, reuses
+  `parseJsonLoose`); Groq and OpenRouter are thin configs over it.
+- `src/server/research/chain.ts` — builds the provider chain from env:
+  `GEMINI_MODEL` (primary) → `MODEL_CHAIN` (Gemini fallbacks, default
+  `gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite`) → optional
+  `GROQ_API_KEY` → optional `OPENROUTER_API_KEY`.
 - `src/server/research/http.ts` — page fetch (browser-like UA), HTML→text,
   link liveness (HEAD, GET fallback).
 - `src/client/` — React UI: capture box + check-in list, polls every 8 s.

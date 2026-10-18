@@ -1,88 +1,88 @@
 import type { FinalPick, Pass1Result, PickSupplier, ResearchCandidate } from '../../types'
+import { ModelError, type GenerateArgs, type LlmProvider } from './llm'
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
-export class GeminiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly retryable: boolean,
-    readonly retryAfterMs: number | null = null,
-  ) {
-    super(message)
-    this.name = 'GeminiError'
-  }
-}
+export class GeminiProvider implements LlmProvider {
+  readonly id: string
 
-export interface GenerateArgs {
-  apiKey: string
-  model: string
-  systemInstruction: string
-  contents: string
-  schema: object
-  temperature?: number
-}
-
-export async function generateJson(args: GenerateArgs): Promise<unknown> {
-  const url = `${BASE}/models/${args.model}:generateContent?key=${encodeURIComponent(args.apiKey)}`
-  const body = {
-    systemInstruction: { parts: [{ text: args.systemInstruction }] },
-    contents: [{ role: 'user', parts: [{ text: args.contents }] }],
-    generationConfig: {
-      temperature: args.temperature ?? 0.3,
-      responseMimeType: 'application/json',
-      responseSchema: args.schema,
-    },
+  constructor(private readonly opts: { apiKey: string; model: string }) {
+    this.id = `gemini:${opts.model}`
   }
 
-  let res: Response
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 90_000)
-    try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      })
-    } finally {
-      clearTimeout(timer)
+  async generate(args: GenerateArgs): Promise<unknown> {
+    const url = `${BASE}/models/${this.opts.model}:generateContent?key=${encodeURIComponent(this.opts.apiKey)}`
+    const body = {
+      systemInstruction: { parts: [{ text: args.systemInstruction }] },
+      contents: [{ role: 'user', parts: [{ text: args.contents }] }],
+      generationConfig: {
+        temperature: args.temperature ?? 0.3,
+        responseMimeType: 'application/json',
+        responseSchema: args.schema,
+      },
     }
-  } catch (err) {
-    // Network-level flake (DNS, reset, timeout) - retryable.
-    throw new GeminiError(`Gemini fetch failed: ${(err as Error).message}`, 0, true)
-  }
 
-  if (res.status === 429 || res.status === 503) {
-    const retryAfter = res.headers.get('Retry-After')
-    const detail = (await res.text()).slice(0, 300)
-    const hint =
-      res.status === 429
-        ? '\n(hint: free-tier daily request quota may be exhausted - spikes and limits move; see https://ai.dev/rate-limit)'
-        : ''
-    throw new GeminiError(
-      `Gemini rate limited (HTTP ${res.status})${detail ? `: ${detail}` : ''}${hint}`,
-      res.status,
-      true,
-      retryAfter ? Number.parseInt(retryAfter, 10) * 1000 : null,
-    )
-  }
-  if (!res.ok) {
-    const detail = (await res.text()).slice(0, 300)
-    throw new GeminiError(`Gemini HTTP ${res.status}: ${detail}`, res.status, false)
-  }
+    let res: Response
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 90_000)
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(timer)
+      }
+    } catch (err) {
+      // Network-level flake (DNS, reset, timeout) - retryable.
+      throw new ModelError(`Gemini fetch failed: ${(err as Error).message}`, 0, true)
+    }
 
-  const json = (await res.json()) as GeminiResponse
-  const candidate = json.candidates?.[0]
-  const text = candidate?.content?.parts?.map((p) => p.text ?? '').join('')
-  if (!text) {
-    throw new GeminiError('Gemini returned no candidate text', 400, false)
+    if (res.status === 429 || res.status === 503) {
+      const retryAfter = res.headers.get('Retry-After')
+      const retryAfterMs = retryAfter ? Number.parseInt(retryAfter, 10) * 1000 : null
+      const detail = (await res.text()).slice(0, 300)
+      if (res.status === 429) {
+        // Free-tier 429s are daily request quota: no (or a very long) Retry-After.
+        // Memoize as exhausted so the router advances instead of backing off.
+        const quotaExhausted = retryAfterMs === null || retryAfterMs > 60_000
+        const hint = quotaExhausted
+          ? '\n(hint: free-tier daily request quota may be exhausted - spikes and limits move; see https://ai.dev/rate-limit)'
+          : ''
+        throw new ModelError(
+          `Gemini rate limited (HTTP 429)${detail ? `: ${detail}` : ''}${hint}`,
+          429,
+          true,
+          retryAfterMs,
+          quotaExhausted,
+        )
+      }
+      throw new ModelError(
+        `Gemini unavailable (HTTP 503)${detail ? `: ${detail}` : ''}`,
+        503,
+        true,
+        retryAfterMs,
+      )
+    }
+    if (!res.ok) {
+      const detail = (await res.text()).slice(0, 300)
+      throw new ModelError(`Gemini HTTP ${res.status}: ${detail}`, res.status, false)
+    }
+
+    const json = (await res.json()) as GeminiResponse
+    const candidate = json.candidates?.[0]
+    const text = candidate?.content?.parts?.map((p) => p.text ?? '').join('')
+    if (!text) {
+      throw new ModelError('Gemini returned no candidate text', 400, false)
+    }
+    if (candidate?.finishReason === 'SAFETY' || candidate?.finishReason === 'RECITATION') {
+      throw new ModelError(`Gemini blocked (${candidate.finishReason})`, 200, false)
+    }
+    return parseJsonLoose(text)
   }
-  if (candidate?.finishReason === 'SAFETY' || candidate?.finishReason === 'RECITATION') {
-    throw new GeminiError(`Gemini blocked (${candidate.finishReason})`, 200, false)
-  }
-  return parseJsonLoose(text)
 }
 
 interface GeminiResponse {
@@ -110,7 +110,7 @@ export function parseJsonLoose(text: string): unknown {
     if (start !== -1 && end > start) {
       return JSON.parse(trimmed.slice(start, end + 1))
     }
-    throw new GeminiError('Gemini returned unparseable JSON', 400, false)
+    throw new ModelError('Gemini returned unparseable JSON', 400, false)
   }
 }
 
@@ -171,7 +171,7 @@ export function normalizePlan(raw: unknown): ResearchPlan {
     .filter(Boolean)
     .slice(0, 4)
   if (queries.length === 0) {
-    throw new GeminiError('Gemini returned no search queries', 400, false)
+    throw new ModelError('Gemini returned no search queries', 400, false)
   }
   return {
     summary: String(obj.summary ?? '').trim(),

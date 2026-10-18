@@ -4,7 +4,8 @@ import express from 'express'
 import { env, envInt, loadEnv } from './env'
 import { openDb } from './db'
 import { createWorker } from './worker'
-import { GeminiEngine } from './research/pipeline'
+import { buildModelRouter } from './research/chain'
+import { PipelineEngine } from './research/pipeline'
 import { SerperProvider } from './research/search'
 import {
   createIdea,
@@ -20,12 +21,11 @@ const app = express()
 app.use(express.json())
 
 const db = openDb(env('DATA_DIR', path.join(process.cwd(), 'data')))
-const apiKey = process.env.GEMINI_API_KEY
 const serperKey = process.env.SERPER_API_KEY
-const engine = apiKey && serperKey
-  ? new GeminiEngine({
-      apiKey,
-      model: env('GEMINI_MODEL', 'gemini-3.8-flash'),
+const router = buildModelRouter(process.env, (msg) => console.log(`[llm] ${msg}`))
+const engine = router && serperKey
+  ? new PipelineEngine({
+      router,
       search: new SerperProvider(serperKey),
     })
   : null
@@ -104,7 +104,12 @@ const port = envInt('PORT', 3000)
 app.listen(port, host, () => {
   console.log(`wantlist listening on http://${host}:${port}`)
   if (!engine) {
-    const missing = [apiKey ? '' : 'GEMINI_API_KEY', serperKey ? '' : 'SERPER_API_KEY']
+    const missing = [
+      process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY
+        ? ''
+        : 'GEMINI_API_KEY (or GROQ_API_KEY / OPENROUTER_API_KEY)',
+      serperKey ? '' : 'SERPER_API_KEY',
+    ]
       .filter(Boolean)
       .join(' + ')
     console.log(`warning: ${missing} not set - research worker is disabled`)

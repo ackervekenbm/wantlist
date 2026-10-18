@@ -46,6 +46,9 @@ services:
       # WORKER_INTERVAL_MS: 900000
       # WORKER_QUEUE_CAP: 3
       # GEMINI_MODEL: gemini-3.8-flash
+      # MODEL_CHAIN: gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite
+      # GROQ_API_KEY: (optional free fallback - console.groq.com)
+      # OPENROUTER_API_KEY: (optional free fallback - openrouter.ai)
     volumes:
       - wantlist-data:/app/data
     restart: unless-stopped
@@ -64,6 +67,10 @@ SERPER_API_KEY=...your-serper-key...
 Keys (both free, no card):
 - **Gemini**: https://aistudio.google.com/apikey
 2. **Serper** (search layer, 2,500 one-time free search credits): https://serper.dev
+
+Optional fallback keys (free, no card) append to the model fallback chain when
+Gemini's daily quota is spent: `GROQ_API_KEY` (https://console.groq.com/keys)
+and/or `OPENROUTER_API_KEY` (https://openrouter.ai/keys).
 
 `.env` is never committed and never appears in the repo.
 

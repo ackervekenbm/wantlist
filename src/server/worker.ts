@@ -42,7 +42,7 @@ export function createWorker(opts: WorkerOptions): Worker {
     statusMemo.lastRunAt = new Date().toISOString()
     try {
       if (!opts.engine) {
-        statusMemo.lastRunResult = 'no research engine (GEMINI_API_KEY not set) - skipped'
+        statusMemo.lastRunResult = 'no research engine (GEMINI_API_KEY or SERPER_API_KEY not set) - skipped'
         return { attempted: 0, succeeded: 0, failed: 0, queuedRemaining: 0, message: statusMemo.lastRunResult }
       }
       const ids = queuedIdeaIds(opts.db, opts.queueCap)

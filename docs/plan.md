@@ -92,14 +92,38 @@ Every URL produced at steps 3–5 is validated against the allowed search-result
 / candidate URL sets — the model cannot invent fresh URLs at any stage. Each
 pick = one product, with one or more buy links.
 
-### Free-tier reality (checked Sep 2026, models re-verified Oct 2026)
+### Model fallback chain
+
+Free-tier Gemini quota is **per model** (see below), so pinning one model
+throws away free capacity on every sibling model. All three LLM steps go
+through a `ModelRouter` (`src/server/research/llm.ts`) holding an ordered
+chain, built from env by `chain.ts`:
+
+1. `GEMINI_MODEL` (primary override), then `MODEL_CHAIN` Gemini models
+   (default: `gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite`) —
+   same key and API, effectively multiplying the daily idea budget.
+2. Optional `GROQ_API_KEY` (Groq free tier: ~1,000 req/day, no card) and/or
+   `OPENROUTER_API_KEY` (`:free` models, no card) — one generic
+   OpenAI-compatible client (`openai.ts`) behind both.
+
+Failover rules: a daily-quota 429 memoizes that model as unavailable (until
+`Retry-After` or next 00:00 UTC) and advances **immediately**; 5xx/network
+errors get exponential backoff on the same entry (max 3) before advancing;
+non-retryable errors (safety, bad request, unparseable) fail the idea. The
+URL-allowlist normalizers are the quality safety net: a weaker fallback model
+can waste tokens but cannot inject products or links.
+
+## Free-tier reality (checked Sep 2026, models re-verified Oct 2026)
 
 - `gemini-3.8-flash`: tokens + requests free (plain generation); the default
   since Oct 2026 after two clean end-to-end spike runs. The 2.5-flash lineup is
   retired for new users — it 404s on `generateContent` even though it still
   appears in the models-list endpoint, and Google's own 404 error recommends
   3.8-flash as the successor. Grounding/search-tools are paid-only on 3.x (429
-  `RESOURCE_EXHAUSTED` on a fresh key, both `v1beta` and `v1alpha`).
+  `RESOURCE_EXHAUSTED` on a fresh key, both `v1beta` and `v1alpha`;
+  re-verified Oct 2026 on 3.5/3.8/flash-latest — grounding 429s while plain
+  generation on the same model succeeds, i.e. tool access needs a billing
+  account, not free-tier quota).
   `gemini-3.5-flash` remains a proven fallback (`GEMINI_MODEL=gemini-3.5-flash`)
   — it was the default until Oct 2026 because 3.6-flash was observed 503ing
   ("experiencing high demand") on heavy JSON-schema calls while 3.5 kept
@@ -114,10 +138,12 @@ pick = one product, with one or more buy links.
   `generate_content_free_tier_requests` = **20 requests/day per model** on a
   brand-new project; this is per-project and *grows as the project matures*
   (older/more-used projects get far higher ceilings). One idea = 3 Gemini
-  calls → ≈ 6 ideas/day on a fresh key; expect that number to rise over
-  time. Monitor real usage at **https://ai.dev/rate-limit**.
-- 429/503 → exponential backoff (`BACKOFF_BASE_MS`, max 3 retries), then the
-  idea is marked `error` and can be re-run from the UI.
+  calls → ≈ 6 ideas/day per model on a fresh key; the fallback chain
+  multiplies this by the number of configured models. Monitor real usage at
+  **https://ai.dev/rate-limit**.
+- 429/503 → the router fails over the chain (see "Model fallback chain"
+  above); when every model is exhausted the idea is marked `error` and can be
+  re-run from the UI.
 
 ## API keys (two–three minutes, both free)
 
@@ -127,6 +153,10 @@ pick = one product, with one or more buy links.
    free tier 2,500/mo → copy the API key.
 3. Put both into `GEMINI_API_KEY` / `SERPER_API_KEY` in the Pi's compose `.env`.
    No credit card anywhere. Live limits: `aistudio.google.com/rate-limit`, `serper.dev/dashboard`.
+4. *Optional fallbacks* (also free, no card): **Groq**
+   (`https://console.groq.com/keys` → `GROQ_API_KEY`) and **OpenRouter**
+   (`https://openrouter.ai/keys` → `OPENROUTER_API_KEY`). Either one is
+   appended to the model fallback chain when Gemini quota is spent.
 
 ## Phases
 
