@@ -9,9 +9,13 @@ services:
       - "8091:3000"
     environment:
       GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY in .env}
+      SERPER_API_KEY: ${SERPER_API_KEY:?set SERPER_API_KEY in .env}
       # WORKER_INTERVAL_MS: 900000
       # WORKER_QUEUE_CAP: 3
       # GEMINI_MODEL: gemini-3.8-flash
+      # MODEL_CHAIN: gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite
+      # GROQ_API_KEY: (optional free fallback - console.groq.com)
+      # OPENROUTER_API_KEY: (optional free fallback - openrouter.ai)
     volumes:
       - wantlist-data:/app/data
     restart: unless-stopped

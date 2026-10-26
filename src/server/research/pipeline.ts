@@ -6,8 +6,6 @@ import {
   buildVerifyUser,
   CANDIDATE_SCHEMA,
   CANDIDATE_SYSTEM,
-  generateJson,
-  GeminiError,
   mergePicksByProduct,
   mergeSuppliers,
   normalizePass1,
@@ -20,11 +18,11 @@ import {
   VERIFY_SCHEMA,
   VERIFY_SYSTEM,
 } from './gemini'
+import { ModelError, type ModelRouter } from './llm'
 import type { CandidateInputRow, SearchProvider } from './search'
 
-export interface GeminiEngineOptions {
-  apiKey: string
-  model: string
+export interface PipelineEngineOptions {
+  router: ModelRouter
   search: SearchProvider
   maxCandidatesToFetch?: number
   onProgress?: (message: string) => void
@@ -33,48 +31,40 @@ export interface GeminiEngineOptions {
 const BACKOFF_BASE_MS = 3000
 const MAX_TRANSIENT_RETRIES = 3
 
-export class GeminiEngine implements ResearchEngine {
-  constructor(private readonly opts: GeminiEngineOptions) {}
+export class PipelineEngine implements ResearchEngine {
+  constructor(private readonly opts: PipelineEngineOptions) {}
 
   async research(request: ResearchRequest): Promise<FinalPick[]> {
     const progress = this.opts.onProgress ?? (() => {})
-    const run = this.withRetry.bind(this)
+    const generate = this.opts.router.generate.bind(this.opts.router)
 
     progress('step 1: planning queries')
     const plan = normalizePlan(
-      await run(() =>
-        generateJson({
-          apiKey: this.opts.apiKey,
-          model: this.opts.model,
-          systemInstruction: QUERY_SYSTEM,
-          contents: buildQueryUser(request.text),
-          schema: QUERY_SCHEMA,
-          temperature: 0.4,
-        }),
-      ),
+      await generate({
+        systemInstruction: QUERY_SYSTEM,
+        contents: buildQueryUser(request.text),
+        schema: QUERY_SCHEMA,
+        temperature: 0.4,
+      }),
     )
     progress(`step 1: ${plan.searchQueries.length} query(ies)`)
 
     const results = await this.searchAll(plan.searchQueries, progress)
     if (results.length === 0) {
-      throw new GeminiError('search returned no results', 400, false)
+      throw new ModelError('search returned no results', 400, false)
     }
     progress(`step 2: ${results.length} search hits`)
 
     const allowed = new Set(results.map((r) => normalizeUrl(r.url)))
-    const rawCandidates = await run(() =>
-      generateJson({
-        apiKey: this.opts.apiKey,
-        model: this.opts.model,
-        systemInstruction: CANDIDATE_SYSTEM,
-        contents: buildCandidateUser(request.text, plan.summary, plan.criteria, results),
-        schema: CANDIDATE_SCHEMA,
-        temperature: 0.3,
-      }),
-    )
+    const rawCandidates = await generate({
+      systemInstruction: CANDIDATE_SYSTEM,
+      contents: buildCandidateUser(request.text, plan.summary, plan.criteria, results),
+      schema: CANDIDATE_SCHEMA,
+      temperature: 0.3,
+    })
     const pass1 = normalizePass1(rawCandidates, allowed)
     if (pass1.candidates.length === 0) {
-      throw new GeminiError('candidate step returned no usable candidates', 200, false)
+      throw new ModelError('candidate step returned no usable candidates', 200, false)
     }
     progress(`step 2: ${pass1.candidates.length} candidates`)
 
@@ -93,23 +83,19 @@ export class GeminiEngine implements ResearchEngine {
     }
 
     progress('step 4: verifying')
-    const rawPicks = await run(() =>
-      generateJson({
-        apiKey: this.opts.apiKey,
-        model: this.opts.model,
-        systemInstruction: VERIFY_SYSTEM,
-        contents: buildVerifyUser({
-          ideaText: request.text,
-          summary: plan.summary,
-          criteria: plan.criteria,
-          candidates: pass1.candidates,
-          pages,
-          fetchErrors,
-        }),
-        schema: VERIFY_SCHEMA,
-        temperature: 0.3,
+    const rawPicks = await generate({
+      systemInstruction: VERIFY_SYSTEM,
+      contents: buildVerifyUser({
+        ideaText: request.text,
+        summary: plan.summary,
+        criteria: plan.criteria,
+        candidates: pass1.candidates,
+        pages,
+        fetchErrors,
       }),
-    )
+      schema: VERIFY_SCHEMA,
+      temperature: 0.3,
+    })
     let picks = normalizePass2(rawPicks, pass1.candidates)
     if (picks.length === 0) picks = this.fallbackFromPass1(pass1.candidates)
 
@@ -194,7 +180,7 @@ export class GeminiEngine implements ResearchEngine {
       try {
         return await fn()
       } catch (err) {
-        if (err instanceof GeminiError && err.retryable && attempt < MAX_TRANSIENT_RETRIES) {
+        if (err instanceof ModelError && err.retryable && attempt < MAX_TRANSIENT_RETRIES) {
           const base = err.retryAfterMs ?? BACKOFF_BASE_MS * 2 ** attempt
           const jitter = 0.8 + Math.random() * 0.4
           attempt += 1
