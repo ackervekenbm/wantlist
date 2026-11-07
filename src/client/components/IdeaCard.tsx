@@ -3,11 +3,13 @@ import { StatusBadge } from './StatusBadge'
 
 interface Props {
   idea: Idea
+  /** The worker's current step while this idea is being researched. */
+  step: string | null
   onRerun: () => void
   onDelete: () => void
 }
 
-export function IdeaCard({ idea, onRerun, onDelete }: Props) {
+export function IdeaCard({ idea, step, onRerun, onDelete }: Props) {
   return (
     <article className="idea">
       <header className="idea-head">
@@ -26,8 +28,14 @@ export function IdeaCard({ idea, onRerun, onDelete }: Props) {
         </p>
       )}
 
+      {idea.error && idea.status === 'queued' && idea.nextAttemptAt && (
+        <p className="idea-note" title={idea.error}>
+          Hit a snag, trying again around {formatTime(idea.nextAttemptAt)}. {idea.error}
+        </p>
+      )}
+
       {idea.status === 'researching' && (
-        <p className="idea-note">digging through shops and reviews… this can take a minute.</p>
+        <p className="idea-note">{step ? `${step}…` : 'digging through shops and reviews…'}</p>
       )}
 
       {idea.picks.length > 0 && (
@@ -39,7 +47,7 @@ export function IdeaCard({ idea, onRerun, onDelete }: Props) {
       )}
 
       <footer className="idea-actions">
-        {(idea.status === 'done' || idea.status === 'error') && (
+        {idea.status !== 'researching' && (
           <button className="linklike" onClick={onRerun}>
             research again
           </button>
@@ -96,7 +104,19 @@ function hostOf(url: string): string {
 }
 
 function formatDate(iso: string): string {
-  const d = new Date(iso.includes('T') ? iso : iso + 'Z')
+  const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return 'later'
+  const sameDay = d.toDateString() === new Date().toDateString()
+  return d.toLocaleString(
+    undefined,
+    sameDay
+      ? { hour: '2-digit', minute: '2-digit' }
+      : { weekday: 'short', hour: '2-digit', minute: '2-digit' },
+  )
 }

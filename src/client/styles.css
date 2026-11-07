@@ -129,6 +129,13 @@ body {
   gap: 12px;
 }
 
+.banner-warn {
+  background: rgba(230, 180, 80, 0.1);
+  border-color: rgba(230, 180, 80, 0.4);
+  color: var(--accent);
+  display: block;
+}
+
 .banner-close {
   background: none;
   border: none;

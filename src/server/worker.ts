@@ -1,118 +1,200 @@
-import type { ResearchEngine } from '../types'
+import type { ResearchEngine, ServerStatus } from '../types'
 import type { WlDb } from './db'
-import { getIdea, queuedIdeaIds, replacePicks, setIdeaStatus } from './db'
+import {
+  claimIdea,
+  completeIdea,
+  dueIdeaIds,
+  failIdea,
+  getIdea,
+  nextScheduledAttempt,
+} from './db'
+import { ModelError } from './research/llm'
 
-export interface Worker {
-  runOnce(): Promise<WorkerRunSummary>
-  stop(): void
-  status(): { running: boolean; lastRunAt: string | null; lastRunResult: string | null }
+export interface RetryPolicy {
+  /** First retry delay; doubles per failed attempt. */
+  baseMs: number
+  /** Ceiling for the doubling. */
+  maxMs: number
+  /** Failed attempts after which the idea stops at `error`. */
+  maxAttempts: number
+}
+
+export const DEFAULT_RETRY: RetryPolicy = {
+  baseMs: 15 * 60 * 1000,
+  maxMs: 6 * 60 * 60 * 1000,
+  maxAttempts: 5,
 }
 
 export interface WorkerOptions {
   db: WlDb
   engine: ResearchEngine | null
+  /** Longest idle gap between passes; scheduled retries wake it earlier. */
   intervalMs: number
+  /** Ideas per pass. */
   queueCap: number
+  retry?: RetryPolicy
   log?: (line: string) => void
+  now?: () => Date
 }
 
 export interface WorkerRunSummary {
   attempted: number
   succeeded: number
   failed: number
-  queuedRemaining: number
+  retrying: number
   message: string
 }
 
-const statusMemo = {
-  running: false,
-  lastRunAt: null as string | null,
-  lastRunResult: null as string | null,
+export type WorkerState = Pick<ServerStatus, 'running' | 'lastRunAt' | 'lastRunResult' | 'current'>
+
+export interface Worker {
+  /** One pass over the due queue. Resolves with what it did. */
+  runOnce(): Promise<WorkerRunSummary>
+  /**
+   * Ask for a pass soon without waiting for it. When a pass is already
+   * running, another one follows it, so new work never waits an interval.
+   */
+  kick(): void
+  /** Starts the timer (idle polling + scheduled retries). */
+  start(): void
+  stop(): void
+  state(): WorkerState
+}
+
+/**
+ * Decides whether a failure is worth another automatic attempt, and when.
+ * Returns null for permanent failures and once the attempt budget is spent.
+ * `attempt` counts the failure being handled (1 = first failure).
+ */
+export function retryAt(err: unknown, attempt: number, now: Date, policy: RetryPolicy): Date | null {
+  if (!(err instanceof ModelError) || !err.retryable) return null
+  if (attempt >= policy.maxAttempts) return null
+  const backoff = Math.min(policy.baseMs * 2 ** (attempt - 1), policy.maxMs)
+  // A quota block says exactly when capacity returns; never retry sooner.
+  const delay = err.retryAfterMs && err.retryAfterMs > 0 ? Math.max(err.retryAfterMs, backoff) : backoff
+  return new Date(now.getTime() + delay)
 }
 
 export function createWorker(opts: WorkerOptions): Worker {
   const log = opts.log ?? ((line) => console.log(`[worker] ${line}`))
+  const now = opts.now ?? (() => new Date())
+  const policy = opts.retry ?? DEFAULT_RETRY
+
+  const state: WorkerState = { running: false, lastRunAt: null, lastRunResult: null, current: null }
+  let pending = false
   let timer: NodeJS.Timeout | null = null
+  let started = false
+
+  const empty = (message: string): WorkerRunSummary => ({
+    attempted: 0,
+    succeeded: 0,
+    failed: 0,
+    retrying: 0,
+    message,
+  })
 
   async function runOnce(): Promise<WorkerRunSummary> {
-    if (statusMemo.running) {
-      return { attempted: 0, succeeded: 0, failed: 0, queuedRemaining: 0, message: 'already running' }
+    if (state.running) {
+      pending = true
+      return empty('already running; another pass will follow')
     }
-    statusMemo.running = true
-    statusMemo.lastRunAt = new Date().toISOString()
+    state.running = true
+    state.lastRunAt = now().toISOString()
     try {
-      if (!opts.engine) {
-        statusMemo.lastRunResult = 'no research engine (GEMINI_API_KEY or SERPER_API_KEY not set) - skipped'
-        return { attempted: 0, succeeded: 0, failed: 0, queuedRemaining: 0, message: statusMemo.lastRunResult }
-      }
-      const ids = queuedIdeaIds(opts.db, opts.queueCap)
-      const summary: WorkerRunSummary = {
-        attempted: ids.length,
-        succeeded: 0,
-        failed: 0,
-        queuedRemaining: 0,
-        message: '',
-      }
-      log(`run: ${ids.length} idea(s) queued`)
-
-      for (const id of ids) {
-        try {
-          setIdeaStatus(opts.db, id, 'researching')
-          const idea = getIdea(opts.db, id)
-          if (!idea) continue
-          log(`researching idea ${id} (${idea.text.slice(0, 60)})`)
-          const picks = await opts.engine.research({ ideaId: id, text: idea.text })
-          replacePicks(
-            opts.db,
-            id,
-            picks.map((p) => ({
-              ...p,
-              ideaId: id,
-              id: 0,
-              sourceUrls: [],
-              fetchedAt: new Date().toISOString(),
-            })),
-          )
-          if (picks.length === 0) {
-            setIdeaStatus(opts.db, id, 'error', 'Research returned no live picks')
-            summary.failed += 1
-          } else {
-            setIdeaStatus(opts.db, id, 'done')
-            summary.succeeded += 1
-          }
-        } catch (err) {
-          const message = (err as Error).message
-          log(`idea ${id} failed: ${message}`)
-          setIdeaStatus(opts.db, id, 'error', message)
-          summary.failed += 1
-        }
-      }
-
-      summary.queuedRemaining = queuedIdeaIds(opts.db, 1_000_000).length
-      summary.message = `done: ${summary.succeeded} ok, ${summary.failed} failed`
-      statusMemo.lastRunResult = summary.message
-      log(summary.message)
+      const summary = await pass()
+      state.lastRunResult = summary.message
+      if (summary.attempted > 0) log(summary.message)
       return summary
     } catch (err) {
-      const message = `run aborted: ${(err as Error).message}`
-      statusMemo.lastRunResult = message
+      const message = `pass aborted: ${(err as Error).message}`
+      state.lastRunResult = message
       log(message)
-      return { attempted: 0, succeeded: 0, failed: 0, queuedRemaining: 0, message }
+      return empty(message)
     } finally {
-      statusMemo.running = false
+      state.running = false
+      state.current = null
+      if (pending) {
+        pending = false
+        kick()
+      } else {
+        schedule()
+      }
     }
   }
 
-  function stop(): void {
-    if (timer) clearInterval(timer)
-    timer = null
+  async function pass(): Promise<WorkerRunSummary> {
+    const engine = opts.engine
+    if (!engine) return empty('research disabled (API keys missing); skipped')
+
+    const ids = dueIdeaIds(opts.db, opts.queueCap, now())
+    const summary = { ...empty(''), attempted: ids.length }
+
+    for (const id of ids) {
+      if (!claimIdea(opts.db, id)) continue
+      const idea = getIdea(opts.db, id)
+      if (!idea) continue
+      state.current = { ideaId: id, step: 'starting' }
+      log(`researching #${id}: ${idea.text.slice(0, 60)}`)
+
+      try {
+        const picks = await engine.research({
+          ideaId: id,
+          text: idea.text,
+          onProgress: (step) => {
+            if (state.current?.ideaId === id) state.current = { ideaId: id, step }
+          },
+        })
+        if (picks.length === 0) {
+          failIdea(opts.db, id, 'No product survived verification. Try rewording the idea.', null)
+          summary.failed += 1
+        } else if (completeIdea(opts.db, id, picks, now())) {
+          summary.succeeded += 1
+        }
+      } catch (err) {
+        const message = (err as Error).message
+        const at = retryAt(err, idea.attempts + 1, now(), policy)
+        failIdea(opts.db, id, message, at)
+        log(`#${id} failed${at ? `, retrying at ${at.toISOString()}` : ''}: ${message}`)
+        if (at) summary.retrying += 1
+        else summary.failed += 1
+        // Every model is out of quota: the rest of this pass would fail too.
+        if (err instanceof ModelError && err.allQuotaExhausted) break
+      }
+    }
+
+    summary.message = `${summary.succeeded} done, ${summary.retrying} retrying, ${summary.failed} failed`
+    return summary
   }
 
-  if (opts.intervalMs > 0) {
-    timer = setInterval(() => {
-      void runOnce().catch((err) => log(`scheduled run error: ${(err as Error).message}`))
-    }, opts.intervalMs)
+  function kick(): void {
+    void runOnce()
   }
 
-  return { runOnce, stop, status: () => statusMemo }
+  /** Sleep until the next scheduled retry, or the idle interval, whichever is first. */
+  function schedule(): void {
+    if (!started) return
+    if (timer) clearTimeout(timer)
+    let delay = opts.intervalMs > 0 ? opts.intervalMs : Infinity
+    const next = nextScheduledAttempt(opts.db, now())
+    if (next) delay = Math.min(delay, Math.max(next.getTime() - now().getTime(), 1000))
+    if (!Number.isFinite(delay)) return
+    // setTimeout overflows above ~24.8 days; an interval wake-up re-plans anyway.
+    timer = setTimeout(kick, Math.min(delay, 2 ** 31 - 1))
+    timer.unref()
+  }
+
+  return {
+    runOnce,
+    kick,
+    start() {
+      started = true
+      schedule()
+    },
+    stop() {
+      started = false
+      if (timer) clearTimeout(timer)
+      timer = null
+    },
+    state: () => ({ ...state, current: state.current ? { ...state.current } : null }),
+  }
 }

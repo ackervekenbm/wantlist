@@ -127,11 +127,19 @@ describe('ModelRouter', () => {
     expect(b.calls).toBe(0)
   })
 
-  it('throws a summary error when every provider is quota-blocked', async () => {
-    const a = new FakeProvider('a', () => quotaError())
-    const b = new FakeProvider('b', () => quotaError())
-    const router = makeRouter([a, b])
-    await expect(router.generate(ARGS)).rejects.toThrow(/all 2 model\(s\) unavailable/)
+  it('throws a summary error when every provider is quota-blocked, with the earliest reset', async () => {
+    let now = 1_000_000
+    const a = new FakeProvider('a', () => quotaError(60_000))
+    const b = new FakeProvider('b', () => quotaError(30_000))
+    const router = makeRouter([a, b], () => now)
+    const err = await router.generate(ARGS).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ModelError)
+    expect((err as ModelError).message).toMatch(/Every model is out of free quota \(a, b\)/)
+    expect((err as ModelError).allQuotaExhausted).toBe(true)
+    expect((err as ModelError).retryAfterMs).toBe(30_000)
+    now += 10_000
+    const again = (await router.generate(ARGS).catch((e: unknown) => e)) as ModelError
+    expect(again.retryAfterMs).toBe(20_000)
   })
 
   it('wraps unknown thrown values as retryable ModelErrors', async () => {

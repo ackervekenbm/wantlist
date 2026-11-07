@@ -94,9 +94,9 @@ LAN: **http://<pi-ip>:8091**
 | Symptom | Fix |
 |---|---|
 | **Pull** fails with an auth error | Re-run the GHCR login from step 2, then Pull → Up again |
-| Container starts but ideas stay `queued` | Check both keys are set: `sudo docker exec wantlist printenv GEMINI_API_KEY SERPER_API_KEY` (non-empty). The server logs a warning at boot when either is missing |
-| Research errors on an idea | The card shows the reason; `POST /api/ideas/:id/rerun` (or the *research again* button) requeues it |
-| Gemini API 429 rate limits | Expected on free tier when the daily request quota is spent (fresh projects start at 20 req/day/model, grows with maturity); ideas go to `error` with the rate-limit message, re-run later. Monitor: `https://ai.dev/rate-limit` |
+| Container starts but ideas stay `queued` | Check both keys are set: `sudo docker exec wantlist printenv GEMINI_API_KEY SERPER_API_KEY` (non-empty). The app shows a banner naming the missing key, and the server logs a warning at boot |
+| Research errors on an idea | Temporary failures (quota, 5xx, network) retry by themselves: the card says when (15 min, doubling to 6 h, up to 5 attempts). Anything else stops with the reason on the card; *research again* (`POST /api/ideas/:id/rerun`) requeues it |
+| Gemini API 429 rate limits | Expected on free tier when the daily request quota is spent (fresh projects start at 20 req/day/model, grows with maturity); ideas wait in the queue and retry once a model's quota resets. Monitor: `https://ai.dev/rate-limit` |
 | Logs | `sudo docker logs wantlist` |
 | Query the API directly | `curl http://<pi-ip>:8091/api/health` → `{"ok":true}`; inspect state at `/api/status` and `/api/ideas` |
 

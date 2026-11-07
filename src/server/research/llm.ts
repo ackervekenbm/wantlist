@@ -5,6 +5,8 @@ export class ModelError extends Error {
     readonly retryable: boolean,
     readonly retryAfterMs: number | null = null,
     readonly quotaExhausted = false,
+    /** Set by the router when every model in the chain is quota-blocked. */
+    readonly allQuotaExhausted = false,
   ) {
     super(message)
     this.name = 'ModelError'
@@ -123,9 +125,13 @@ export class ModelRouter {
     }
 
     if (this.quotaBlocked().length === this.chain.length) {
+      const earliest = Math.min(...this.chain.map((p) => this.quotaUntil.get(p.id) ?? 0))
       throw new ModelError(
-        `all ${this.chain.length} model(s) unavailable (quota exhausted): ${this.ids.join(', ')}`,
+        `Every model is out of free quota (${this.ids.join(', ')}); research resumes when the first one resets.`,
         429,
+        true,
+        Math.max(earliest - this.now(), 0),
+        true,
         true,
       )
     }

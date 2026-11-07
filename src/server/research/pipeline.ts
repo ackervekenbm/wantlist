@@ -35,9 +35,12 @@ export class PipelineEngine implements ResearchEngine {
   constructor(private readonly opts: PipelineEngineOptions) {}
 
   async research(request: ResearchRequest): Promise<FinalPick[]> {
-    const progress = this.opts.onProgress ?? (() => {})
+    const log = this.opts.onProgress ?? (() => {})
+    const progress = (msg: string) => log(`#${request.ideaId} ${msg}`)
+    const step = request.onProgress ?? (() => {})
     const generate = this.opts.router.generate.bind(this.opts.router)
 
+    step('working out what to look for')
     progress('step 1: planning queries')
     const plan = normalizePlan(
       await generate({
@@ -49,12 +52,14 @@ export class PipelineEngine implements ResearchEngine {
     )
     progress(`step 1: ${plan.searchQueries.length} query(ies)`)
 
+    step('searching shops and reviews')
     const results = await this.searchAll(plan.searchQueries, progress)
     if (results.length === 0) {
       throw new ModelError('search returned no results', 400, false)
     }
     progress(`step 2: ${results.length} search hits`)
 
+    step(`shortlisting from ${results.length} results`)
     const allowed = new Set(results.map((r) => normalizeUrl(r.url)))
     const rawCandidates = await generate({
       systemInstruction: CANDIDATE_SYSTEM,
@@ -68,6 +73,7 @@ export class PipelineEngine implements ResearchEngine {
     }
     progress(`step 2: ${pass1.candidates.length} candidates`)
 
+    step(`reading ${pass1.candidates.length} product pages`)
     const maxFetch = this.opts.maxCandidatesToFetch ?? 3
     const pages: Array<{ url: string; title: string; text: string }> = []
     const fetchErrors: string[] = []
@@ -82,6 +88,7 @@ export class PipelineEngine implements ResearchEngine {
       }
     }
 
+    step('checking the evidence')
     progress('step 4: verifying')
     const rawPicks = await generate({
       systemInstruction: VERIFY_SYSTEM,
@@ -99,6 +106,7 @@ export class PipelineEngine implements ResearchEngine {
     let picks = normalizePass2(rawPicks, pass1.candidates)
     if (picks.length === 0) picks = this.fallbackFromPass1(pass1.candidates)
 
+    step('checking the shop links')
     progress('liveness: checking links')
     picks = await this.filterLive(picks)
 

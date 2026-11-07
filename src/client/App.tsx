@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Idea } from '../types'
+import type { Idea, ServerStatus } from '../types'
 import { addIdea, deleteIdea, getStatus, listIdeas, rerunIdea } from './api'
 import { CaptureBox } from './components/CaptureBox'
 import { IdeaCard } from './components/IdeaCard'
-import type { WorkerRuntime } from '../types'
 
 interface AppState {
   ideas: Idea[]
   loaded: boolean
   error: string | null
-  status: WorkerRuntime | null
+  status: ServerStatus | null
 }
 
 const POLL_MS = 8000
@@ -83,6 +82,13 @@ export function App() {
           </div>
         )}
 
+        {state.status && !state.status.researchEnabled && (
+          <div className="banner banner-warn" role="status">
+            Research is switched off: set {state.status.missingKeys.join(' and ')} on the server.
+            Ideas you add now wait in the queue until it is on.
+          </div>
+        )}
+
         <CaptureBox onAdd={handleAdd} />
 
         {!state.loaded ? (
@@ -100,6 +106,7 @@ export function App() {
               <IdeaCard
                 key={idea.id}
                 idea={idea}
+                step={state.status?.current?.ideaId === idea.id ? state.status.current.step : null}
                 onDelete={() => void handleDelete(idea.id)}
                 onRerun={() => void handleRerun(idea.id)}
               />
