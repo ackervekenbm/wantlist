@@ -105,6 +105,7 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
       return new Response(null, { status: 204 })
     }
     if (method === 'PATCH') {
+      if (found.text === 'broken') return json({ error: 'database is locked' }, 500)
       const p = body as IdeaPatch
       const chosen = p.boughtPickId != null ? found.picks.find((x) => x.id === p.boughtPickId) : null
       const updated: Idea = {

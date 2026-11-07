@@ -103,7 +103,7 @@ export function IdeaCard({ idea, step, onPatch, onRerun, onRemove }: Props) {
                   pick={pick}
                   budget={idea.budget}
                   onBought={
-                    idea.list === 'wanted' ? () => void onPatch({ list: 'bought', boughtPickId: pick.id }) : undefined
+                    idea.list === 'wanted' ? () => fire(onPatch({ list: 'bought', boughtPickId: pick.id })) : undefined
                   }
                 />
               ))}
@@ -130,23 +130,23 @@ export function IdeaCard({ idea, step, onPatch, onRerun, onRemove }: Props) {
                     edit
                   </button>
                   {!busy && (
-                    <button type="button" className="btn-text" onClick={() => void onRerun()}>
+                    <button type="button" className="btn-text" onClick={() => fire(onRerun())}>
                       research again
                     </button>
                   )}
                   <button
                     type="button"
                     className="btn-text"
-                    onClick={() => void onPatch({ list: 'bought', boughtPickId: null })}
+                    onClick={() => fire(onPatch({ list: 'bought', boughtPickId: null }))}
                   >
                     bought something else
                   </button>
-                  <button type="button" className="btn-text" onClick={() => void onPatch({ list: 'archived' })}>
+                  <button type="button" className="btn-text" onClick={() => fire(onPatch({ list: 'archived' }))}>
                     don't want it anymore
                   </button>
                 </>
               ) : (
-                <button type="button" className="btn-text" onClick={() => void onPatch({ list: 'wanted' })}>
+                <button type="button" className="btn-text" onClick={() => fire(onPatch({ list: 'wanted' }))}>
                   want it again
                 </button>
               )}
@@ -191,4 +191,12 @@ function ResearchState({ idea, step }: { idea: Idea; step: string | null }) {
     )
   }
   return null
+}
+
+/**
+ * For buttons: the hook already shows a failed request in the app's error
+ * banner, so the rejection is handled here instead of escaping unhandled.
+ */
+function fire(p: Promise<void>): void {
+  p.catch(() => {})
 }

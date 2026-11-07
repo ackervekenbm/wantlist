@@ -122,6 +122,16 @@ describe('App', () => {
     expect(screen.queryByText(/Removed/)).not.toBeInTheDocument()
   })
 
+  it('shows a failed action in the banner and keeps the idea where it was', async () => {
+    fakeApi([idea({ text: 'broken' })])
+    const user = await renderApp()
+    await user.click(screen.getByRole('button', { name: "don't want it anymore" }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('database is locked')
+    expect(screen.getByRole('article', { name: 'broken' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'dismiss' }))
+    expect(screen.queryByText('database is locked')).not.toBeInTheDocument()
+  })
+
   it('edits an idea and researches it again', async () => {
     const api = fakeApi([idea()])
     const user = await renderApp()
