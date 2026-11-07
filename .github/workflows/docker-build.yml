@@ -16,8 +16,8 @@ on:
       - 'vite.config.mts'
       - 'eslint.config.mjs'
       - '.github/workflows/docker-build.yml'
+  # Every PR, including ones stacked on another PR branch.
   pull_request:
-    branches: [main]
     paths:
       - 'Dockerfile'
       - '.dockerignore'
