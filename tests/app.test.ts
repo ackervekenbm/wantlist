@@ -3,7 +3,7 @@ import path from 'node:path'
 import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
 import { MAX_IDEA_LENGTH, createApp } from '../src/server/app'
-import { claimIdea, completeIdea, createIdea, failIdea, type WlDb } from '../src/server/db'
+import { claimIdea, completeIdea, createIdea, failIdea, getIdea, type WlDb } from '../src/server/db'
 import type { Worker } from '../src/server/worker'
 import { researchResult, tempDb, tempDir } from './helpers'
 
@@ -68,6 +68,21 @@ describe('API', () => {
     expect(worker.kick).not.toHaveBeenCalled()
   })
 
+  it('takes an optional budget and notes', async () => {
+    const { api } = setup()
+    const res = await api
+      .post('/api/ideas')
+      .send({ text: 'running shoes', budget: 120, notes: '  wide feet  ' })
+      .expect(201)
+    expect(res.body).toMatchObject({ budget: 120, notes: 'wide feet', list: 'wanted', bought: null })
+    await api.post('/api/ideas').send({ text: 'x', budget: -5 }).expect(400)
+    await api.post('/api/ideas').send({ text: 'x', budget: '120' }).expect(400)
+    await api.post('/api/ideas').send({ text: 'x', notes: 7 }).expect(400)
+    await api.post('/api/ideas').send({ text: 'x', notes: 'n'.repeat(501) }).expect(400)
+    const cleared = await api.post('/api/ideas').send({ text: 'x', budget: null, notes: '' }).expect(201)
+    expect(cleared.body).toMatchObject({ budget: null, notes: null })
+  })
+
   it('answers malformed JSON with a 400, not a crash', async () => {
     const { api } = setup()
     const res = await api.post('/api/ideas').set('Content-Type', 'application/json').send('{"text":').expect(400)
@@ -111,6 +126,54 @@ describe('API', () => {
     claimIdea(db, busy)
     await api.post(`/api/ideas/${busy}/rerun`).expect(409)
     await api.post('/api/ideas/999/rerun').expect(404)
+  })
+
+  it('edits text, budget and notes', async () => {
+    const { db, api } = setup()
+    const id = seedDone(db)
+    const res = await api.patch(`/api/ideas/${id}`).send({ text: 'a quiet fan', budget: 150.555, notes: 'white' }).expect(200)
+    expect(res.body).toMatchObject({ text: 'a quiet fan', budget: 150.56, notes: 'white', status: 'done' })
+    const cleared = await api.patch(`/api/ideas/${id}`).send({ budget: null, notes: null }).expect(200)
+    expect(cleared.body).toMatchObject({ budget: null, notes: null })
+  })
+
+  it('marks an idea bought with a snapshot of the chosen pick', async () => {
+    const { db, api } = setup()
+    const id = seedDone(db)
+    const pick = getIdea(db, id)!.picks[0]
+    const res = await api.patch(`/api/ideas/${id}`).send({ list: 'bought', boughtPickId: pick.id }).expect(200)
+    expect(res.body.list).toBe('bought')
+    expect(res.body.bought).toMatchObject({ title: 'A fan', shop: 'Shop Be', url: 'https://shop.be/fan', price: 89 })
+    expect(Date.parse(res.body.bought.at)).not.toBeNaN()
+
+    // Bought something else: no snapshot. Back to wanted: snapshot cleared.
+    const other = await api.patch(`/api/ideas/${id}`).send({ list: 'bought', boughtPickId: null }).expect(200)
+    expect(other.body.bought).toBeNull()
+    await api.patch(`/api/ideas/${id}`).send({ list: 'bought', boughtPickId: pick.id }).expect(200)
+    const back = await api.patch(`/api/ideas/${id}`).send({ list: 'wanted' }).expect(200)
+    expect(back.body).toMatchObject({ list: 'wanted', bought: null })
+  })
+
+  it('validates edits', async () => {
+    const { db, api } = setup()
+    const id = seedDone(db)
+    const otherIdea = seedDone(db)
+    const foreignPick = getIdea(db, otherIdea)!.picks[0].id
+    await api.patch(`/api/ideas/${id}`).send({}).expect(400, { error: 'nothing to change' })
+    await api.patch(`/api/ideas/${id}`).send({ list: 'trash' }).expect(400)
+    await api.patch(`/api/ideas/${id}`).send({ text: '' }).expect(400)
+    await api.patch(`/api/ideas/${id}`).send({ boughtPickId: 1 }).expect(400)
+    await api.patch(`/api/ideas/${id}`).send({ list: 'bought', boughtPickId: foreignPick }).expect(400)
+    await api.patch('/api/ideas/999').send({ list: 'archived' }).expect(404)
+  })
+
+  it('wakes the worker when a queued idea is wanted again', async () => {
+    const { db, api, worker } = setup()
+    const id = createIdea(db, 'fan')
+    await api.patch(`/api/ideas/${id}`).send({ list: 'archived' }).expect(200)
+    expect(worker.kick).not.toHaveBeenCalled()
+    await api.patch(`/api/ideas/${id}`).send({ list: 'wanted' }).expect(200)
+    expect(worker.kick).toHaveBeenCalledOnce()
   })
 
   it('returns JSON 404s for unknown API routes', async () => {

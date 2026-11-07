@@ -44,8 +44,10 @@ One npm package, no separate job service:
 ### Schema
 
 ```
-ideas(id, text, status, created_at, researched_at, error, attempts, next_attempt_at,
-      summary, criteria)
+ideas(id, text, budget, notes, list, bought, status, created_at, researched_at,
+      error, attempts, next_attempt_at, summary, criteria)
+  list: wanted | bought | archived  (yours; only wanted is researched)
+  bought: JSON snapshot {title, shop, url, price, at} of the pick you bought
   status: queued | researching | done | error  (queued + next_attempt_at = retry)
   summary/criteria: the research brief from the latest successful run
 picks(id, idea_id, rank, title, shop, url, price, why, caveat, image, rating,
@@ -56,7 +58,7 @@ picks(id, idea_id, rank, title, shop, url, price, why, caveat, image, rating,
 ```
 
 `/api/ideas` returns full ideas with their picks; the UI needs only that one
-endpoint plus `POST /api/ideas`, `DELETE /api/ideas/:id`,
+endpoint plus `POST /api/ideas`, `PATCH /api/ideas/:id`, `DELETE /api/ideas/:id`,
 `POST /api/ideas/:id/rerun`, `GET /api/status`, `POST /api/worker/run` (debug).
 
 ## Research pipeline (per idea)
@@ -187,15 +189,20 @@ can waste tokens but cannot inject products or links.
 - [x] Server: schema, worker, API, static serving
 - [x] Research engine: two-pass + liveness
 - [x] Client: capture + check-in, status badges, writeup states, empty state
+- [x] Reliability: restart recovery, retry policy, quota-aware model routing
 - [ ] Deploy on OMV via GHCR image + compose (`docs/deployment.md`), verify live
 - [ ] Docker build validated locally/CI (no Docker on dev machine → CI)
 
 ### Phase 2 — later (explicitly not v1)
-- [ ] Mark picked/bought, archive ideas
+- [x] Mark picked/bought, archive ideas (Wanted / Bought / Archived)
+- [x] Budget and must-haves per idea, fed into every research step
+- [x] Price/stock enrichment for final picks from each shop page's own
+      schema.org / OpenGraph product data (no paid API needed)
 - [ ] "Research deeper" re-run with a higher budget
-- [ ] Price/stock enrichment for final picks via bol.com/Coolblue free tiers
-      (ReefAPI 1,000 credits / Parse.bot 100/mo) — optional, only if staleness
-      becomes a real problem
+- [ ] Price-drop watch: re-check a wanted idea's offers on a schedule and
+      flag a lower price (the offer check already reads the shop's price)
+- [ ] Notify when research finishes (e.g. ntfy on the homelab)
+- [ ] Installable PWA (manifest + icons) for capture from the phone
 - [ ] Configurable result language
 
 ## Risks & mitigations

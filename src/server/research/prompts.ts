@@ -1,4 +1,4 @@
-import type { FinalPick, Pass1Result, PickSupplier, ResearchCandidate } from '../../types'
+import type { FinalPick, Pass1Result, PickSupplier, ResearchCandidate, ResearchRequest } from '../../types'
 import { ResearchError } from './errors'
 import { isHttpUrl, mergePicksByProduct, mergeSuppliers, normalizeUrl, primaryFields, rankPicks } from './offers'
 import { parsePriceEur, type ProductData } from './product'
@@ -8,6 +8,25 @@ import { parsePriceEur, type ProductData } from './product'
 // evidence does not back (URLs outside the allowed set in particular), and
 // throw an `invalid` ResearchError when nothing usable is left, so the router
 // tries the next model instead of failing the idea.
+
+/** What the user asked for, as every step sees it. */
+export type IdeaInput = Pick<ResearchRequest, 'text' | 'budget' | 'notes'>
+
+/** The idea plus the user's budget and notes, one fact per line. */
+export function describeIdea(idea: IdeaInput): string {
+  return [
+    `Idea: "${idea.text}"`,
+    idea.budget ? `Budget: at most EUR ${idea.budget}` : null,
+    idea.notes ? `User notes (must-haves, constraints): ${idea.notes}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+const BUDGET_RULE = `- When a budget is given, it is a ceiling: prefer products at or under it.
+  At most one pick may go up to ~15% over, only when it is clearly better,
+  and its "why" must say so.
+- User notes are hard requirements unless they say otherwise.`
 
 // ---------------------------------------------------------------------------
 // Step 1 - research plan (no browsing: the app does the searching)
@@ -26,7 +45,9 @@ Requirements:
 - Only real search queries, in English, that a search engine can answer.
   2 to 4 queries. Mix directions: product-oriented, review/community opinion
   ("best ... for ...", "... reddit"), and a specialist or brand-store query.
-- Keep queries specific enough to return product pages, not category homepages.`
+- Keep queries specific enough to return product pages, not category homepages.
+- When a budget is given, steer queries toward that price range; fold the
+  user's notes into the queries and the criteria.`
 
 export const QUERY_SCHEMA = {
   type: 'object',
@@ -55,8 +76,8 @@ export interface ResearchPlan {
   searchQueries: string[]
 }
 
-export function buildQueryUser(ideaText: string): string {
-  return `Idea to research:\n"${ideaText}"\n\nReturn the research plan JSON per schema.`
+export function buildQueryUser(idea: IdeaInput): string {
+  return `${describeIdea(idea)}\n\nReturn the research plan JSON per schema.`
 }
 
 export function normalizePlan(raw: unknown): ResearchPlan {
@@ -96,7 +117,8 @@ Ground rules:
   range in EUR. Otherwise leave empty.
 - Each candidate: concrete product title, shop name, the exact result URL, a
   one-line "why this fits" grounded in the idea.
-- Prefer product pages over category/home/aggregator pages.`
+- Prefer product pages over category/home/aggregator pages.
+${BUDGET_RULE}`
 
 export const CANDIDATE_SCHEMA = {
   type: 'object',
@@ -126,7 +148,7 @@ export interface CandidateInputRow {
 }
 
 export function buildCandidateUser(
-  ideaText: string,
+  idea: IdeaInput,
   summary: string,
   criteria: string[],
   results: CandidateInputRow[],
@@ -134,7 +156,7 @@ export function buildCandidateUser(
   const lines = results
     .map((r, i) => `${i + 1}. ${r.title} | ${r.url} | ${r.snippet}`)
     .join('\n')
-  return `Idea: "${ideaText}"
+  return `${describeIdea(idea)}
 Summary: ${summary || 'n/a'}
 Criteria: ${criteria.join('; ') || 'n/a'}
 
@@ -202,7 +224,8 @@ Ground rules:
   Leave it empty rather than invent one.
 - Rank best first. Final list: 3-5 distinct products. Do not pad with guesses.
 - Never invent URLs - only use the URLs provided in the candidates.
-- Mention delivery/stock only if the page evidence states it.`
+- Mention delivery/stock only if the page evidence states it.
+${BUDGET_RULE}`
 
 export const VERIFY_SCHEMA = {
   type: 'object',
@@ -237,7 +260,7 @@ export const VERIFY_SCHEMA = {
 } as const
 
 export interface Pass2Context {
-  ideaText: string
+  idea: IdeaInput
   summary: string
   criteria: string[]
   candidates: ResearchCandidate[]
@@ -274,7 +297,7 @@ export function buildVerifyUser(ctx: Pass2Context): string {
     ? `\nPages that could not be fetched:\n${ctx.fetchErrors.join('\n')}\n`
     : ''
 
-  return `Original idea: "${ctx.ideaText}"
+  return `${describeIdea(ctx.idea)}
 Discovery summary: ${ctx.summary || 'n/a'}
 Criteria: ${ctx.criteria.join('; ') || 'n/a'}
 

@@ -1,123 +1,194 @@
-import type { Idea, Pick } from '../../types'
+import { useId, useState } from 'react'
+import type { Idea, IdeaPatch } from '../../types'
+import { readCollapsed, writeCollapsed } from '../lib/storage'
+import { clockTime, formatEur, hostOf, timeAgo } from '../lib/format'
+import { BagIcon, ChevronIcon, ExternalIcon } from './icons'
+import { IdeaForm } from './IdeaForm'
+import { PickCard } from './PickCard'
 import { StatusBadge } from './StatusBadge'
-import { formatEur } from '../lib/format'
 
 interface Props {
   idea: Idea
   /** The worker's current step while this idea is being researched. */
   step: string | null
-  onRerun: () => void
-  onDelete: () => void
+  onPatch: (patch: IdeaPatch) => Promise<void>
+  onRerun: () => Promise<void>
+  onRemove: () => void
 }
 
-export function IdeaCard({ idea, step, onRerun, onDelete }: Props) {
+export function IdeaCard({ idea, step, onPatch, onRerun, onRemove }: Props) {
+  const [collapsed, setCollapsed] = useState(() => readCollapsed().has(idea.id))
+  const [editing, setEditing] = useState(false)
+  const bodyId = useId()
+  const busy = idea.status === 'researching'
+  const top = idea.picks[0]
+
+  const toggle = () => {
+    setCollapsed((was) => {
+      writeCollapsed(idea.id, !was)
+      return !was
+    })
+  }
+
   return (
-    <article className="idea">
+    <article className={`idea idea-${idea.list}`} aria-label={idea.text}>
       <header className="idea-head">
-        <p className="idea-text">{idea.text}</p>
+        <button type="button" className="idea-toggle" aria-expanded={!collapsed} aria-controls={bodyId} onClick={toggle}>
+          <h3 className="idea-text">{idea.text}</h3>
+          <ChevronIcon className={collapsed ? 'chevron' : 'chevron chevron-open'} />
+        </button>
         <div className="idea-meta">
-          <StatusBadge status={idea.status} />
-          <time className="idea-date" dateTime={idea.createdAt}>
-            {formatDate(idea.createdAt)}
+          {idea.list === 'wanted' && idea.status !== 'done' && (
+            <StatusBadge status={idea.status} retrying={!!idea.nextAttemptAt} />
+          )}
+          {idea.budget !== null && <span className="tag">up to {formatEur(idea.budget)}</span>}
+          <time className="idea-date" dateTime={idea.researchedAt ?? idea.createdAt}>
+            {idea.researchedAt ? `researched ${timeAgo(idea.researchedAt)}` : `added ${timeAgo(idea.createdAt)}`}
           </time>
         </div>
       </header>
 
-      {idea.error && idea.status === 'error' && (
-        <p className="idea-error" title={idea.error}>
-          {idea.error}
+      {collapsed ? (
+        <p className="idea-collapsed" id={bodyId}>
+          {idea.bought
+            ? `Bought ${idea.bought.title}`
+            : top
+              ? `Top pick: ${top.title}${top.price !== null ? ` · ${formatEur(top.price)}` : ''}`
+              : 'No picks yet'}
+          {idea.picks.length > 1 && !idea.bought ? ` · ${idea.picks.length} picks` : ''}
         </p>
-      )}
+      ) : (
+        <div className="idea-body" id={bodyId}>
+          {idea.notes && !editing && <p className="idea-notes">{idea.notes}</p>}
 
-      {idea.error && idea.status === 'queued' && idea.nextAttemptAt && (
-        <p className="idea-note" title={idea.error}>
-          Hit a snag, trying again around {formatTime(idea.nextAttemptAt)}. {idea.error}
-        </p>
-      )}
+          {idea.list === 'bought' && (
+            <p className="idea-bought">
+              <BagIcon />
+              {idea.bought ? (
+                <span>
+                  Bought <strong>{idea.bought.title}</strong>
+                  {idea.bought.shop ? ` at ${idea.bought.shop}` : ''}
+                  {idea.bought.price !== null ? ` for ${formatEur(idea.bought.price)}` : ''}
+                  {idea.bought.at ? `, ${timeAgo(idea.bought.at)}` : ''}.{' '}
+                  <a href={idea.bought.url} target="_blank" rel="noreferrer noopener">
+                    {hostOf(idea.bought.url)} <ExternalIcon />
+                  </a>
+                </span>
+              ) : (
+                <span>Bought something else.</span>
+              )}
+            </p>
+          )}
 
-      {idea.status === 'researching' && (
-        <p className="idea-note">{step ? `${step}…` : 'digging through shops and reviews…'}</p>
-      )}
+          <ResearchState idea={idea} step={step} />
 
-      {idea.picks.length > 0 && (
-        <ol className="picks">
-          {idea.picks.map((pick) => (
-            <PickRow key={pick.id} pick={pick} />
-          ))}
-        </ol>
-      )}
+          {idea.summary && (
+            <div className="brief">
+              <p className="brief-summary">{idea.summary}</p>
+              {idea.criteria.length > 0 && (
+                <ul className="brief-criteria" aria-label="What matters">
+                  {idea.criteria.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
-      <footer className="idea-actions">
-        {idea.status !== 'researching' && (
-          <button className="linklike" onClick={onRerun}>
-            research again
-          </button>
-        )}
-        <button className="linklike linklike-danger" onClick={onDelete}>
-          remove
-        </button>
-      </footer>
+          {idea.picks.length > 0 && (
+            <ol className="picks" aria-label={`Picks for ${idea.text}`}>
+              {idea.picks.map((pick) => (
+                <PickCard
+                  key={pick.id}
+                  pick={pick}
+                  budget={idea.budget}
+                  onBought={
+                    idea.list === 'wanted' ? () => void onPatch({ list: 'bought', boughtPickId: pick.id }) : undefined
+                  }
+                />
+              ))}
+            </ol>
+          )}
+
+          {editing ? (
+            <IdeaForm
+              initial={idea}
+              submitLabel="Save"
+              secondaryLabel={busy ? undefined : 'Save & research again'}
+              onCancel={() => setEditing(false)}
+              onSubmit={async (values, again) => {
+                await onPatch(values)
+                if (again) await onRerun()
+                setEditing(false)
+              }}
+            />
+          ) : (
+            <footer className="idea-actions">
+              {idea.list === 'wanted' ? (
+                <>
+                  <button type="button" className="btn-text" onClick={() => setEditing(true)}>
+                    edit
+                  </button>
+                  {!busy && (
+                    <button type="button" className="btn-text" onClick={() => void onRerun()}>
+                      research again
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-text"
+                    onClick={() => void onPatch({ list: 'bought', boughtPickId: null })}
+                  >
+                    bought something else
+                  </button>
+                  <button type="button" className="btn-text" onClick={() => void onPatch({ list: 'archived' })}>
+                    don't want it anymore
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="btn-text" onClick={() => void onPatch({ list: 'wanted' })}>
+                  want it again
+                </button>
+              )}
+              <button type="button" className="btn-text btn-danger" onClick={onRemove}>
+                remove
+              </button>
+            </footer>
+          )}
+        </div>
+      )}
     </article>
   )
 }
 
-function PickRow({ pick }: { pick: Pick }) {
-  const host = hostOf(pick.url)
-  return (
-    <li className="pick">
-      <span className={`pick-rank rank-${pick.rank <= 3 ? pick.rank : 'n'}`}>{pick.rank}</span>
-      <div className="pick-body">
-        <div className="pick-top">
-          <p className="pick-title">{pick.title}</p>
-          {pick.price !== null && <span className="pick-price">{formatEur(pick.price)}</span>}
-        </div>
-        {pick.why && <p className="pick-why">{pick.why}</p>}
-        <div className="pick-bottom">
-          <span className="pick-shop">{pick.shop}</span>
-          <a className="pick-link" href={pick.url} target="_blank" rel="noreferrer noopener">
-            open shop <span className="pick-host">{host}</span> ↗
-          </a>
-        </div>
-        {pick.suppliers.length > 1 && (
-          <ul className="pick-alts">
-            {pick.suppliers.slice(1).map((s) => (
-              <li key={s.url} className="pick-alt">
-                <span className="pick-alt-label">also at</span>
-                <a className="pick-alt-shop" href={s.url} target="_blank" rel="noreferrer noopener">
-                  {s.shop} {hostOf(s.url)}
-                </a>
-                {s.price !== null && <span className="pick-alt-price">{formatEur(s.price)}</span>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </li>
-  )
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return ''
+function ResearchState({ idea, step }: { idea: Idea; step: string | null }) {
+  if (idea.list !== 'wanted') return null
+  if (idea.status === 'researching') {
+    return (
+      <p className="idea-note" role="status">
+        <span className="pulse" aria-hidden="true" />
+        {step ? `${step}…` : 'Digging through shops and reviews…'}
+        {idea.picks.length > 0 && ' The picks below stay until the new ones are in.'}
+      </p>
+    )
   }
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
-function formatTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return 'later'
-  const sameDay = d.toDateString() === new Date().toDateString()
-  return d.toLocaleString(
-    undefined,
-    sameDay
-      ? { hour: '2-digit', minute: '2-digit' }
-      : { weekday: 'short', hour: '2-digit', minute: '2-digit' },
-  )
+  if (idea.status === 'queued' && idea.nextAttemptAt) {
+    return (
+      <p className="idea-note" title={idea.error ?? undefined}>
+        Hit a snag; trying again around {clockTime(idea.nextAttemptAt)}.
+        {idea.error && <span className="idea-note-detail"> {idea.error}</span>}
+      </p>
+    )
+  }
+  if (idea.status === 'queued') {
+    return <p className="idea-note">Waiting for the researcher. Results usually take a minute or two.</p>
+  }
+  if (idea.status === 'error') {
+    return (
+      <p className="idea-error" role="alert">
+        Research stopped: {idea.error ?? 'unknown error'}
+      </p>
+    )
+  }
+  return null
 }

@@ -140,6 +140,8 @@ export function createWorker(opts: WorkerOptions): Worker {
         const result = await engine.research({
           ideaId: id,
           text: idea.text,
+          budget: idea.budget,
+          notes: idea.notes,
           onProgress: (step) => {
             if (state.current?.ideaId === id) state.current = { ideaId: id, step }
           },

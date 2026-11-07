@@ -135,8 +135,28 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   404/410, a bounce to the home page, or a "not found" title count as
   **dead**; 401/403/429/5xx are bot walls or shop trouble and count as
   unknown, so big marketplaces are not dropped. Never throws.
-- `src/client/` — React UI: capture box + check-in list, polls every 8 s; a
-  banner names the missing keys when research is disabled.
+- `src/client/` — React UI. `App.tsx`: capture form, Wanted / Bought /
+  Archived tabs, filter (more than 8 ideas), worker chip (researching / queue /
+  out of quota until… / research off), undo toast. `hooks/useIdeas.ts` owns
+  all server state: polls every 5 s while research is queued or running, else
+  every 60 s, and on tab focus; a removal is hidden at once and only DELETEd
+  after a 6 s undo window (flushed with `keepalive` on `pagehide`).
+  `components/IdeaCard.tsx` (collapsible, collapse remembered in
+  localStorage via `lib/storage.ts`), `PickCard.tsx` (checked price ✓ vs "≈"
+  search price, stock, rating, caveat, other shops, "I bought this"),
+  `IdeaForm.tsx` (shared by capture and edit; Enter submits, Shift+Enter is a
+  new line; `parseBudget` mirrors the server's limits). Styles: CSS tokens in
+  `styles.css` (dark default, light via `prefers-color-scheme`); new styles
+  use the `--*` tokens, never hardcoded colors. Client tests sit next to the
+  code (`*.test.tsx`, jsdom) and drive the real hook and components against
+  an in-memory API (`src/client/test/fakeApi.ts`).
+- **Lists vs research status.** `list` (wanted / bought / archived) is the
+  user's side and independent of `status`; only `wanted` ideas are
+  researched (`dueIdeaIds`), and re-running moves an idea back to wanted.
+  `PATCH /api/ideas/:id` edits text / budget / notes / list; moving to
+  bought with `boughtPickId` stores a snapshot of that pick (picks are
+  replaced on re-research), `boughtPickId: null` = bought something else.
+  Budget and notes reach every prompt (`describeIdea` in `prompts.ts`).
 - `scripts/spike.ts` — run the research engine against a real key without the
   UI: `npm run spike "some idea"`.
 

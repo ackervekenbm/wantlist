@@ -1,13 +1,25 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express'
-import type { ModelHealth, ServerStatus } from '../types'
+import type { IdeaList, IdeaPatch, ModelHealth, NewIdea, ServerStatus } from '../types'
 import type { WlDb } from './db'
-import { countQueued, createIdea, deleteIdea, getIdea, listIdeas, requeueIdea } from './db'
+import {
+  PatchError,
+  countQueued,
+  createIdea,
+  deleteIdea,
+  getIdea,
+  listIdeas,
+  requeueIdea,
+  updateIdea,
+} from './db'
 import type { Worker } from './worker'
 
 /** Longest idea text the API accepts (the capture box enforces the same). */
 export const MAX_IDEA_LENGTH = 500
+export const MAX_NOTES_LENGTH = 500
+export const MAX_BUDGET_EUR = 1_000_000
+const LISTS: readonly IdeaList[] = ['wanted', 'bought', 'archived']
 
 export interface AppOptions {
   db: WlDb
@@ -60,15 +72,28 @@ export function createApp(opts: AppOptions): express.Express {
   })
 
   app.post('/api/ideas', (req, res) => {
-    const raw: unknown = req.body?.text
-    const text = typeof raw === 'string' ? raw.trim() : ''
-    if (!text) return badRequest(res, 'text is required')
-    if (text.length > MAX_IDEA_LENGTH) {
-      return badRequest(res, `text is longer than ${MAX_IDEA_LENGTH} characters`)
-    }
-    const id = createIdea(db, text)
+    const parsed = parseNewIdea(req.body)
+    if (typeof parsed === 'string') return badRequest(res, parsed)
+    const id = createIdea(db, parsed)
     worker.kick()
     res.status(201).json(getIdea(db, id))
+  })
+
+  app.patch('/api/ideas/:id', (req, res) => {
+    const id = ideaId(req, res)
+    if (id === null) return
+    const patch = parsePatch(req.body)
+    if (typeof patch === 'string') return badRequest(res, patch)
+    try {
+      const idea = updateIdea(db, id, patch)
+      if (!idea) return notFound(res)
+      // Back on the wanted list with research still pending: pick it up.
+      if (patch.list === 'wanted' && idea.status === 'queued') worker.kick()
+      res.json(idea)
+    } catch (err) {
+      if (err instanceof PatchError) return badRequest(res, err.message)
+      throw err
+    }
   })
 
   app.delete('/api/ideas/:id', (req, res) => {
@@ -133,6 +158,87 @@ function serveClient(app: express.Express, distDir: string | undefined): void {
     res.setHeader('Cache-Control', 'no-cache')
     res.sendFile(indexFile)
   })
+}
+
+// ---------------------------------------------------------------------------
+// Body validation: each returns the parsed value or an error message.
+// ---------------------------------------------------------------------------
+
+type Body = Record<string, unknown>
+
+function asBody(body: unknown): Body {
+  return body && typeof body === 'object' && !Array.isArray(body) ? (body as Body) : {}
+}
+
+function parseText(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw.trim()) return 'text is required'
+  if (raw.trim().length > MAX_IDEA_LENGTH) return `text is longer than ${MAX_IDEA_LENGTH} characters`
+  return ''
+}
+
+/** null clears; a number must be a sensible amount of euros. */
+function parseBudget(raw: unknown): number | null | string {
+  if (raw === null || raw === '') return null
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0 || raw > MAX_BUDGET_EUR) {
+    return `budget must be a number of euros between 0 and ${MAX_BUDGET_EUR}`
+  }
+  return Math.round(raw * 100) / 100
+}
+
+function parseNotes(raw: unknown): string | null | { error: string } {
+  if (raw === null) return null
+  if (typeof raw !== 'string') return { error: 'notes must be text' }
+  if (raw.trim().length > MAX_NOTES_LENGTH) return { error: `notes are longer than ${MAX_NOTES_LENGTH} characters` }
+  return raw.trim() || null
+}
+
+function parseNewIdea(body: unknown): NewIdea | string {
+  const b = asBody(body)
+  const textError = parseText(b.text)
+  if (textError) return textError
+  const idea: NewIdea = { text: (b.text as string).trim() }
+  if (b.budget !== undefined) {
+    const budget = parseBudget(b.budget)
+    if (typeof budget === 'string') return budget
+    idea.budget = budget
+  }
+  if (b.notes !== undefined) {
+    const notes = parseNotes(b.notes)
+    if (notes && typeof notes === 'object') return notes.error
+    idea.notes = notes
+  }
+  return idea
+}
+
+function parsePatch(body: unknown): IdeaPatch | string {
+  const b = asBody(body)
+  const patch: IdeaPatch = {}
+  if (b.text !== undefined) {
+    const textError = parseText(b.text)
+    if (textError) return textError
+    patch.text = (b.text as string).trim()
+  }
+  if (b.budget !== undefined) {
+    const budget = parseBudget(b.budget)
+    if (typeof budget === 'string') return budget
+    patch.budget = budget
+  }
+  if (b.notes !== undefined) {
+    const notes = parseNotes(b.notes)
+    if (notes && typeof notes === 'object') return notes.error
+    patch.notes = notes
+  }
+  if (b.list !== undefined) {
+    if (!LISTS.includes(b.list as IdeaList)) return `list must be one of ${LISTS.join(', ')}`
+    patch.list = b.list as IdeaList
+  }
+  if (b.boughtPickId !== undefined) {
+    if (patch.list !== 'bought') return 'boughtPickId goes with list "bought"'
+    if (b.boughtPickId !== null && !Number.isSafeInteger(b.boughtPickId)) return 'boughtPickId must be a pick id'
+    patch.boughtPickId = b.boughtPickId as number | null
+  }
+  if (Object.keys(patch).length === 0) return 'nothing to change'
+  return patch
 }
 
 function ideaId(req: Request, res: Response): number | null {

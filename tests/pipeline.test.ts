@@ -30,8 +30,10 @@ function pages(byUrl: Record<string, Partial<Page>>) {
 class StepModel implements LlmProvider {
   readonly id = 'fake'
   verifyPrompt = ''
+  prompts: string[] = []
   constructor(private readonly answers: { plan?: unknown; candidates?: unknown; verify?: unknown }) {}
   async generate(args: GenerateArgs): Promise<unknown> {
+    this.prompts.push(args.contents)
     if (args.systemInstruction.includes('planning step')) {
       return this.answers.plan ?? { summary: 'a fan', criteria: ['quiet'], searchQueries: ['indoor cycling fan'] }
     }
@@ -114,6 +116,23 @@ describe('PipelineEngine', () => {
       'checking the evidence',
       'checking 2 offers at the shops',
     ])
+  })
+
+  it('gives every step the budget and notes', async () => {
+    const model = new StepModel({})
+    await engine(model, search(() => HITS)).research({ ideaId: 1, text: 'fan', budget: 150, notes: 'white, quiet' })
+    expect(model.prompts).toHaveLength(3)
+    for (const prompt of model.prompts) {
+      expect(prompt).toContain('Idea: "fan"')
+      expect(prompt).toContain('Budget: at most EUR 150')
+      expect(prompt).toContain('User notes (must-haves, constraints): white, quiet')
+    }
+  })
+
+  it('leaves budget and notes out when there are none', async () => {
+    const model = new StepModel({})
+    await engine(model, search(() => HITS)).research({ ideaId: 1, text: 'fan', budget: null, notes: null })
+    expect(model.prompts.join('\n')).not.toMatch(/Budget:|User notes/)
   })
 
   it('fetches each page once, reusing verification reads for the offer check', async () => {

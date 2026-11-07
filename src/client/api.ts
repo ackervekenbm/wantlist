@@ -1,4 +1,4 @@
-import type { Idea, ServerStatus } from '../types'
+import type { Idea, IdeaPatch, NewIdea, ServerStatus } from '../types'
 
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
@@ -10,20 +10,30 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
+const json = (method: string, body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+})
+
 export function listIdeas(): Promise<Idea[]> {
   return req('/api/ideas')
 }
 
-export function addIdea(text: string): Promise<Idea> {
-  return req('/api/ideas', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
-  })
+export function addIdea(idea: NewIdea): Promise<Idea> {
+  return req('/api/ideas', json('POST', idea))
 }
 
-export function deleteIdea(id: number): Promise<void> {
-  return req(`/api/ideas/${id}`, { method: 'DELETE' })
+export function patchIdea(id: number, patch: IdeaPatch): Promise<Idea> {
+  return req(`/api/ideas/${id}`, json('PATCH', patch))
+}
+
+/**
+ * `keepalive` lets a delete that was waiting out its undo window finish
+ * while the tab closes.
+ */
+export function deleteIdea(id: number, opts: { keepalive?: boolean } = {}): Promise<void> {
+  return req(`/api/ideas/${id}`, { method: 'DELETE', keepalive: opts.keepalive })
 }
 
 export function rerunIdea(id: number): Promise<Idea> {

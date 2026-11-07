@@ -9,6 +9,24 @@ export type IdeaStatus = 'queued' | 'researching' | 'done' | 'error'
 
 export type UrlStatus = 'live' | 'dead' | 'unknown'
 
+/**
+ * Where the idea sits for you, independent of research:
+ * wanted   - still deciding (the only list the worker researches)
+ * bought   - done; `bought` records what you bought
+ * archived - no longer wanted
+ */
+export type IdeaList = 'wanted' | 'bought' | 'archived'
+
+/** A snapshot of the pick you bought; picks are replaced on re-research. */
+export interface BoughtPick {
+  title: string
+  shop: string | null
+  url: string
+  price: number | null
+  /** ISO-8601. */
+  at: string
+}
+
 export type Availability = 'in_stock' | 'out_of_stock' | 'preorder' | 'unknown'
 
 /** One shop's offer for a product. */
@@ -59,6 +77,12 @@ export interface ResearchBrief {
 export interface Idea {
   id: number
   text: string
+  /** Most you want to spend, in EUR. Steers the research. */
+  budget: number | null
+  /** Must-haves, constraints, context ("for a small flat", "no subscription"). */
+  notes: string | null
+  list: IdeaList
+  bought: BoughtPick | null
   status: IdeaStatus
   /** ISO-8601 (UTC). */
   createdAt: string
@@ -144,10 +168,29 @@ export interface ResearchResult {
 export interface ResearchRequest {
   ideaId: number
   text: string
+  budget?: number | null
+  notes?: string | null
   /** Called with a short human-readable step ("searching shops", ...). */
   onProgress?: (step: string) => void
 }
 
 export interface ResearchEngine {
   research(request: ResearchRequest): Promise<ResearchResult>
+}
+
+/** Body of POST /api/ideas. */
+export interface NewIdea {
+  text: string
+  budget?: number | null
+  notes?: string | null
+}
+
+/** Body of PATCH /api/ideas/:id; every field optional. */
+export interface IdeaPatch {
+  text?: string
+  budget?: number | null
+  notes?: string | null
+  list?: IdeaList
+  /** With list 'bought': the pick you bought, or null when it was none of them. */
+  boughtPickId?: number | null
 }

@@ -2,6 +2,7 @@ import path from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import {
+  PatchError,
   SCHEMA_VERSION,
   claimIdea,
   completeIdea,
@@ -16,6 +17,7 @@ import {
   openDb,
   recoverInterrupted,
   requeueIdea,
+  updateIdea,
 } from '../src/server/db'
 import { finalPicks, researchResult, tempDb, tempDir } from './helpers'
 
@@ -153,6 +155,51 @@ describe('failures and retries', () => {
     claimIdea(db, a)
     expect(recoverInterrupted(db)).toBe(1)
     expect(dueIdeaIds(db, 10, now)).toEqual([a, b])
+  })
+})
+
+describe('lists', () => {
+  const now = new Date('2026-11-07T12:00:00Z')
+
+  it('stores budget and notes, and starts on the wanted list', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, { text: 'shoes', budget: 120, notes: ' wide ' })
+    expect(getIdea(db, id)).toMatchObject({ budget: 120, notes: 'wide', list: 'wanted', bought: null })
+  })
+
+  it('researches only the wanted list', () => {
+    const { db } = tempDb()
+    const a = createIdea(db, 'a')
+    const b = createIdea(db, 'b')
+    updateIdea(db, b, { list: 'archived' })
+    expect(dueIdeaIds(db, 10, now)).toEqual([a])
+    expect(countQueued(db)).toBe(1)
+    updateIdea(db, b, { list: 'wanted' })
+    expect(dueIdeaIds(db, 10, now)).toEqual([a, b])
+  })
+
+  it('re-researching a bought idea puts it back on the wanted list', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'a')
+    completeIdea(db, id, researchResult())
+    updateIdea(db, id, { list: 'bought', boughtPickId: getIdea(db, id)!.picks[0].id })
+    requeueIdea(db, id)
+    expect(getIdea(db, id)).toMatchObject({ list: 'wanted', bought: null, status: 'queued' })
+  })
+
+  it('rejects a bought pick from another idea and leaves the idea untouched', () => {
+    const { db } = tempDb()
+    const a = createIdea(db, 'a')
+    const b = createIdea(db, 'b')
+    completeIdea(db, b, researchResult())
+    const foreign = getIdea(db, b)!.picks[0].id
+    expect(() => updateIdea(db, a, { list: 'bought', boughtPickId: foreign, notes: 'x' })).toThrow(PatchError)
+    expect(getIdea(db, a)).toMatchObject({ list: 'wanted', notes: null })
+  })
+
+  it('returns null for an unknown idea', () => {
+    const { db } = tempDb()
+    expect(updateIdea(db, 42, { list: 'archived' })).toBeNull()
   })
 })
 

@@ -1,7 +1,19 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
-import type { Availability, Idea, IdeaStatus, Pick, PickSupplier, Rating, ResearchResult } from '../types'
+import type {
+  Availability,
+  BoughtPick,
+  Idea,
+  IdeaList,
+  IdeaPatch,
+  IdeaStatus,
+  NewIdea,
+  Pick,
+  PickSupplier,
+  Rating,
+  ResearchResult,
+} from '../types'
 import { parsePriceEur } from './research/product'
 
 export type WlDb = Database.Database
@@ -63,6 +75,13 @@ const MIGRATIONS: Array<(db: WlDb) => void> = [
     addColumn(db, 'picks', 'image', 'TEXT')
     addColumn(db, 'picks', 'rating', 'TEXT')
   },
+  // 4 - your side of an idea: budget, notes, and which list it sits on
+  (db) => {
+    addColumn(db, 'ideas', 'budget', 'REAL')
+    addColumn(db, 'ideas', 'notes', 'TEXT')
+    addColumn(db, 'ideas', 'list', `TEXT NOT NULL DEFAULT 'wanted' CHECK (list IN ('wanted','bought','archived'))`)
+    addColumn(db, 'ideas', 'bought', 'TEXT')
+  },
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
@@ -91,6 +110,10 @@ function addColumn(db: WlDb, table: string, column: string, type: string): void 
 interface IdeaRow {
   id: number
   text: string
+  budget: number | null
+  notes: string | null
+  list: IdeaList
+  bought: string | null
   status: IdeaStatus
   createdAt: string
   researchedAt: string | null
@@ -118,7 +141,7 @@ interface PickRow {
   suppliers: string | null
 }
 
-const IDEA_COLUMNS = `id, text, status, created_at AS createdAt, researched_at AS researchedAt,
+const IDEA_COLUMNS = `id, text, budget, notes, list, bought, status, created_at AS createdAt, researched_at AS researchedAt,
   error, attempts, next_attempt_at AS nextAttemptAt, summary, criteria`
 
 const PICK_COLUMNS = `id, idea_id AS ideaId, rank, title, shop, url, price, why, caveat, image, rating,
@@ -148,17 +171,25 @@ export function getIdea(db: WlDb, id: number): Idea | null {
   return toIdea(row, picks.map(toPick))
 }
 
-/** Ideas waiting for the worker, scheduled retries included. */
+/** Wanted ideas waiting for the worker, scheduled retries included. */
 export function countQueued(db: WlDb): number {
-  return (db.prepare(`SELECT COUNT(*) AS n FROM ideas WHERE status = 'queued'`).get() as { n: number }).n
+  return (
+    db.prepare(`SELECT COUNT(*) AS n FROM ideas WHERE status = 'queued' AND list = 'wanted'`).get() as {
+      n: number
+    }
+  ).n
 }
 
-/** Queued ideas whose retry (if any) is due at `now`, oldest first. */
+/**
+ * Queued ideas whose retry (if any) is due at `now`, oldest first. Only the
+ * wanted list is researched: bought and archived ideas keep their place in
+ * the queue but wait until they are wanted again.
+ */
 export function dueIdeaIds(db: WlDb, cap: number, now: Date): number[] {
   const rows = db
     .prepare(
       `SELECT id FROM ideas
-       WHERE status = 'queued' AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+       WHERE status = 'queued' AND list = 'wanted' AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
        ORDER BY id ASC LIMIT ?`,
     )
     .all(now.toISOString(), cap) as Array<{ id: number }>
@@ -170,7 +201,7 @@ export function nextScheduledAttempt(db: WlDb, now: Date): Date | null {
   const row = db
     .prepare(
       `SELECT MIN(next_attempt_at) AS at FROM ideas
-       WHERE status = 'queued' AND next_attempt_at > ?`,
+       WHERE status = 'queued' AND list = 'wanted' AND next_attempt_at > ?`,
     )
     .get(now.toISOString()) as { at: string | null }
   return row.at ? new Date(row.at) : null
@@ -180,9 +211,53 @@ export function nextScheduledAttempt(db: WlDb, now: Date): Date | null {
 // Writes
 // ---------------------------------------------------------------------------
 
-export function createIdea(db: WlDb, text: string): number {
-  const info = db.prepare('INSERT INTO ideas (text) VALUES (?)').run(text.trim())
+export function createIdea(db: WlDb, idea: string | NewIdea): number {
+  const { text, budget = null, notes = null } = typeof idea === 'string' ? { text: idea } : idea
+  const info = db
+    .prepare('INSERT INTO ideas (text, budget, notes) VALUES (?, ?, ?)')
+    .run(text.trim(), budget, notes?.trim() || null)
   return Number(info.lastInsertRowid)
+}
+
+export class PatchError extends Error {}
+
+/**
+ * Applies an edit (already validated for shape by the API). Moving to
+ * 'bought' snapshots the chosen pick, which must belong to this idea
+ * (`boughtPickId: null` = bought something else, no snapshot); moving
+ * anywhere else clears the snapshot. Returns null for an unknown idea.
+ */
+export function updateIdea(db: WlDb, id: number, patch: IdeaPatch, now = new Date()): Idea | null {
+  return db.transaction(() => {
+    const idea = getIdea(db, id)
+    if (!idea) return null
+    const sets: string[] = []
+    const values: unknown[] = []
+    const set = (column: string, value: unknown) => {
+      sets.push(`${column} = ?`)
+      values.push(value)
+    }
+    if (patch.text !== undefined) set('text', patch.text.trim())
+    if (patch.budget !== undefined) set('budget', patch.budget)
+    if (patch.notes !== undefined) set('notes', patch.notes?.trim() || null)
+    if (patch.list !== undefined) {
+      set('list', patch.list)
+      let bought: BoughtPick | null = null
+      if (patch.list === 'bought' && patch.boughtPickId != null) {
+        const pick = idea.picks.find((p) => p.id === patch.boughtPickId)
+        if (!pick) throw new PatchError('that pick does not belong to this idea')
+        bought = { title: pick.title, shop: pick.shop, url: pick.url, price: pick.price, at: now.toISOString() }
+      } else if (patch.list === 'bought' && patch.boughtPickId === undefined) {
+        // Moving to bought without naming a pick keeps an earlier snapshot.
+        bought = idea.bought
+      }
+      set('bought', bought ? JSON.stringify(bought) : null)
+    }
+    if (sets.length > 0) {
+      db.prepare(`UPDATE ideas SET ${sets.join(', ')} WHERE id = ?`).run(...values, id)
+    }
+    return getIdea(db, id)
+  })()
 }
 
 /** Deletes an idea and its picks; false when it did not exist. */
@@ -260,15 +335,17 @@ export function failIdea(
 }
 
 /**
- * Manual re-run: back to the queue now, with a clean retry budget. Current
- * picks stay visible until the new research replaces them. Ignored (false)
- * while the idea is being researched.
+ * Manual re-run: back to the queue now, with a clean retry budget, and back
+ * on the wanted list (researching it again means you want it). Current picks
+ * stay visible until the new research replaces them. Ignored (false) while
+ * the idea is being researched.
  */
 export function requeueIdea(db: WlDb, id: number): boolean {
   return (
     db
       .prepare(
-        `UPDATE ideas SET status = 'queued', error = NULL, attempts = 0, next_attempt_at = NULL
+        `UPDATE ideas SET status = 'queued', error = NULL, attempts = 0, next_attempt_at = NULL,
+           list = 'wanted', bought = NULL
          WHERE id = ? AND status != 'researching'`,
       )
       .run(id).changes > 0
@@ -293,6 +370,7 @@ function toIdea(row: IdeaRow, picks: Pick[]): Idea {
     createdAt: toIso(row.createdAt) as string,
     researchedAt: toIso(row.researchedAt),
     criteria: parseStrings(row.criteria),
+    bought: parseBought(row.bought),
     picks,
   }
 }
@@ -324,6 +402,23 @@ function parseStrings(raw: string | null): string[] {
 }
 
 const AVAILABILITY = new Set<unknown>(['in_stock', 'out_of_stock', 'preorder', 'unknown'])
+
+function parseBought(raw: string | null): BoughtPick | null {
+  if (!raw) return null
+  try {
+    const b = JSON.parse(raw) as Partial<BoughtPick>
+    if (typeof b?.title !== 'string' || typeof b.url !== 'string') return null
+    return {
+      title: b.title,
+      shop: typeof b.shop === 'string' ? b.shop : null,
+      url: b.url,
+      price: typeof b.price === 'number' ? b.price : null,
+      at: typeof b.at === 'string' ? b.at : '',
+    }
+  } catch {
+    return null
+  }
+}
 
 function parseRating(raw: string | null): Rating | null {
   if (!raw) return null

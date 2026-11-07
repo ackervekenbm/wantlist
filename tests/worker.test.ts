@@ -79,6 +79,14 @@ describe('worker', () => {
     expect(getIdea(db, a)?.picks).toHaveLength(2)
   })
 
+  it('passes budget and notes to the engine', async () => {
+    const { db } = tempDb()
+    createIdea(db, { text: 'shoes', budget: 99, notes: 'wide' })
+    const engine = engineOf(async () => researchResult())
+    await makeWorker({ db, engine }).runOnce()
+    expect(engine.calls[0]).toMatchObject({ text: 'shoes', budget: 99, notes: 'wide' })
+  })
+
   it('respects the per-pass cap', async () => {
     const { db } = tempDb()
     createIdea(db, 'a')

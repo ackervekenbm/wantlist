@@ -57,7 +57,7 @@ export class PipelineEngine implements ResearchEngine {
     const plan = await router.generate(
       {
         systemInstruction: QUERY_SYSTEM,
-        contents: buildQueryUser(request.text),
+        contents: buildQueryUser(request),
         schema: QUERY_SCHEMA,
         temperature: 0.4,
       },
@@ -74,7 +74,7 @@ export class PipelineEngine implements ResearchEngine {
     const pass1 = await router.generate(
       {
         systemInstruction: CANDIDATE_SYSTEM,
-        contents: buildCandidateUser(request.text, plan.summary, plan.criteria, results),
+        contents: buildCandidateUser(request, plan.summary, plan.criteria, results),
         schema: CANDIDATE_SCHEMA,
         temperature: 0.3,
       },
@@ -105,7 +105,7 @@ export class PipelineEngine implements ResearchEngine {
       {
         systemInstruction: VERIFY_SYSTEM,
         contents: buildVerifyUser({
-          ideaText: request.text,
+          idea: request,
           summary: plan.summary,
           criteria: plan.criteria,
           candidates: pass1.candidates,
