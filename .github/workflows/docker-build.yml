@@ -1,57 +1,164 @@
-name: docker-build
+name: Build & publish image
 
 on:
   push:
     branches: [main]
     paths:
-      - 'src/**'
       - 'Dockerfile'
+      - '.dockerignore'
+      - '.npmrc'
       - 'package.json'
       - 'package-lock.json'
-      - 'vite.config.ts'
+      - 'index.html'
+      - 'public/**'
+      - 'src/**'
       - 'tsconfig*.json'
+      - 'vite.config.mts'
+      - 'eslint.config.mjs'
+      - '.github/workflows/docker-build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.npmrc'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'index.html'
+      - 'public/**'
+      - 'src/**'
+      - 'tsconfig*.json'
+      - 'vite.config.mts'
+      - 'eslint.config.mjs'
       - '.github/workflows/docker-build.yml'
   workflow_dispatch:
 
-concurrency:
-  group: docker-build
-  cancel-in-progress: false
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  check:
+  smoke:
+    name: smoke
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v7
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
+          context: .
+          load: true
+          tags: wantlist:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # No API keys: the server must still boot and serve, with research off.
+      - name: Boot container
+        run: docker run -d --name smoke -p 8091:3000 wantlist:smoke
+
+      - name: Wait for /api/health
+        run: |
+          set -e
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8091/api/health | grep -q '"ok":true'; then
+              echo "healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::server did not become healthy in 60s"
+          exit 1
+
+      - name: Assert API and cache headers
+        run: |
+          set -e
+          curl -fsS http://127.0.0.1:8091/api/ideas | grep -q '^\['
+          curl -fsSI http://127.0.0.1:8091/ | grep -qi '^cache-control: no-cache'
+          asset=$(curl -fsS http://127.0.0.1:8091/ | grep -o '/assets/[^"]*\.js' | head -1)
+          echo "checking $asset"
+          test -n "$asset"
+          curl -fsSI "http://127.0.0.1:8091$asset" | grep -qi '^cache-control: public, max-age=31536000, immutable'
+          echo "ok"
+
+      - name: Dump container logs
+        if: failure()
+        run: docker logs smoke
 
   build:
-    needs: check
+    # Each architecture builds natively (no QEMU): amd64 on the x86 runner,
+    # arm64 on GitHub's arm64 runner. Publishing happens from main only, so a
+    # manual run from another branch stops after smoke.
+    needs: smoke
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (${{ matrix.platform }})
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: ${{ matrix.platform }}
+          # Plain single-arch images so the manifest job can combine them.
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ env.IMAGE }}:latest-${{ matrix.arch }}
+            ${{ env.IMAGE }}:${{ github.sha }}-${{ matrix.arch }}
+
+  manifest:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/ackervekenbm/wantlist:latest
-            ghcr.io/ackervekenbm/wantlist:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+
+      - name: Create and push multi-arch manifest
+        run: |
+          set -e
+          IMAGE="${{ env.IMAGE }}"
+          SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          docker manifest create "$IMAGE:latest" \
+            --amend "$IMAGE:latest-amd64" \
+            --amend "$IMAGE:latest-arm64"
+          docker manifest push "$IMAGE:latest"
+          docker manifest create "$IMAGE:$SHA_SHORT" \
+            --amend "$IMAGE:${{ github.sha }}-amd64" \
+            --amend "$IMAGE:${{ github.sha }}-arm64"
+          docker manifest push "$IMAGE:$SHA_SHORT"

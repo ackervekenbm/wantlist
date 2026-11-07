@@ -92,9 +92,23 @@ app.post('/api/worker/run', async (_req, res) => {
 const distDir = path.join(process.cwd(), 'dist')
 const indexFile = path.join(distDir, 'index.html')
 if (fs.existsSync(indexFile)) {
-  app.use(express.static(distDir))
+  // Vite fingerprints everything under /assets, so those never change; the
+  // app shell must always be revalidated so a redeploy shows up on refresh.
+  app.use(
+    express.static(distDir, {
+      setHeaders(res, filePath) {
+        res.setHeader(
+          'Cache-Control',
+          filePath.includes(`${path.sep}assets${path.sep}`)
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache',
+        )
+      },
+    }),
+  )
   app.get(/.*/, (req, res, next) => {
     if (req.path.startsWith('/api')) return next()
+    res.setHeader('Cache-Control', 'no-cache')
     res.sendFile(indexFile)
   })
 }

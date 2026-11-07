@@ -18,10 +18,25 @@ npm run build     # = typecheck && lint && vite build && tsc -p tsconfig.server.
 npm test          # vitest unit tests (tests/, node env)
 ```
 
+Installs are **script-free**: `.npmrc` sets `ignore-scripts=true`.
+`better-sqlite3` ships `prebuilds/<platform>.node` (glibc + musl, amd64 +
+arm64), so nothing needs compiling, but npm would otherwise run its legacy
+implicit `node-gyp rebuild` on every install, which wants python3/make/g++ and
+discards the shipped binary. The Dockerfile relies on this; a dependency that
+genuinely needs an install script cannot be added without revisiting `.npmrc`.
+
+The server compiles with `tsc` (CommonJS) into `dist-server/server/` — `rootDir`
+is `src/` because the server imports `src/types/` — so the entry point is
+`dist-server/server/index.js` (`npm start`, the Dockerfile `CMD`).
+
 **Verification for every change is `npm run build && npm test`.** CI runs the
-`check` job (`npm ci && npm run build && npm test`) in
-`.github/workflows/docker-build.yml`, then publishes the multi-arch Docker
-image to GHCR on `main`. A green `check` is required to merge.
+`check` job (`npm ci && npm run build && npm test`, `.github/workflows/ci.yml`)
+on every PR and push to `main`. PRs that touch the image also run the
+**smoke** job (`.github/workflows/docker-build.yml`): build the image, boot it
+without API keys, poll `/api/health`, and assert `/api/ideas` and the
+cache headers (app shell `no-cache`, `/assets/*` immutable). On `main` the image
+is then built natively per arch (amd64 + arm64 runners, no QEMU) and combined
+into the multi-arch `ghcr.io/ackervekenbm/wantlist:latest` / `:<sha7>`.
 
 ## Issue-first workflow (MANDATORY)
 
@@ -86,9 +101,12 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 
 ## Dependencies / Dependabot
 
-- Dependabot majors stay enabled. The `better-sqlite3` native module pins the
-  runtime image to Debian-based (`node:22-slim`), so majors that change the
-  native ABI must be verified by CI before merge.
+- Dependabot majors stay enabled. The `typescript` major is ignored in
+  `.github/dependabot.yml` (TypeScript 7 is outside typescript-eslint's peer
+  range); lift it once typescript-eslint supports it.
+- The runtime image is `node:22-alpine` and installs production dependencies
+  only; `better-sqlite3` majors that change the native ABI or drop a musl
+  prebuild are caught by the smoke job before merge.
 
 ## Deployment
 

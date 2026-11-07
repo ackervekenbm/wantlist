@@ -66,7 +66,7 @@ SERPER_API_KEY=...your-serper-key...
 
 Keys (both free, no card):
 - **Gemini**: https://aistudio.google.com/apikey
-2. **Serper** (search layer, 2,500 one-time free search credits): https://serper.dev
+- **Serper** (search layer, 2,500 one-time free search credits): https://serper.dev
 
 Optional fallback keys (free, no card) append to the model fallback chain when
 Gemini's daily quota is spent: `GROQ_API_KEY` (https://console.groq.com/keys)
@@ -96,7 +96,7 @@ LAN: **http://<pi-ip>:8091**
 | **Pull** fails with an auth error | Re-run the GHCR login from step 2, then Pull → Up again |
 | Container starts but ideas stay `queued` | Check both keys are set: `sudo docker exec wantlist printenv GEMINI_API_KEY SERPER_API_KEY` (non-empty). The server logs a warning at boot when either is missing |
 | Research errors on an idea | The card shows the reason; `POST /api/ideas/:id/rerun` (or the *research again* button) requeues it |
-| Gemnn/API 429 rate limits | Expected on free tier when the daily request quota is spent (fresh projects start at 20 req/day/model, grows with maturity); ideas go to `error` with the rate-limit message, re-run later. Monitor: `https://ai.dev/rate-limit` |
+| Gemini API 429 rate limits | Expected on free tier when the daily request quota is spent (fresh projects start at 20 req/day/model, grows with maturity); ideas go to `error` with the rate-limit message, re-run later. Monitor: `https://ai.dev/rate-limit` |
 | Logs | `sudo docker logs wantlist` |
 | Query the API directly | `curl http://<pi-ip>:8091/api/health` → `{"ok":true}`; inspect state at `/api/status` and `/api/ideas` |
 

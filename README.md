@@ -11,7 +11,7 @@ prices, reasons, and live links. Summarized in English. Costs nothing.
 ```bash
 npm install
 cp .env.example .env        # add your free GEMINI_API_KEY (aistudio.google.com/apikey)
-npm run dev                 # server on :3000, UI on :5173
+npm run dev                 # API on :3091, UI on :5174 (open this one)
 ```
 
 `npm run spike "your idea here"` runs the two-pass research engine directly
