@@ -1,5 +1,6 @@
-import { parseJsonLoose } from './gemini'
-import { ModelError, type GenerateArgs, type LlmProvider } from './llm'
+import { ResearchError, retryAfterHeaderMs } from './errors'
+import { parseJsonLoose } from './json'
+import type { GenerateArgs, LlmProvider } from './llm'
 
 export interface OpenAiCompatOptions {
   /** Stable identifier shown in logs, e.g. "groq:qwen/qwen3.8-27b". */
@@ -11,7 +12,7 @@ export interface OpenAiCompatOptions {
 }
 
 const TIMEOUT_MS = 90_000
-const DEFAULT_429_MEMO_MS = 15 * 60 * 1000
+const DEFAULT_429_BENCH_MS = 15 * 60 * 1000
 
 /**
  * Generic OpenAI-compatible chat-completions provider. Works for Groq,
@@ -43,62 +44,56 @@ export class OpenAiCompatProvider implements LlmProvider {
 
     let res: Response
     try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
-      try {
-        res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.opts.apiKey}`,
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        })
-      } finally {
-        clearTimeout(timer)
-      }
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.opts.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      })
     } catch (err) {
-      throw new ModelError(`${this.id} fetch failed: ${(err as Error).message}`, 0, true)
+      throw new ResearchError(`${this.id}: request failed (${(err as Error).message})`, { kind: 'transient' })
     }
 
-    if (res.status === 429) {
-      const retryAfterHeader = res.headers.get('Retry-After')
-      const retryAfterSec = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : NaN
-      const retryAfterMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
-        ? retryAfterSec * 1000
-        : DEFAULT_429_MEMO_MS
-      const detail = (await res.text()).slice(0, 300)
-      throw new ModelError(
-        `${this.id} rate limited (HTTP 429)${detail ? `: ${detail}` : ''}`,
-        429,
-        true,
-        retryAfterMs,
-        true,
-      )
-    }
-    if (res.status >= 500) {
-      const detail = (await res.text()).slice(0, 300)
-      throw new ModelError(`${this.id} HTTP ${res.status}: ${detail}`, res.status, true)
-    }
     if (!res.ok) {
-      const detail = (await res.text()).slice(0, 300)
-      throw new ModelError(`${this.id} HTTP ${res.status}: ${detail}`, res.status, false)
+      const detail = (await res.text().catch(() => '')).slice(0, 200)
+      const suffix = detail ? `: ${detail}` : ''
+      if (res.status === 429) {
+        throw new ResearchError(`${this.id}: rate limited${suffix}`, {
+          kind: 'quota',
+          status: 429,
+          retryAfterMs: retryAfterHeaderMs(res) ?? DEFAULT_429_BENCH_MS,
+        })
+      }
+      if (res.status >= 500) {
+        throw new ResearchError(`${this.id}: unavailable (HTTP ${res.status})${suffix}`, {
+          kind: 'transient',
+          status: res.status,
+        })
+      }
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        throw new ResearchError(`${this.id}: not usable (HTTP ${res.status})${suffix}`, {
+          kind: 'unavailable',
+          status: res.status,
+        })
+      }
+      throw new ResearchError(`${this.id}: request rejected (HTTP ${res.status})${suffix}`, {
+        kind: 'invalid',
+        status: res.status,
+      })
     }
 
     const json = (await res.json()) as OpenAiCompatResponse
     const text = json.choices?.[0]?.message?.content
     if (!text || !text.trim()) {
-      throw new ModelError(`${this.id} returned no message content`, 400, false)
+      throw new ResearchError(`${this.id}: empty answer`, { kind: 'invalid' })
     }
     try {
       return parseJsonLoose(text)
     } catch {
-      throw new ModelError(
-        `${this.id} returned unparseable JSON: ${text.slice(0, 200)}`,
-        400,
-        false,
-      )
+      throw new ResearchError(`${this.id}: answer is not valid JSON: ${text.slice(0, 120)}`, { kind: 'invalid' })
     }
   }
 }

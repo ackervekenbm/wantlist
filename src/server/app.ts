@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express'
-import type { ServerStatus } from '../types'
+import type { ModelHealth, ServerStatus } from '../types'
 import type { WlDb } from './db'
 import { countQueued, createIdea, deleteIdea, getIdea, listIdeas, requeueIdea } from './db'
 import type { Worker } from './worker'
@@ -14,6 +14,8 @@ export interface AppOptions {
   worker: Worker
   /** Env vars that keep research disabled; empty when research is on. */
   missingKeys: string[]
+  /** Model chain standing for /api/status; empty when no model is configured. */
+  modelHealth?: () => ModelHealth[]
   /** Built client to serve; omitted (or missing on disk) serves the API only. */
   clientDist?: string
 }
@@ -40,6 +42,7 @@ export function createApp(opts: AppOptions): express.Express {
       researchEnabled: opts.missingKeys.length === 0,
       missingKeys: opts.missingKeys,
       queuedCount: countQueued(db),
+      models: opts.modelHealth?.() ?? [],
     }
     res.json(status)
   })

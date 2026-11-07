@@ -79,21 +79,38 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   research step the pipeline reports, shown live on the card.
 - `src/server/research/pipeline.ts` — `PipelineEngine` implements `ResearchEngine`
   with a **no-grounding** flow: plan (queries) → Serper search → candidate
-  selection → fetch top pages → verify → URL-liveness filter. Gemini cannot
-  browse on the free tier, so all real searching/reading happens server-side.
-- `src/server/research/llm.ts` — `ModelError`, `LlmProvider` interface, and
-  `ModelRouter`: an ordered fallback chain across models/providers. A
-  daily-quota 429 memoizes that model as unavailable (until Retry-After / next
-  00:00 UTC) and advances immediately; 5xx/network get exponential backoff on
-  the same entry (max 3) before advancing; non-retryable errors fail the idea.
-- `src/server/research/gemini.ts` — `GeminiProvider` (`fetch` client for the
-  Gemini REST API) plus the prompts, JSON schemas, and the parsers presenters
-  rely on. 3.x grounding-with-search is paid-only, 2.5-flash is retired for new
-  users, and 3.6-flash has been seen 503ing on heavy JSON calls — see
-  `docs/plan.md`.
+  selection → fetch top pages (in parallel) → verify → URL-liveness filter.
+  Gemini cannot browse on the free tier, so all real searching/reading happens
+  server-side. Each step reports a human-readable `onProgress` step. When
+  every query fails, the most telling search error is rethrown (a refused
+  Serper key or spent credits beats "no results").
+- `src/server/research/errors.ts` — `ResearchError` with a `kind` that decides
+  what happens next (table in the file): `transient` / `quota` / `invalid`
+  retry, `unavailable` / `blocked` / `no-results` stop. Providers and the
+  search layer only ever throw these.
+- `src/server/research/llm.ts` — `LlmProvider` and `ModelRouter`, an ordered
+  fallback chain. Per entry: `quota` benches it until the reported reset (an
+  hour if none) and advances at once; `unavailable` (404 model, refused key)
+  benches it for a day; `transient` backs off on the same entry (max 3)
+  then advances; `invalid` advances; `blocked` fails the call.
+  `generate(args, parse)` runs the step's normalizer inside the router, so an
+  answer the normalizer rejects (no queries, no candidate from the result set)
+  tries the next model. All benched: wait if the earliest reset is ≤ 90 s
+  (per-minute limits), else throw `allModelsOut` with the time to that reset,
+  which the worker uses as the retry time. `health()` feeds `/api/status`.
+- `src/server/research/gemini.ts` — `GeminiProvider` (raw `fetch`, key in the
+  `x-goog-api-key` header). 429s are classified from the body
+  (`parseGoogleError`: QuotaFailure `quotaId`, RetryInfo `retryDelay`):
+  per-day quota → bench until **midnight Pacific** (Gemini's reset), per-minute
+  → bench for `retryDelay`. 3.x grounding-with-search is paid-only, 2.5-flash is
+  retired for new users — see `docs/plan.md`.
+- `src/server/research/prompts.ts` — prompts, response schemas, user-message
+  builders and normalizers for the three model steps; `offers.ts` — URL
+  normalization, supplier ordering and product de-duplication; `json.ts` —
+  `parseJsonLoose` for fenced/prose-wrapped JSON.
 - `src/server/research/openai.ts` — generic OpenAI-compatible chat-completions
-  provider (JSON via `response_format` + schema-in-prompt, reuses
-  `parseJsonLoose`); Groq and OpenRouter are thin configs over it.
+  provider (JSON via `response_format` + schema-in-prompt); Groq and
+  OpenRouter are thin configs over it.
 - `src/server/research/chain.ts` — builds the provider chain from env:
   `GEMINI_MODEL` (primary) → `MODEL_CHAIN` (Gemini fallbacks, default
   `gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite`) → optional
@@ -116,6 +133,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 - research quality is only as good as the pass-1 prompt + acquired page text;
   the parsers deliberately **drop** anything unverifiable (invalid URLs,
   pass-2 URLs not in the candidate set) rather than trusting the model.
+- Tests never touch the network: providers are tested with `fetch` stubbed
+  (real Google/OpenAI error shapes), the pipeline with a scripted model, a fake
+  search provider and `http.ts` mocked (`tests/pipeline.test.ts`).
 
 ## Dependencies / Dependabot
 

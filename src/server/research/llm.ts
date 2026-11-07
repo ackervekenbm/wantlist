@@ -1,17 +1,5 @@
-export class ModelError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly retryable: boolean,
-    readonly retryAfterMs: number | null = null,
-    readonly quotaExhausted = false,
-    /** Set by the router when every model in the chain is quota-blocked. */
-    readonly allQuotaExhausted = false,
-  ) {
-    super(message)
-    this.name = 'ModelError'
-  }
-}
+import type { ModelHealth } from '../../types'
+import { ResearchError, toResearchError } from './errors'
 
 export interface GenerateArgs {
   systemInstruction: string
@@ -31,34 +19,56 @@ export interface ModelRouterOptions {
   onEvent?: (message: string) => void
   /** Injectable clock for tests. */
   now?: () => number
+  /** Injectable sleep for tests. */
+  sleep?: (ms: number) => Promise<void>
   /** Base backoff for transient errors (default 3000 ms). */
   backoffBaseMs?: number
 }
 
+
 const MAX_ENTRY_RETRIES = 3
 const BACKOFF_BASE_MS = 3000
+/** A model that answered "not found" / "bad key" is skipped this long. */
+const UNAVAILABLE_BENCH_MS = 24 * 60 * 60 * 1000
+/** Used when a quota error carries no reset time. */
+const DEFAULT_QUOTA_BENCH_MS = 60 * 60 * 1000
+/**
+ * When every entry is benched but one comes back within this window (a
+ * per-minute rate limit), wait for it instead of failing the idea.
+ */
+const SHORT_WAIT_MS = 90_000
+
+interface Bench {
+  until: number
+  reason: 'quota' | 'unavailable'
+}
 
 /**
- * Walks an ordered chain of LLM providers. Failover rules:
- * - quota-exhausted (daily/rate-limit 429): memoize the provider as unavailable
- *   until its Retry-After (or next 00:00 UTC) and advance immediately - a daily
- *   quota will not heal within one idea's backoff window.
- * - transient (5xx, network, short Retry-After 429): retry the same entry with
- *   exponential backoff up to MAX_ENTRY_RETRIES, then advance.
- * - non-retryable (safety, bad request, unparseable): fail the whole call.
+ * Walks an ordered chain of LLM providers. Per entry, by failure kind:
+ * - quota: bench until the reported reset (or an hour) and advance at once.
+ * - unavailable (model gone, key refused): bench for a day and advance.
+ * - transient (5xx, network): exponential backoff on the same entry, up to
+ *   MAX_ENTRY_RETRIES, then advance.
+ * - invalid (unparseable or unusable answer, including a `parse` rejection):
+ *   advance; another model may answer properly.
+ * - blocked (content refused): fail the call.
+ * When every entry is benched, the call fails with `allModelsOut` and the
+ * time until the earliest reset, unless that is within SHORT_WAIT_MS.
  */
 export class ModelRouter {
   private readonly chain: LlmProvider[]
   private readonly onEvent: (message: string) => void
   private readonly now: () => number
+  private readonly sleep: (ms: number) => Promise<void>
   private readonly backoffBaseMs: number
-  private readonly quotaUntil = new Map<string, number>()
+  private readonly benches = new Map<string, Bench>()
 
   constructor(opts: ModelRouterOptions) {
     if (opts.chain.length === 0) throw new Error('ModelRouter requires at least one provider')
     this.chain = opts.chain
     this.onEvent = opts.onEvent ?? (() => {})
     this.now = opts.now ?? Date.now
+    this.sleep = opts.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
     this.backoffBaseMs = opts.backoffBaseMs ?? BACKOFF_BASE_MS
   }
 
@@ -66,56 +76,95 @@ export class ModelRouter {
     return this.chain.map((p) => p.id)
   }
 
-  /** Providers currently skipped due to memoized quota exhaustion. */
-  quotaBlocked(nowMs = this.now()): string[] {
-    return this.chain
-      .filter((p) => (this.quotaUntil.get(p.id) ?? 0) > nowMs)
-      .map((p) => p.id)
+  health(): ModelHealth[] {
+    const now = this.now()
+    return this.chain.map((p) => {
+      const bench = this.activeBench(p.id, now)
+      return {
+        id: p.id,
+        benchedUntil: bench ? new Date(bench.until).toISOString() : null,
+        reason: bench?.reason ?? null,
+      }
+    })
   }
 
-  async generate(args: GenerateArgs): Promise<unknown> {
-    let lastError: ModelError | null = null
+  /**
+   * Generates with the first entry that answers. `parse` turns the raw JSON
+   * into the caller's shape; when it throws an `invalid` ResearchError the
+   * answer counts as unusable and the next entry is tried.
+   */
+  async generate<T = unknown>(args: GenerateArgs, parse?: (raw: unknown) => T): Promise<T> {
+    for (let wait = 0; ; wait += 1) {
+      const outcome = await this.walk(args, parse ?? ((raw) => raw as T))
+      if (outcome.ok) return outcome.value
 
-    for (const entry of this.chain) {
-      const blockedUntil = this.quotaUntil.get(entry.id) ?? 0
-      if (blockedUntil > this.now()) {
-        this.onEvent(`${entry.id} skipped (quota until ${new Date(blockedUntil).toISOString()})`)
+      const benched = this.chain.map((p) => this.activeBench(p.id, this.now()))
+      if (benched.some((b) => b === null)) throw outcome.error
+
+      const earliest = Math.min(...benched.map((b) => (b as Bench).until))
+      const waitMs = Math.max(earliest - this.now(), 0)
+      if (waitMs <= SHORT_WAIT_MS && wait === 0) {
+        this.onEvent(`every model is rate limited; waiting ${Math.ceil(waitMs / 1000)} s`)
+        await this.sleep(waitMs)
         continue
       }
+      if (benched.every((b) => b?.reason === 'unavailable')) {
+        throw new ResearchError(
+          `No model in the chain is usable (${this.ids.join(', ')}): check the model names and API keys. Last error: ${outcome.error.message}`,
+          { kind: 'unavailable' },
+        )
+      }
+      throw new ResearchError(
+        `Every model is out of free quota (${this.ids.join(', ')}); research resumes when the first one resets.`,
+        { kind: 'quota', status: 429, retryAfterMs: waitMs, allModelsOut: true },
+      )
+    }
+  }
+
+  private async walk<T>(
+    args: GenerateArgs,
+    parse: (raw: unknown) => T,
+  ): Promise<{ ok: true; value: T } | { ok: false; error: ResearchError }> {
+    let lastError: ResearchError | null = null
+
+    for (const entry of this.chain) {
+      const bench = this.activeBench(entry.id, this.now())
+      if (bench) continue
 
       for (let attempt = 0; ; attempt += 1) {
         try {
-          const result = await entry.generate(args)
+          const value = parse(await entry.generate(args))
           if (attempt > 0) this.onEvent(`${entry.id} served after ${attempt} retr${attempt === 1 ? 'y' : 'ies'}`)
-          return result
+          return { ok: true, value }
         } catch (err) {
-          const e = toModelError(err)
+          const e = toResearchError(err)
           lastError = e
 
-          if (e.quotaExhausted) {
-            const until =
+          if (e.kind === 'quota' || e.kind === 'unavailable') {
+            const ms =
               e.retryAfterMs && e.retryAfterMs > 0
-                ? this.now() + e.retryAfterMs
-                : nextUtcMidnight(this.now())
-            this.quotaUntil.set(entry.id, until)
-            this.onEvent(
-              `${entry.id} quota exhausted, skipping until ${new Date(until).toISOString()}`,
-            )
+                ? e.retryAfterMs
+                : e.kind === 'quota'
+                  ? DEFAULT_QUOTA_BENCH_MS
+                  : UNAVAILABLE_BENCH_MS
+            const until = this.now() + ms
+            this.benches.set(entry.id, { until, reason: e.kind })
+            this.onEvent(`${entry.id} ${e.kind}, benched until ${new Date(until).toISOString()}: ${e.message.slice(0, 160)}`)
             break
           }
 
-          if (e.retryable && attempt < MAX_ENTRY_RETRIES) {
+          if (e.kind === 'transient' && attempt < MAX_ENTRY_RETRIES) {
             const base = e.retryAfterMs ?? this.backoffBaseMs * 2 ** attempt
             const jitter = 0.8 + Math.random() * 0.4
             this.onEvent(
               `${entry.id} transient error (attempt ${attempt + 1}/${MAX_ENTRY_RETRIES}): ${e.message.slice(0, 120)}`,
             )
-            await sleep(Math.round(base * jitter))
+            await this.sleep(Math.round(base * jitter))
             continue
           }
 
-          if (e.retryable) {
-            this.onEvent(`${entry.id} still failing after ${MAX_ENTRY_RETRIES} retries, advancing`)
+          if (e.kind === 'transient' || e.kind === 'invalid') {
+            this.onEvent(`${entry.id} ${e.kind === 'invalid' ? 'gave an unusable answer' : 'still failing'}, advancing: ${e.message.slice(0, 120)}`)
             break
           }
 
@@ -124,31 +173,11 @@ export class ModelRouter {
       }
     }
 
-    if (this.quotaBlocked().length === this.chain.length) {
-      const earliest = Math.min(...this.chain.map((p) => this.quotaUntil.get(p.id) ?? 0))
-      throw new ModelError(
-        `Every model is out of free quota (${this.ids.join(', ')}); research resumes when the first one resets.`,
-        429,
-        true,
-        Math.max(earliest - this.now(), 0),
-        true,
-        true,
-      )
-    }
-    throw lastError ?? new ModelError('model chain failed', 500, false)
+    return { ok: false, error: lastError ?? new ResearchError('model chain failed', { kind: 'transient' }) }
   }
-}
 
-function toModelError(err: unknown): ModelError {
-  if (err instanceof ModelError) return err
-  return new ModelError((err as Error)?.message ?? String(err), 0, true)
-}
-
-function nextUtcMidnight(nowMs: number): number {
-  const d = new Date(nowMs)
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  private activeBench(id: string, now: number): Bench | null {
+    const bench = this.benches.get(id)
+    return bench && bench.until > now ? bench : null
+  }
 }

@@ -1,9 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createIdea, getIdea } from '../src/server/db'
-import { ModelError } from '../src/server/research/llm'
+import { ResearchError, type FailureKind } from '../src/server/research/errors'
 import { DEFAULT_RETRY, createWorker, retryAt, type WorkerOptions } from '../src/server/worker'
 import type { FinalPick, ResearchEngine, ResearchRequest } from '../src/types'
 import { finalPicks, tempDb } from './helpers'
+
+function fail(
+  message: string,
+  kind: FailureKind,
+  extra: { status?: number; retryAfterMs?: number; allModelsOut?: boolean } = {},
+) {
+  return new ResearchError(message, { kind, ...extra })
+}
 
 const NOW = new Date('2026-11-07T12:00:00Z')
 
@@ -28,25 +36,31 @@ describe('retryAt', () => {
   const policy = { baseMs: 1000, maxMs: 5000, maxAttempts: 4 }
 
   it('backs off exponentially up to the ceiling', () => {
-    const err = new ModelError('503', 503, true)
+    const err = fail('503', 'transient')
     expect(retryAt(err, 1, NOW, policy)?.getTime()).toBe(NOW.getTime() + 1000)
     expect(retryAt(err, 2, NOW, policy)?.getTime()).toBe(NOW.getTime() + 2000)
     expect(retryAt(err, 3, NOW, policy)?.getTime()).toBe(NOW.getTime() + 4000)
   })
 
+  it('retries an unusable model answer', () => {
+    expect(retryAt(fail('bad json', 'invalid'), 1, NOW, policy)).not.toBeNull()
+  })
+
   it('waits for a quota reset rather than the shorter backoff', () => {
-    const err = new ModelError('quota', 429, true, 60_000, true, true)
+    const err = fail('quota', 'quota', { status: 429, retryAfterMs: 60_000, allModelsOut: true })
     expect(retryAt(err, 1, NOW, policy)?.getTime()).toBe(NOW.getTime() + 60_000)
   })
 
   it('gives up on permanent errors and when the budget is spent', () => {
-    expect(retryAt(new ModelError('bad', 400, false), 1, NOW, policy)).toBeNull()
+    expect(retryAt(fail('bad', 'blocked'), 1, NOW, policy)).toBeNull()
+    expect(retryAt(fail('no key', 'unavailable'), 1, NOW, policy)).toBeNull()
+    expect(retryAt(fail('reword', 'no-results'), 1, NOW, policy)).toBeNull()
     expect(retryAt(new Error('bug'), 1, NOW, policy)).toBeNull()
-    expect(retryAt(new ModelError('503', 503, true), 4, NOW, policy)).toBeNull()
+    expect(retryAt(fail('503', 'transient'), 4, NOW, policy)).toBeNull()
   })
 
   it('defaults to a 15-minute first retry', () => {
-    const err = new ModelError('503', 503, true)
+    const err = fail('503', 'transient')
     expect(retryAt(err, 1, NOW, DEFAULT_RETRY)?.getTime()).toBe(NOW.getTime() + 15 * 60 * 1000)
   })
 })
@@ -79,7 +93,7 @@ describe('worker', () => {
     const { db } = tempDb()
     const id = createIdea(db, 'fan')
     const engine = engineOf(async () => {
-      throw new ModelError('Gemini unavailable (HTTP 503)', 503, true)
+      throw fail('Gemini unavailable (HTTP 503)', 'transient')
     })
     const summary = await makeWorker({ db, engine }).runOnce()
 
@@ -97,7 +111,7 @@ describe('worker', () => {
     const { db } = tempDb()
     const id = createIdea(db, 'fan')
     const engine = engineOf(async () => {
-      throw new ModelError('Gemini blocked (SAFETY)', 200, false)
+      throw fail('Gemini blocked (SAFETY)', 'blocked')
     })
     await makeWorker({ db, engine }).runOnce()
     expect(getIdea(db, id)).toMatchObject({ status: 'error', error: 'Gemini blocked (SAFETY)' })
@@ -116,7 +130,7 @@ describe('worker', () => {
     const a = createIdea(db, 'a')
     const b = createIdea(db, 'b')
     const engine = engineOf(async () => {
-      throw new ModelError('all out', 429, true, 3_600_000, true, true)
+      throw fail('all out', 'quota', { status: 429, retryAfterMs: 3_600_000, allModelsOut: true })
     })
     await makeWorker({ db, engine }).runOnce()
     expect(engine.calls).toHaveLength(1)

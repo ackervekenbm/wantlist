@@ -40,6 +40,7 @@ const app = createApp({
   db,
   worker,
   missingKeys,
+  modelHealth: () => router?.health() ?? [],
   clientDist: path.join(process.cwd(), 'dist'),
 })
 

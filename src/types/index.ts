@@ -61,6 +61,16 @@ export interface ServerStatus {
   queuedCount: number
   /** The idea being researched right now and its latest step. */
   current: { ideaId: number; step: string } | null
+  /** The model chain in order, with any model currently benched. */
+  models: ModelHealth[]
+}
+
+export interface ModelHealth {
+  id: string
+  /** Skipped until this time (ISO-8601), or null when usable. */
+  benchedUntil: string | null
+  /** quota: rate/daily limit; unavailable: model unknown or key refused. */
+  reason: 'quota' | 'unavailable' | null
 }
 
 export interface ResearchCandidate {

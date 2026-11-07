@@ -8,7 +8,7 @@ import {
   getIdea,
   nextScheduledAttempt,
 } from './db'
-import { ModelError } from './research/llm'
+import { ResearchError } from './research/errors'
 
 export interface RetryPolicy {
   /** First retry delay; doubles per failed attempt. */
@@ -67,7 +67,7 @@ export interface Worker {
  * `attempt` counts the failure being handled (1 = first failure).
  */
 export function retryAt(err: unknown, attempt: number, now: Date, policy: RetryPolicy): Date | null {
-  if (!(err instanceof ModelError) || !err.retryable) return null
+  if (!(err instanceof ResearchError) || !err.retryable) return null
   if (attempt >= policy.maxAttempts) return null
   const backoff = Math.min(policy.baseMs * 2 ** (attempt - 1), policy.maxMs)
   // A quota block says exactly when capacity returns; never retry sooner.
@@ -158,7 +158,7 @@ export function createWorker(opts: WorkerOptions): Worker {
         if (at) summary.retrying += 1
         else summary.failed += 1
         // Every model is out of quota: the rest of this pass would fail too.
-        if (err instanceof ModelError && err.allQuotaExhausted) break
+        if (err instanceof ResearchError && err.allModelsOut) break
       }
     }
 

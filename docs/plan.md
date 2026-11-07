@@ -12,7 +12,6 @@ Not a price tracker. Not a wishlist-with-links. The differentiator is the
 **async research pass** plus the accumulating personal backlog of buying ideas.
 
 **Repo**: `ackervekenbm/wantlist` (public)
-**Host**: `/mnt/c/Dev/wantlist`
 
 ## Decisions (locked)
 
@@ -106,10 +105,13 @@ chain, built from env by `chain.ts`:
    `OPENROUTER_API_KEY` (`:free` models, no card) — one generic
    OpenAI-compatible client (`openai.ts`) behind both.
 
-Failover rules: a daily-quota 429 memoizes that model as unavailable (until
-`Retry-After` or next 00:00 UTC) and advances **immediately**; 5xx/network
-errors get exponential backoff on the same entry (max 3) before advancing;
-non-retryable errors (safety, bad request, unparseable) fail the idea. The
+Failover rules: a 429 benches that model and advances **immediately** — until
+midnight Pacific for a per-day quota (Gemini's reset), for the `retryDelay`
+Google returns for a per-minute one; a 404 model or refused key benches it for
+a day; 5xx/network errors get exponential backoff on the same entry (max 3)
+before advancing; an unusable answer (bad JSON, no usable queries/candidates)
+advances; only blocked content fails the call. When every model is benched the
+idea is rescheduled for the earliest reset. The
 URL-allowlist normalizers are the quality safety net: a weaker fallback model
 can waste tokens but cannot inject products or links.
 
