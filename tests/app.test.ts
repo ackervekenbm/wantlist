@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { MAX_IDEA_LENGTH, createApp } from '../src/server/app'
 import { claimIdea, completeIdea, createIdea, failIdea, type WlDb } from '../src/server/db'
 import type { Worker } from '../src/server/worker'
-import { finalPicks, tempDb, tempDir } from './helpers'
+import { researchResult, tempDb, tempDir } from './helpers'
 
 function fakeWorker() {
   return {
@@ -27,7 +27,7 @@ function setup(opts: { missingKeys?: string[]; clientDist?: string } = {}) {
 function seedDone(db: WlDb): number {
   const id = createIdea(db, 'fan')
   claimIdea(db, id)
-  completeIdea(db, id, finalPicks())
+  completeIdea(db, id, researchResult())
   return id
 }
 

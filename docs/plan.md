@@ -44,11 +44,15 @@ One npm package, no separate job service:
 ### Schema
 
 ```
-ideas(id, text, status, created_at, researched_at, error)
-  status: queued | researching | done | error
-picks(id, idea_id, rank, title, url, price, why, source_urls, fetched_at, suppliers)
-  suppliers: JSON [{shop, url, price}] - every known offer, best first; top-level
-  shop/url/price mirror the best offer
+ideas(id, text, status, created_at, researched_at, error, attempts, next_attempt_at,
+      summary, criteria)
+  status: queued | researching | done | error  (queued + next_attempt_at = retry)
+  summary/criteria: the research brief from the latest successful run
+picks(id, idea_id, rank, title, shop, url, price, why, caveat, image, rating,
+      source_urls, fetched_at, suppliers)
+  suppliers: JSON [{shop, url, price (EUR number), availability, checked}] -
+  every known offer, best first; top-level shop/url/price mirror the best offer
+  rating: JSON {value (0-5), count}; source_urls: pages the verify step read
 ```
 
 `/api/ideas` returns full ideas with their picks; the UI needs only that one
@@ -76,14 +80,21 @@ reasons over evidence we hand it.
    Normalized hard: **URL must be one of the search results** — nothing
    invented.
 4. **Verify** (`gemini-3.8-flash`): server-side fetch of the top 3 candidate
-   pages, page text fed back so only evidence-backed products survive, each
+   pages, page text plus a "Shop data" line from the page's product markup
+   (price, stock, rating) fed back so only evidence-backed products survive, each
    returned **once with a `suppliers` array** (every known shop offer for that
    product, best price first); the whole list is de-duplicated again at code
    level (`mergePicksByProduct`) so an identical product can never appear
-   twice. Best-effort: an unfetchable page degrades to candidate evidence.
-5. **Liveness**: HEAD (fallback GET) **each supplier URL**; dead suppliers are
-   dropped, the best live one becomes the pick's primary link; a pick with no
-   live supplier is dropped. Network failures count as unknown and are kept.
+   twice. Each pick also gets one honest **caveat** (a trade-off to check
+   before buying). Best-effort: an unfetchable page degrades to candidate
+   evidence.
+5. **Offer check**: one GET of **each supplier URL** (reusing step 4's
+   reads). Dead offers (404/410, bounced to the home page, "not found" title)
+   are dropped; bot walls and network failures count as unknown and are kept.
+   Where the page carries schema.org/OpenGraph product data, its EUR price,
+   stock, photo and rating replace what search or the model saw. Offers sort
+   in stock → priced → cheapest; the best becomes the pick's primary link; a
+   pick with no offer left is dropped, one sold out everywhere sinks to the end.
 
 Then, and only then, the idea is `done`.
 

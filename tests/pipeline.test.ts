@@ -1,13 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Page } from '../src/server/research/http'
+import type { ProductData } from '../src/server/research/product'
 import { ResearchError } from '../src/server/research/errors'
 import { ModelRouter, type GenerateArgs, type LlmProvider } from '../src/server/research/llm'
 import { PipelineEngine } from '../src/server/research/pipeline'
 import { SerperProvider, type SearchProvider, type SearchResult } from '../src/server/research/search'
 
-vi.mock('../src/server/research/http', () => ({
-  fetchPageText: vi.fn(async (url: string) => ({ title: `page ${url}`, text: 'In stock. Quiet 40 dB fan.' })),
-  checkUrl: vi.fn(async () => 'live'),
-}))
+vi.mock('../src/server/research/http', () => ({ fetchPage: vi.fn() }))
 
 const http = await import('../src/server/research/http')
 
@@ -16,9 +15,21 @@ const HITS: SearchResult[] = [
   { title: 'Lasko fan', url: 'https://www.bol.com/be/nl/p/lasko/123', snippet: '€59' },
 ]
 
+const LIVE: Page = { status: 'live', title: 'page', text: 'In stock. Quiet 40 dB fan.', product: null }
+
+function product(over: Partial<ProductData>): ProductData {
+  return { name: null, brand: null, price: null, availability: 'unknown', image: null, rating: null, ...over }
+}
+
+/** Pages by URL; anything not listed is a plain live page without product data. */
+function pages(byUrl: Record<string, Partial<Page>>) {
+  vi.mocked(http.fetchPage).mockImplementation(async (url) => ({ ...LIVE, ...byUrl[url] }))
+}
+
 /** Answers each pipeline step by recognizing its system prompt. */
 class StepModel implements LlmProvider {
   readonly id = 'fake'
+  verifyPrompt = ''
   constructor(private readonly answers: { plan?: unknown; candidates?: unknown; verify?: unknown }) {}
   async generate(args: GenerateArgs): Promise<unknown> {
     if (args.systemInstruction.includes('planning step')) {
@@ -34,13 +45,20 @@ class StepModel implements LlmProvider {
         }
       )
     }
+    this.verifyPrompt = args.contents
     return (
       this.answers.verify ?? {
         picks: [
           {
             title: 'Wahoo KICKR Headwind',
             why: 'Speed follows your heart rate',
+            caveat: 'Pricey for a fan',
             suppliers: [{ shop: 'Bikeshop', url: 'https://bikeshop.be/headwind', price: '229' }],
+          },
+          {
+            title: 'Lasko fan',
+            why: 'Cheap and strong',
+            suppliers: [{ shop: 'bol', url: 'https://www.bol.com/be/nl/p/lasko/123', price: '59' }],
           },
         ],
       }
@@ -70,52 +88,132 @@ function engine(model: LlmProvider, provider: SearchProvider, extra: LlmProvider
 }
 
 beforeEach(() => {
-  vi.mocked(http.checkUrl).mockResolvedValue('live')
+  vi.mocked(http.fetchPage).mockReset()
+  pages({})
 })
 
 describe('PipelineEngine', () => {
-  it('plans, searches, shortlists, reads pages, verifies and reports its steps', async () => {
+  it('plans, searches, shortlists, reads pages, verifies, checks offers and reports its steps', async () => {
     const steps: string[] = []
-    const picks = await engine(new StepModel({}), search(() => HITS)).research({
+    const result = await engine(new StepModel({}), search(() => HITS)).research({
       ideaId: 1,
       text: 'a fan for my bike trainer',
       onProgress: (s) => steps.push(s),
     })
-    expect(picks).toEqual([
-      expect.objectContaining({ rank: 1, title: 'Wahoo KICKR Headwind', url: 'https://bikeshop.be/headwind', price: '229' }),
+    expect(result.brief).toEqual({ summary: 'a fan', criteria: ['quiet'] })
+    expect(result.picks.map((p) => [p.rank, p.title, p.price, p.caveat])).toEqual([
+      [1, 'Wahoo KICKR Headwind', 229, 'Pricey for a fan'],
+      [2, 'Lasko fan', 59, null],
     ])
+    expect(result.picks[0].sourceUrls).toEqual(['https://bikeshop.be/headwind', 'https://www.bol.com/be/nl/p/lasko/123'])
     expect(steps).toEqual([
       'working out what to look for',
       'searching shops and reviews',
       'shortlisting from 2 results',
       'reading 2 product pages',
       'checking the evidence',
-      'checking the shop links',
+      'checking 2 offers at the shops',
     ])
-    expect(http.fetchPageText).toHaveBeenCalledWith('https://bikeshop.be/headwind')
+  })
+
+  it('fetches each page once, reusing verification reads for the offer check', async () => {
+    await engine(new StepModel({}), search(() => HITS)).research({ ideaId: 1, text: 'fan' })
+    expect(vi.mocked(http.fetchPage).mock.calls.map((c) => c[0]).sort()).toEqual([
+      'https://bikeshop.be/headwind',
+      'https://www.bol.com/be/nl/p/lasko/123',
+    ])
+  })
+
+  it('takes price, stock, photo and rating from the shop page and shows them to the verifier', async () => {
+    pages({
+      'https://bikeshop.be/headwind': {
+        product: product({
+          name: 'KICKR Headwind',
+          price: 249.99,
+          availability: 'in_stock',
+          image: 'https://bikeshop.be/hw.jpg',
+          rating: { value: 4.6, count: 88 },
+        }),
+      },
+    })
+    const model = new StepModel({})
+    const { picks } = await engine(model, search(() => HITS)).research({ ideaId: 1, text: 'fan' })
+    expect(model.verifyPrompt).toContain('Shop data: KICKR Headwind, price EUR 249.99, in stock, rated 4.6/5 (88 reviews)')
+    expect(picks[0]).toMatchObject({ price: 249.99, image: 'https://bikeshop.be/hw.jpg', rating: { value: 4.6, count: 88 } })
+    expect(picks[0].suppliers[0]).toMatchObject({ price: 249.99, availability: 'in_stock', checked: true })
+    expect(picks[1].suppliers[0]).toMatchObject({ price: 59, availability: 'unknown', checked: false })
+  })
+
+  it('sinks products that are sold out everywhere and orders offers in stock first', async () => {
+    const verify = {
+      picks: [
+        {
+          title: 'Wahoo KICKR Headwind',
+          why: 'w',
+          suppliers: [
+            { shop: 'Bikeshop', url: 'https://bikeshop.be/headwind', price: '199' },
+            { shop: 'bol', url: 'https://www.bol.com/be/nl/p/lasko/123', price: '229' },
+          ],
+        },
+        { title: 'Lasko fan', why: 'w', suppliers: [{ shop: 'X', url: 'https://x.be/lasko', price: '59' }] },
+      ],
+    }
+    const hits = [...HITS, { title: 'Lasko', url: 'https://x.be/lasko', snippet: '' }]
+    const candidates = {
+      candidates: [
+        { title: 'Wahoo KICKR Headwind', shop: 'Bikeshop', url: 'https://bikeshop.be/headwind' },
+        { title: 'Wahoo KICKR Headwind', shop: 'bol', url: 'https://www.bol.com/be/nl/p/lasko/123' },
+        { title: 'Lasko fan', shop: 'X', url: 'https://x.be/lasko' },
+      ],
+    }
+    pages({
+      'https://bikeshop.be/headwind': { product: product({ price: 199, availability: 'out_of_stock' }) },
+      'https://www.bol.com/be/nl/p/lasko/123': { product: product({ price: 229, availability: 'in_stock' }) },
+    })
+    pages({
+      'https://bikeshop.be/headwind': { product: product({ price: 199, availability: 'out_of_stock' }) },
+      'https://www.bol.com/be/nl/p/lasko/123': { product: product({ price: 229, availability: 'in_stock' }) },
+      'https://x.be/lasko': { product: product({ price: 59, availability: 'out_of_stock' }) },
+    })
+    const { picks } = await engine(new StepModel({ verify, candidates }), search(() => hits)).research({
+      ideaId: 1,
+      text: 'fan',
+    })
+    expect(picks.map((p) => p.title)).toEqual(['Wahoo KICKR Headwind', 'Lasko fan'])
+    expect(picks[0].suppliers.map((s) => s.shop)).toEqual(['bol', 'Bikeshop'])
+    expect(picks[0]).toMatchObject({ shop: 'bol', price: 229 })
+  })
+
+  it('drops dead offers and products left without one', async () => {
+    pages({ 'https://bikeshop.be/headwind': { status: 'dead', text: '' } })
+    const { picks } = await engine(new StepModel({}), search(() => HITS)).research({ ideaId: 1, text: 'fan' })
+    expect(picks.map((p) => p.title)).toEqual(['Lasko fan'])
+    expect(picks[0].rank).toBe(1)
+  })
+
+  it('keeps offers whose page could not be checked (bot walls)', async () => {
+    pages({ 'https://www.bol.com/be/nl/p/lasko/123': { status: 'unknown', text: '' } })
+    const { picks } = await engine(new StepModel({}), search(() => HITS)).research({ ideaId: 1, text: 'fan' })
+    expect(picks).toHaveLength(2)
   })
 
   it('tries the next model when candidates use URLs outside the search results', async () => {
     const liar = new StepModel({
       candidates: { candidates: [{ title: 'Made up', shop: 'X', url: 'https://invented.example/p' }] },
     })
-    const honest = new StepModel({})
-    const picks = await engine(liar, search(() => HITS), [honest]).research({ ideaId: 1, text: 'fan' })
+    const { picks } = await engine(liar, search(() => HITS), [new StepModel({})]).research({ ideaId: 1, text: 'fan' })
     expect(picks[0].title).toBe('Wahoo KICKR Headwind')
   })
 
   it('falls back to the shortlist when verification keeps nothing', async () => {
-    const picks = await engine(new StepModel({ verify: { picks: [] } }), search(() => HITS)).research({
+    const { picks } = await engine(new StepModel({ verify: { picks: [] } }), search(() => HITS)).research({
       ideaId: 1,
       text: 'fan',
     })
-    expect(picks.map((p) => p.title)).toEqual(['Wahoo KICKR Headwind', 'Lasko fan'])
-  })
-
-  it('drops picks whose every shop link is dead', async () => {
-    vi.mocked(http.checkUrl).mockResolvedValue('dead')
-    const picks = await engine(new StepModel({}), search(() => HITS)).research({ ideaId: 1, text: 'fan' })
-    expect(picks).toEqual([])
+    expect(picks.map((p) => [p.title, p.price])).toEqual([
+      ['Wahoo KICKR Headwind', 229],
+      ['Lasko fan', 59],
+    ])
   })
 
   it('asks for rewording when the searches find nothing', async () => {
@@ -141,8 +239,8 @@ describe('PipelineEngine', () => {
   it('tolerates one failing query when others return results', async () => {
     const plan = { summary: '', criteria: [], searchQueries: ['broken', 'works'] }
     const provider = search((q) => (q === 'broken' ? new ResearchError('bad query', { kind: 'invalid' }) : HITS))
-    const picks = await engine(new StepModel({ plan }), provider).research({ ideaId: 1, text: 'fan' })
-    expect(picks).toHaveLength(1)
+    const { picks } = await engine(new StepModel({ plan }), provider).research({ ideaId: 1, text: 'fan' })
+    expect(picks).toHaveLength(2)
   })
 })
 

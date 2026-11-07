@@ -1,18 +1,33 @@
 import type { FinalPick, PickSupplier } from '../../types'
 
 // Offer/URL helpers shared by the pipeline steps: product-level de-duplication,
-// supplier ordering, and the URL normalization the allowlists compare with.
+// offer ordering, and the URL normalization the allowlists compare with.
 
+/** One offer per URL, best first (see `compareOffers`). */
 export function mergeSuppliers(suppliers: PickSupplier[]): PickSupplier[] {
   const byUrl = new Map<string, PickSupplier>()
   for (const s of suppliers) {
     const key = normalizeUrl(s.url)
     const existing = byUrl.get(key)
-    if (!existing || priceRank(s.price) < priceRank(existing.price)) {
-      byUrl.set(key, s)
-    }
+    if (!existing || compareOffers(s, existing) < 0) byUrl.set(key, s)
   }
-  return [...byUrl.values()].sort((a, b) => priceRank(a.price) - priceRank(b.price))
+  return [...byUrl.values()].sort(compareOffers)
+}
+
+const STOCK_ORDER = { in_stock: 0, preorder: 1, unknown: 1, out_of_stock: 2 } as const
+
+/**
+ * Buyable before not: in stock (or unknown) before out of stock; then a
+ * price confirmed on the shop page before one only seen in search; then
+ * cheapest; offers without a price last.
+ */
+export function compareOffers(a: PickSupplier, b: PickSupplier): number {
+  return (
+    STOCK_ORDER[a.availability] - STOCK_ORDER[b.availability] ||
+    (a.price === null ? 1 : 0) - (b.price === null ? 1 : 0) ||
+    (a.price ?? 0) - (b.price ?? 0) ||
+    Number(b.checked) - Number(a.checked)
+  )
 }
 
 export function normalizeProductTitle(title: string): string {
@@ -30,27 +45,28 @@ export function mergePicksByProduct(picks: FinalPick[]): FinalPick[] {
     const key = normalizeProductTitle(p.title)
     const existing = groups.get(key)
     if (!existing) {
-      groups.set(key, p)
+      groups.set(key, { ...p })
       continue
     }
     existing.suppliers = mergeSuppliers([...existing.suppliers, ...p.suppliers])
-    const primary = existing.suppliers[0]
-    existing.shop = primary.shop
-    existing.url = primary.url
-    existing.price = primary.price
-    if (!existing.why) existing.why = p.why
+    Object.assign(existing, primaryFields(existing.suppliers))
+    existing.why ||= p.why
+    existing.caveat ??= p.caveat
+    existing.image ??= p.image
+    existing.rating ??= p.rating
+    existing.sourceUrls = [...new Set([...existing.sourceUrls, ...p.sourceUrls])]
   }
   return [...groups.values()]
 }
 
-export function rankPicks(picks: FinalPick[]): FinalPick[] {
-  return picks.map((p, i) => ({ ...p, rank: i + 1 }))
+/** The top-level shop/url/price a pick mirrors from its best offer. */
+export function primaryFields(suppliers: PickSupplier[]): Pick<FinalPick, 'shop' | 'url' | 'price'> {
+  const best = suppliers[0]
+  return { shop: best.shop, url: best.url, price: best.price }
 }
 
-function priceRank(price: string | null): number {
-  if (!price) return Number.MAX_SAFE_INTEGER
-  const m = /(\d+(?:[.,]\d+)?)/.exec(price)
-  return m ? Number.parseFloat(m[1].replace(',', '.')) : Number.MAX_SAFE_INTEGER
+export function rankPicks(picks: FinalPick[]): FinalPick[] {
+  return picks.map((p, i) => ({ ...p, rank: i + 1 }))
 }
 
 export function isHttpUrl(value: string): boolean {
@@ -62,6 +78,24 @@ export function isHttpUrl(value: string): boolean {
   }
 }
 
+/** Query parameters that only track the click and never pick the product. */
+const TRACKING_PARAM = /^(utm_\w+|gclid|gclsrc|dclid|gbraid|wbraid|fbclid|msclkid|srsltid|_ga|_gl|mc_[ce]id|ref_)$/i
+
+/**
+ * Comparable form of a URL: lower-case host, no fragment, no tracking
+ * parameters (Google adds `srsltid` to shopping links), remaining parameters
+ * sorted, no trailing slash. Product-identifying parameters (`?id=123`) stay,
+ * so two products on one shop never collapse into one.
+ */
 export function normalizeUrl(url: string): string {
-  return url.split(/[?#]/)[0].replace(/\/+$/, '')
+  try {
+    const u = new URL(url)
+    const params = [...u.searchParams.entries()]
+      .filter(([k]) => !TRACKING_PARAM.test(k))
+      .sort(([a], [b]) => a.localeCompare(b))
+    const query = params.length ? `?${new URLSearchParams(params).toString()}` : ''
+    return `${u.protocol}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, '')}${query}`
+  } catch {
+    return url.split('#')[0].replace(/\/+$/, '')
+  }
 }

@@ -31,10 +31,14 @@ async function main() {
 
   console.log(`chain: ${router.ids.join(' -> ')} (free tier, no grounding)\n`)
   console.log(`idea: ${ideaText}\n`)
-  console.log('running plan -> search -> candidates -> page reads -> verify -> liveness…\n')
+  console.log('running plan -> search -> candidates -> page reads -> verify -> offer checks…\n')
 
   const starts = Date.now()
-  const picks = await engine.research({ ideaId: 0, text: ideaText })
+  const { brief, picks } = await engine.research({
+    ideaId: 0,
+    text: ideaText,
+    onProgress: (step) => console.log(`» ${step}`),
+  })
   const seconds = ((Date.now() - starts) / 1000).toFixed(1)
 
   if (picks.length === 0) {
@@ -43,6 +47,7 @@ async function main() {
     return
   }
 
+  console.log(`\nbrief: ${brief.summary}\ncriteria: ${brief.criteria.join('; ')}\n`)
   console.log(JSON.stringify(picks, null, 2))
   console.log(`\n${picks.length} pick(s) in ${seconds}s.`)
 }

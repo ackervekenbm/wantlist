@@ -6,7 +6,7 @@ import {
 import { parseJsonLoose } from '../src/server/research/json'
 import { isHttpUrl, mergePicksByProduct, normalizeProductTitle, normalizeUrl } from '../src/server/research/offers'
 import { normalizePass1, normalizePass2, normalizePlan } from '../src/server/research/prompts'
-import type { ResearchCandidate } from '../src/types'
+import type { FinalPick, ResearchCandidate } from '../src/types'
 
 describe('parseJsonLoose', () => {
   it('parses plain json', () => {
@@ -43,14 +43,15 @@ describe('normalizePass1', () => {
     const allowed = new Set(['https://a.be/fan', 'https://b.eu/fan/'])
     const raw = {
       candidates: [
-        { title: 'In', shop: 'A', url: 'https://a.be/fan?utm=1' },
+        { title: 'In', shop: 'A', url: 'https://a.be/fan?utm_source=x' },
         { title: 'In2', shop: 'B', url: 'https://b.eu/fan' },
+        { title: 'Other product', shop: 'B', url: 'https://b.eu/fan?id=2' },
         { title: 'Invented', shop: 'Z', url: 'https://phishing.example/x' },
       ],
     }
     const result = normalizePass1(raw, allowed)
     expect(result.candidates.map((c) => c.url)).toEqual([
-      'https://a.be/fan?utm=1',
+      'https://a.be/fan?utm_source=x',
       'https://b.eu/fan',
     ])
   })
@@ -109,8 +110,27 @@ describe('normalizePass2', () => {
     expect(result).toHaveLength(1)
     expect(result[0].shop).toBe('Sportimo')
     expect(result[0].url).toBe('https://a.be/fan')
-    expect(result[0].price).toBe('269')
+    expect(result[0].price).toBe(269)
     expect(result[0].suppliers.map((s) => s.shop)).toEqual(['Sportimo', 'Bicyclic'])
+    expect(result[0].suppliers[0]).toEqual({
+      shop: 'Sportimo',
+      url: 'https://a.be/fan',
+      price: 269,
+      availability: 'unknown',
+      checked: false,
+    })
+  })
+
+  it('keeps the caveat and drops an empty one', () => {
+    const raw = {
+      picks: [
+        { title: 'A', why: 'w', caveat: ' Loud at full speed ', suppliers: [{ shop: 'S', url: 'https://a.be/fan', price: '' }] },
+        { title: 'B', why: 'w', caveat: '', suppliers: [{ shop: 'S', url: 'https://b.eu/fan', price: '' }] },
+      ],
+    }
+    const [a, b] = normalizePass2(raw, allowed)
+    expect(a.caveat).toBe('Loud at full speed')
+    expect(b.caveat).toBeNull()
   })
 
   it('dedupes identical products into a single pick', () => {
@@ -146,20 +166,24 @@ describe('normalizePass2', () => {
 })
 
 describe('mergePicksByProduct', () => {
-  const pick = (title: string, shop: string, url: string, price: string) => ({
+  const pick = (title: string, shop: string, url: string, price: number): FinalPick => ({
     rank: 0,
     title,
     shop,
     url,
     price,
     why: '',
-    suppliers: [{ shop, url, price }],
+    caveat: null,
+    image: null,
+    rating: null,
+    sourceUrls: [],
+    suppliers: [{ shop, url, price, availability: 'unknown', checked: false }],
   })
 
   it('merges same-title products and prefers the best price', () => {
     const merged = mergePicksByProduct([
-      pick('Wahoo KICKR Headwind', 'Bicyclic', 'https://b.eu/fan', '279.99'),
-      pick('wahoo  kickr headwind', 'Sportimo', 'https://a.be/fan', '269'),
+      pick('Wahoo KICKR Headwind', 'Bicyclic', 'https://b.eu/fan', 279.99),
+      pick('wahoo  kickr headwind', 'Sportimo', 'https://a.be/fan', 269),
     ])
     expect(merged).toHaveLength(1)
     expect(merged[0].shop).toBe('Sportimo')
@@ -168,8 +192,8 @@ describe('mergePicksByProduct', () => {
 
   it('keeps distinct titles separate', () => {
     const merged = mergePicksByProduct([
-      pick('Fan A', 'A', 'https://a.be/a', '10'),
-      pick('Fan B Pro', 'B', 'https://b.eu/b', '20'),
+      pick('Fan A', 'A', 'https://a.be/a', 10),
+      pick('Fan B Pro', 'B', 'https://b.eu/b', 20),
     ])
     expect(merged).toHaveLength(2)
   })
@@ -188,9 +212,16 @@ describe('url helpers', () => {
     expect(isHttpUrl('')).toBe(false)
   })
 
-  it('strips hash and query for de-dup matching', () => {
-    expect(normalizeUrl('https://a.be/fan?x=1#top')).toBe('https://a.be/fan')
+  it('drops the hash, trailing slash and tracking parameters for de-dup matching', () => {
+    expect(normalizeUrl('https://a.be/fan#top')).toBe('https://a.be/fan')
     expect(normalizeUrl('https://a.be/fan/')).toBe('https://a.be/fan')
+    expect(normalizeUrl('https://A.be/fan?utm_source=x&srsltid=abc&gclid=1')).toBe('https://a.be/fan')
+  })
+
+  it('keeps parameters that identify the product, in a stable order', () => {
+    expect(normalizeUrl('https://a.be/p.php?id=1&utm_medium=cpc')).toBe('https://a.be/p.php?id=1')
+    expect(normalizeUrl('https://a.be/p.php?id=1')).not.toBe(normalizeUrl('https://a.be/p.php?id=2'))
+    expect(normalizeUrl('https://a.be/p?b=2&a=1')).toBe(normalizeUrl('https://a.be/p?a=1&b=2'))
   })
 })
 

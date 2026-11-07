@@ -9,10 +9,23 @@ export type IdeaStatus = 'queued' | 'researching' | 'done' | 'error'
 
 export type UrlStatus = 'live' | 'dead' | 'unknown'
 
+export type Availability = 'in_stock' | 'out_of_stock' | 'preorder' | 'unknown'
+
+/** One shop's offer for a product. */
 export interface PickSupplier {
   shop: string
   url: string
-  price: string | null
+  /** EUR. From the shop page when `checked`, else what search or the model saw. */
+  price: number | null
+  availability: Availability
+  /** Price and stock were read from the shop page's own product data. */
+  checked: boolean
+}
+
+export interface Rating {
+  /** Normalized to a 0-5 scale. */
+  value: number
+  count: number | null
 }
 
 export interface Pick {
@@ -20,13 +33,27 @@ export interface Pick {
   ideaId: number
   rank: number
   title: string
+  /** Mirror of suppliers[0], the best offer. */
   shop: string | null
   url: string
-  price: string | null
+  price: number | null
   why: string | null
+  /** One honest trade-off or thing to check before buying. */
+  caveat: string | null
+  /** Product photo from the shop page. */
+  image: string | null
+  rating: Rating | null
+  /** Pages the verification read. */
   sourceUrls: string[]
   fetchedAt: string | null
+  /** Every known offer, best first: in stock before out of stock, then cheapest. */
   suppliers: PickSupplier[]
+}
+
+/** What the research understood the idea to be about. */
+export interface ResearchBrief {
+  summary: string
+  criteria: string[]
 }
 
 export interface Idea {
@@ -46,6 +73,9 @@ export interface Idea {
   attempts: number
   /** When a scheduled retry becomes due (ISO-8601), or null. */
   nextAttemptAt: string | null
+  /** The research brief from the latest successful run. */
+  summary: string | null
+  criteria: string[]
   picks: Pick[]
 }
 
@@ -93,13 +123,22 @@ export interface FinalPick {
   title: string
   shop: string
   url: string
-  price: string | null
+  price: number | null
   why: string
+  caveat: string | null
+  image: string | null
+  rating: Rating | null
   /**
-   * Every known shop offer for this product, best (lowest) price first. The
-   * top-level shop/url/price mirror suppliers[0].
+   * Every known shop offer for this product, best first. The top-level
+   * shop/url/price mirror suppliers[0].
    */
   suppliers: PickSupplier[]
+  sourceUrls: string[]
+}
+
+export interface ResearchResult {
+  brief: ResearchBrief
+  picks: FinalPick[]
 }
 
 export interface ResearchRequest {
@@ -110,5 +149,5 @@ export interface ResearchRequest {
 }
 
 export interface ResearchEngine {
-  research(request: ResearchRequest): Promise<FinalPick[]>
+  research(request: ResearchRequest): Promise<ResearchResult>
 }

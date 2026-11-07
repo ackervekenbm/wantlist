@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
-import type { FinalPick, Idea, IdeaStatus, Pick, PickSupplier } from '../types'
+import type { Availability, Idea, IdeaStatus, Pick, PickSupplier, Rating, ResearchResult } from '../types'
+import { parsePriceEur } from './research/product'
 
 export type WlDb = Database.Database
 
@@ -54,6 +55,14 @@ const MIGRATIONS: Array<(db: WlDb) => void> = [
     addColumn(db, 'ideas', 'attempts', 'INTEGER NOT NULL DEFAULT 0')
     addColumn(db, 'ideas', 'next_attempt_at', 'TEXT')
   },
+  // 3 - research brief per idea; caveat, photo and rating per pick
+  (db) => {
+    addColumn(db, 'ideas', 'summary', 'TEXT')
+    addColumn(db, 'ideas', 'criteria', 'TEXT')
+    addColumn(db, 'picks', 'caveat', 'TEXT')
+    addColumn(db, 'picks', 'image', 'TEXT')
+    addColumn(db, 'picks', 'rating', 'TEXT')
+  },
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
@@ -88,6 +97,8 @@ interface IdeaRow {
   error: string | null
   attempts: number
   nextAttemptAt: string | null
+  summary: string | null
+  criteria: string | null
 }
 
 interface PickRow {
@@ -97,17 +108,20 @@ interface PickRow {
   title: string
   shop: string | null
   url: string
-  price: string | null
+  price: string | number | null
   why: string | null
+  caveat: string | null
+  image: string | null
+  rating: string | null
   sourceUrls: string | null
   fetchedAt: string | null
   suppliers: string | null
 }
 
 const IDEA_COLUMNS = `id, text, status, created_at AS createdAt, researched_at AS researchedAt,
-  error, attempts, next_attempt_at AS nextAttemptAt`
+  error, attempts, next_attempt_at AS nextAttemptAt, summary, criteria`
 
-const PICK_COLUMNS = `id, idea_id AS ideaId, rank, title, shop, url, price, why,
+const PICK_COLUMNS = `id, idea_id AS ideaId, rank, title, shop, url, price, why, caveat, image, rating,
   source_urls AS sourceUrls, fetched_at AS fetchedAt, suppliers`
 
 /** Newest first, with picks, in two queries. */
@@ -188,25 +202,25 @@ export function claimIdea(db: WlDb, id: number): boolean {
 }
 
 /**
- * Stores fresh picks and marks the idea done, atomically. False when the
- * idea was deleted while it was being researched.
+ * Stores fresh picks and the brief and marks the idea done, atomically. False
+ * when the idea was deleted while it was being researched.
  */
-export function completeIdea(db: WlDb, id: number, picks: FinalPick[], now = new Date()): boolean {
+export function completeIdea(db: WlDb, id: number, result: ResearchResult, now = new Date()): boolean {
   const exists = db.prepare('SELECT 1 FROM ideas WHERE id = ?')
   const del = db.prepare('DELETE FROM picks WHERE idea_id = ?')
   const ins = db.prepare(
-    `INSERT INTO picks (idea_id, rank, title, shop, url, price, why, source_urls, fetched_at, suppliers)
-     VALUES (@ideaId, @rank, @title, @shop, @url, @price, @why, @sourceUrls, @fetchedAt, @suppliers)`,
+    `INSERT INTO picks (idea_id, rank, title, shop, url, price, why, caveat, image, rating, source_urls, fetched_at, suppliers)
+     VALUES (@ideaId, @rank, @title, @shop, @url, @price, @why, @caveat, @image, @rating, @sourceUrls, @fetchedAt, @suppliers)`,
   )
   const done = db.prepare(
     `UPDATE ideas SET status = 'done', error = NULL, attempts = 0, next_attempt_at = NULL,
-       researched_at = ? WHERE id = ?`,
+       researched_at = ?, summary = ?, criteria = ? WHERE id = ?`,
   )
   const fetchedAt = now.toISOString()
   return db.transaction(() => {
     if (!exists.get(id)) return false
     del.run(id)
-    for (const p of picks) {
+    for (const p of result.picks) {
       ins.run({
         ideaId: id,
         rank: p.rank,
@@ -215,12 +229,15 @@ export function completeIdea(db: WlDb, id: number, picks: FinalPick[], now = new
         url: p.url,
         price: p.price,
         why: p.why,
-        sourceUrls: JSON.stringify([]),
+        caveat: p.caveat,
+        image: p.image,
+        rating: p.rating ? JSON.stringify(p.rating) : null,
+        sourceUrls: JSON.stringify(p.sourceUrls),
         fetchedAt,
-        suppliers: JSON.stringify(p.suppliers ?? []),
+        suppliers: JSON.stringify(p.suppliers),
       })
     }
-    done.run(fetchedAt, id)
+    done.run(fetchedAt, result.brief.summary || null, JSON.stringify(result.brief.criteria), id)
     return true
   })()
 }
@@ -275,6 +292,7 @@ function toIdea(row: IdeaRow, picks: Pick[]): Idea {
     ...row,
     createdAt: toIso(row.createdAt) as string,
     researchedAt: toIso(row.researchedAt),
+    criteria: parseStrings(row.criteria),
     picks,
   }
 }
@@ -282,7 +300,9 @@ function toIdea(row: IdeaRow, picks: Pick[]): Idea {
 function toPick(row: PickRow): Pick {
   return {
     ...row,
-    sourceUrls: parseSourceUrls(row.sourceUrls),
+    price: parsePriceEur(row.price),
+    rating: parseRating(row.rating),
+    sourceUrls: parseStrings(row.sourceUrls),
     suppliers: parseSuppliers(row.suppliers),
   }
 }
@@ -293,7 +313,7 @@ function toIso(value: string | null): string | null {
   return value.includes('T') ? value : `${value.replace(' ', 'T')}Z`
 }
 
-function parseSourceUrls(raw: string | null): string[] {
+function parseStrings(raw: string | null): string[] {
   if (!raw) return []
   try {
     const parsed: unknown = JSON.parse(raw)
@@ -303,20 +323,33 @@ function parseSourceUrls(raw: string | null): string[] {
   }
 }
 
+const AVAILABILITY = new Set<unknown>(['in_stock', 'out_of_stock', 'preorder', 'unknown'])
+
+function parseRating(raw: string | null): Rating | null {
+  if (!raw) return null
+  try {
+    const r = JSON.parse(raw) as Partial<Rating>
+    return typeof r?.value === 'number' ? { value: r.value, count: typeof r.count === 'number' ? r.count : null } : null
+  } catch {
+    return null
+  }
+}
+
 function parseSuppliers(raw: string | null): PickSupplier[] {
   if (!raw) return []
   try {
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
+    // Rows from before verified offers carry the price as text and no stock.
     return parsed
-      .filter(
-        (s): s is PickSupplier =>
-          !!s &&
-          typeof s.shop === 'string' &&
-          typeof s.url === 'string' &&
-          (typeof s.price === 'string' || s.price === null),
-      )
-      .map((s) => ({ shop: s.shop, url: s.url, price: s.price }))
+      .filter((s) => !!s && typeof s.shop === 'string' && typeof s.url === 'string')
+      .map((s) => ({
+        shop: s.shop,
+        url: s.url,
+        price: parsePriceEur(s.price),
+        availability: AVAILABILITY.has(s.availability) ? (s.availability as Availability) : 'unknown',
+        checked: s.checked === true,
+      }))
   } catch {
     return []
   }

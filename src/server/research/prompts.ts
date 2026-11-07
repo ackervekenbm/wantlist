@@ -1,6 +1,7 @@
 import type { FinalPick, Pass1Result, PickSupplier, ResearchCandidate } from '../../types'
 import { ResearchError } from './errors'
-import { isHttpUrl, mergePicksByProduct, mergeSuppliers, normalizeUrl, rankPicks } from './offers'
+import { isHttpUrl, mergePicksByProduct, mergeSuppliers, normalizeUrl, primaryFields, rankPicks } from './offers'
+import { parsePriceEur, type ProductData } from './product'
 
 // Prompts, response schemas, user-message builders and normalizers for the
 // three model steps. Normalizers are the safety net: they drop anything the
@@ -193,6 +194,12 @@ Ground rules:
   the criteria + evidence, and a suppliers array. Each supplier: shop name,
   the candidate's real URL for that shop, price in EUR if the page/snippet
   shows one (bare number or range).
+- "Shop data" lines come from the shop page's own product markup: trust them
+  over snippets for price and stock. Prefer products that are in stock.
+- Each pick also gets a "caveat": one short, honest trade-off or thing to
+  check before buying (noise, size, compatibility, subscription, short
+  warranty...), grounded in the evidence or well-known about the product.
+  Leave it empty rather than invent one.
 - Rank best first. Final list: 3-5 distinct products. Do not pad with guesses.
 - Never invent URLs - only use the URLs provided in the candidates.
 - Mention delivery/stock only if the page evidence states it.`
@@ -207,7 +214,8 @@ export const VERIFY_SCHEMA = {
         properties: {
           rank: { type: 'integer' },
           title: { type: 'string' },
-          why: { type: 'string' },
+          why: { type: 'string', description: 'One line, <=180 chars' },
+          caveat: { type: 'string', description: 'One honest trade-off, <=120 chars, or empty' },
           suppliers: {
             type: 'array',
             items: {
@@ -233,8 +241,23 @@ export interface Pass2Context {
   summary: string
   criteria: string[]
   candidates: ResearchCandidate[]
-  pages: Array<{ url: string; title: string; text: string }>
+  pages: Array<{ url: string; title: string; text: string; product: ProductData | null }>
   fetchErrors: string[]
+}
+
+/** One evidence line from a page's structured product data, or ''. */
+export function describeProduct(product: ProductData | null): string {
+  if (!product) return ''
+  const facts = [
+    product.name,
+    product.brand ? `brand ${product.brand}` : null,
+    product.price !== null ? `price EUR ${product.price}` : null,
+    product.availability !== 'unknown' ? product.availability.replace('_', ' ') : null,
+    product.rating
+      ? `rated ${product.rating.value}/5${product.rating.count ? ` (${product.rating.count} reviews)` : ''}`
+      : null,
+  ].filter(Boolean)
+  return facts.length ? `Shop data: ${facts.join(', ')}\n` : ''
 }
 
 export function buildVerifyUser(ctx: Pass2Context): string {
@@ -245,7 +268,7 @@ export function buildVerifyUser(ctx: Pass2Context): string {
     )
     .join('\n')
   const pages = ctx.pages
-    .map((p) => `--- PAGE: ${p.url} (${p.title}) ---\n${p.text}`)
+    .map((p) => `--- PAGE: ${p.url} (${p.title}) ---\n${describeProduct(p.product)}${p.text}`)
     .join('\n\n')
   const errors = ctx.fetchErrors.length
     ? `\nPages that could not be fetched:\n${ctx.fetchErrors.join('\n')}\n`
@@ -273,6 +296,7 @@ export function normalizePass2(raw: unknown, allowed: ResearchCandidate[]): Fina
   for (const p of list) {
     let title = String(p.title ?? '').trim()
     const why = String(p.why ?? '').trim()
+    const caveat = String(p.caveat ?? '').trim() || null
 
     // Suppliers: prefer the array shape, fall back to a single flat offer.
     const suppliers: PickSupplier[] = []
@@ -283,35 +307,39 @@ export function normalizePass2(raw: unknown, allowed: ResearchCandidate[]): Fina
         const url = String(s?.url ?? '').trim()
         if (!shop || !isHttpUrl(url)) continue
         if (!allowedNormalized.has(normalizeUrl(url))) continue
-        suppliers.push({ shop, url, price: s?.price !== undefined ? String(s.price).trim() || null : null })
+        suppliers.push(offer(shop, url, s?.price))
       }
     } else {
       const url = String(p.url ?? '').trim()
       if (!isHttpUrl(url)) continue
       const match = allowedNormalized.get(normalizeUrl(url))
       if (!match) continue
-      suppliers.push({
-        shop: String(p.shop ?? match.shop).trim() || match.shop,
-        url: match.url,
-        price: p.price !== undefined ? String(p.price).trim() || null : match.price ?? null,
-      })
+      suppliers.push(
+        offer(String(p.shop ?? match.shop).trim() || match.shop, match.url, p.price ?? match.price),
+      )
       if (!title) title = match.title
     }
 
     const merged = mergeSuppliers(suppliers)
     if (merged.length === 0) continue
-    const primary = merged[0]
     result.push({
       rank: 0,
       title,
-      shop: primary.shop,
-      url: primary.url,
-      price: primary.price,
+      ...primaryFields(merged),
       why,
+      caveat,
+      image: null,
+      rating: null,
       suppliers: merged,
+      sourceUrls: [],
     })
   }
 
   return rankPicks(mergePicksByProduct(result)).slice(0, 5)
+}
+
+/** An offer as the model or search saw it; the pipeline checks it on the shop page later. */
+export function offer(shop: string, url: string, price: unknown): PickSupplier {
+  return { shop, url, price: parsePriceEur(price), availability: 'unknown', checked: false }
 }
 

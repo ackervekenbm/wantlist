@@ -1,8 +1,15 @@
-import type { FinalPick, ResearchCandidate, ResearchEngine, ResearchRequest } from '../../types'
+import type {
+  FinalPick,
+  PickSupplier,
+  ResearchCandidate,
+  ResearchEngine,
+  ResearchRequest,
+  ResearchResult,
+} from '../../types'
 import { ResearchError } from './errors'
-import { checkUrl, fetchPageText } from './http'
+import { fetchPage, type Page } from './http'
 import type { ModelRouter } from './llm'
-import { mergePicksByProduct, mergeSuppliers, normalizeUrl, rankPicks } from './offers'
+import { mergePicksByProduct, mergeSuppliers, normalizeUrl, primaryFields, rankPicks } from './offers'
 import {
   buildCandidateUser,
   buildQueryUser,
@@ -12,6 +19,7 @@ import {
   normalizePass1,
   normalizePass2,
   normalizePlan,
+  offer,
   QUERY_SCHEMA,
   QUERY_SYSTEM,
   VERIFY_SCHEMA,
@@ -32,11 +40,13 @@ export interface PipelineEngineOptions {
 const BACKOFF_BASE_MS = 3000
 const MAX_TRANSIENT_RETRIES = 3
 const MAX_SEARCH_ROWS = 24
+/** Shop pages fetched at once while checking offers. */
+const PAGE_CONCURRENCY = 6
 
 export class PipelineEngine implements ResearchEngine {
   constructor(private readonly opts: PipelineEngineOptions) {}
 
-  async research(request: ResearchRequest): Promise<FinalPick[]> {
+  async research(request: ResearchRequest): Promise<ResearchResult> {
     const log = this.opts.onProgress ?? (() => {})
     const progress = (msg: string) => log(`#${request.ideaId} ${msg}`)
     const step = request.onProgress ?? (() => {})
@@ -79,24 +89,15 @@ export class PipelineEngine implements ResearchEngine {
     progress(`step 2: ${pass1.candidates.length} candidates`)
 
     step(`reading ${pass1.candidates.length} product pages`)
+    const pageCache = new PageCache()
     const maxFetch = this.opts.maxCandidatesToFetch ?? 3
-    const pages: Array<{ url: string; title: string; text: string }> = []
-    const fetchErrors: string[] = []
-    const fetched = await Promise.all(
-      pass1.candidates.slice(0, maxFetch).map(async (candidate) => {
-        try {
-          return { url: candidate.url, page: await fetchPageText(candidate.url) }
-        } catch (err) {
-          progress(`step 3: fetch failed ${candidate.url}: ${(err as Error).message}`)
-          return { url: candidate.url, page: null }
-        }
-      }),
-    )
-    for (const f of fetched) {
-      if (f.page) pages.push({ url: f.url, ...f.page })
-      else fetchErrors.push(f.url)
-    }
-    progress(`step 3: read ${pages.length}/${fetched.length} pages`)
+    const toRead = pass1.candidates.slice(0, maxFetch).map((c) => c.url)
+    const read = await mapLimit(toRead, PAGE_CONCURRENCY, async (url) => ({ url, page: await pageCache.get(url) }))
+    const pages = read
+      .filter((r) => r.page.text)
+      .map((r) => ({ url: r.url, title: r.page.title, text: r.page.text, product: r.page.product }))
+    const fetchErrors = read.filter((r) => !r.page.text).map((r) => r.url)
+    progress(`step 3: read ${pages.length}/${read.length} pages`)
 
     step('checking the evidence')
     progress('step 4: verifying')
@@ -118,11 +119,15 @@ export class PipelineEngine implements ResearchEngine {
     )
     if (picks.length === 0) picks = this.fallbackFromPass1(pass1.candidates)
 
-    step('checking the shop links')
-    progress('liveness: checking links')
-    picks = await this.filterLive(picks)
+    step(`checking ${picks.reduce((n, p) => n + p.suppliers.length, 0)} offers at the shops`)
+    progress('step 5: checking offers')
+    picks = await this.checkOffers(picks, pageCache)
+    const sourceUrls = pages.map((p) => p.url)
 
-    return rankPicks(picks)
+    return {
+      brief: { summary: plan.summary, criteria: plan.criteria },
+      picks: rankPicks(picks.map((p) => ({ ...p, sourceUrls }))),
+    }
   }
 
   /**
@@ -165,36 +170,62 @@ export class PipelineEngine implements ResearchEngine {
 
   private fallbackFromPass1(candidates: ResearchCandidate[]): FinalPick[] {
     return mergePicksByProduct(
-      candidates.map((c) => ({
-        rank: 0,
-        title: c.title,
-        shop: c.shop,
-        url: c.url,
-        price: c.price ?? null,
-        why: c.why ?? '',
-        suppliers: [{ shop: c.shop, url: c.url, price: c.price ?? null }],
-      })),
+      candidates.map((c) => {
+        const suppliers = [offer(c.shop, c.url, c.price)]
+        return {
+          rank: 0,
+          title: c.title,
+          ...primaryFields(suppliers),
+          why: c.why ?? '',
+          caveat: null,
+          image: null,
+          rating: null,
+          suppliers,
+          sourceUrls: [],
+        }
+      }),
     )
   }
 
-  private async filterLive(picks: FinalPick[]): Promise<FinalPick[]> {
-    const withStatus = await Promise.all(
-      picks.map(async (p) => {
-        const suppliers = await Promise.all(
-          p.suppliers.map(async (s) => ({ supplier: s, status: await checkUrl(s.url) })),
-        )
-        const live = suppliers.filter((s) => s.status !== 'dead').map((s) => s.supplier)
-        return { pick: p, live }
-      }),
-    )
-    // Keep picks with at least one live or unknown supplier, re-ordered best-first.
-    return withStatus
-      .filter((w) => w.live.length > 0)
-      .map((w) => {
-        const suppliers = mergeSuppliers(w.live)
-        const primary = suppliers[0]
-        return { ...w.pick, shop: primary.shop, url: primary.url, price: primary.price, suppliers }
-      })
+  /**
+   * Opens every offer's page once (pages already read for verification are
+   * reused): dead links are dropped, and price, stock, photo and rating come
+   * from the shop's own product data when it has some. A pick with no live
+   * offer left is dropped; picks that are out of stock everywhere sink to the
+   * end, otherwise the model's order stands.
+   */
+  private async checkOffers(picks: FinalPick[], cache: PageCache): Promise<FinalPick[]> {
+    const urls = [...new Set(picks.flatMap((p) => p.suppliers.map((s) => s.url)))]
+    await mapLimit(urls, PAGE_CONCURRENCY, (url) => cache.get(url))
+
+    const checked: FinalPick[] = []
+    for (const pick of picks) {
+      const offers: PickSupplier[] = []
+      let image = pick.image
+      let rating = pick.rating
+      for (const s of pick.suppliers) {
+        const page = await cache.get(s.url)
+        if (page.status === 'dead') continue
+        const product = page.product
+        if (!product) {
+          offers.push(s)
+          continue
+        }
+        offers.push({
+          ...s,
+          price: product.price ?? s.price,
+          availability: product.availability,
+          checked: product.price !== null || product.availability !== 'unknown',
+        })
+        image ??= product.image
+        rating ??= product.rating
+      }
+      if (offers.length === 0) continue
+      const suppliers = mergeSuppliers(offers)
+      checked.push({ ...pick, ...primaryFields(suppliers), suppliers, image, rating })
+    }
+    const soldOut = (p: FinalPick) => p.suppliers.every((s) => s.availability === 'out_of_stock')
+    return [...checked.filter((p) => !soldOut(p)), ...checked.filter(soldOut)]
   }
 
   private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
@@ -212,4 +243,33 @@ export class PipelineEngine implements ResearchEngine {
       }
     }
   }
+}
+
+/** Each URL is fetched at most once per research run. */
+class PageCache {
+  private readonly pages = new Map<string, Promise<Page>>()
+
+  get(url: string): Promise<Page> {
+    const key = normalizeUrl(url)
+    let page = this.pages.get(key)
+    if (!page) {
+      page = fetchPage(url)
+      this.pages.set(key, page)
+    }
+    return page
+  }
+}
+
+/** Promise.all with at most `limit` tasks in flight, results in input order. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let next = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++
+      results[i] = await fn(items[i])
+    }
+  })
+  await Promise.all(workers)
+  return results
 }

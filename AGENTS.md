@@ -79,7 +79,14 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   research step the pipeline reports, shown live on the card.
 - `src/server/research/pipeline.ts` — `PipelineEngine` implements `ResearchEngine`
   with a **no-grounding** flow: plan (queries) → Serper search → candidate
-  selection → fetch top pages (in parallel) → verify → URL-liveness filter.
+  selection → read the top pages → verify → **offer check**. It returns the
+  brief (summary + criteria, stored on the idea) with the picks.
+  The offer check opens every surviving offer's page once (a per-run
+  `PageCache`, so pages read for verification are reused; 6 in flight): dead
+  offers are dropped, and price, stock, photo and rating are taken from the
+  shop page's own product data (`checked: true`) over what search or the model
+  saw. Offers sort in stock → priced → cheapest; picks sold out everywhere sink
+  to the end, otherwise the model's ranking stands.
   Gemini cannot browse on the free tier, so all real searching/reading happens
   server-side. Each step reports a human-readable `onProgress` step. When
   every query fails, the most telling search error is rethrown (a refused
@@ -115,8 +122,19 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   `GEMINI_MODEL` (primary) → `MODEL_CHAIN` (Gemini fallbacks, default
   `gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite`) → optional
   `GROQ_API_KEY` → optional `OPENROUTER_API_KEY`.
-- `src/server/research/http.ts` — page fetch (browser-like UA), HTML→text,
-  link liveness (HEAD, GET fallback).
+- `src/server/research/product.ts` — structured product data from a shop page:
+  schema.org JSON-LD (`Product`, `@graph`, `ProductGroup` variants, `Offer` /
+  `AggregateOffer`; EUR only; cheapest in-stock offer wins), OpenGraph /
+  `product:*` meta as the fallback. `parsePriceEur` reads Belgian formats
+  ("€ 1.299,00", "129,-"; a lone separator before exactly three digits is a
+  thousands separator). Prices are numbers (EUR) everywhere from here on; rows
+  stored before that still hold text and are parsed on read.
+- `src/server/research/http.ts` — `fetchPage`: one GET (browser-like UA,
+  nl-BE languages, 12 s, body capped at 1.5 MB) gives liveness, the visible
+  text (page chrome dropped, `<main>` preferred) and the product data. Only
+  404/410, a bounce to the home page, or a "not found" title count as
+  **dead**; 401/403/429/5xx are bot walls or shop trouble and count as
+  unknown, so big marketplaces are not dropped. Never throws.
 - `src/client/` — React UI: capture box + check-in list, polls every 8 s; a
   banner names the missing keys when research is disabled.
 - `scripts/spike.ts` — run the research engine against a real key without the

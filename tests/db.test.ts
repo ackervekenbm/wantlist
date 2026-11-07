@@ -17,7 +17,7 @@ import {
   recoverInterrupted,
   requeueIdea,
 } from '../src/server/db'
-import { finalPicks, tempDb, tempDir } from './helpers'
+import { finalPicks, researchResult, tempDb, tempDir } from './helpers'
 
 describe('ideas', () => {
   it('creates trimmed queued ideas, newest first, with ISO timestamps', () => {
@@ -36,20 +36,30 @@ describe('ideas', () => {
     expect(claimIdea(db, id)).toBe(true)
     expect(getIdea(db, id)?.status).toBe('researching')
 
-    expect(completeIdea(db, id, finalPicks(), new Date('2026-11-01T10:00:00Z'))).toBe(true)
+    expect(completeIdea(db, id, researchResult(), new Date('2026-11-01T10:00:00Z'))).toBe(true)
     const idea = getIdea(db, id)!
     expect(idea).toMatchObject({ status: 'done', error: null, researchedAt: '2026-11-01T10:00:00.000Z' })
     expect(idea.picks.map((p) => p.title)).toEqual(['A fan', 'A second fan'])
-    expect(idea.picks[0].suppliers[1]).toEqual({ shop: 'Alt Shop', url: 'https://alt.eu/fan', price: '99' })
-    expect(idea.picks[0].fetchedAt).toBe('2026-11-01T10:00:00.000Z')
+    expect(idea.summary).toBe('A quiet fan for indoor cycling')
+    expect(idea.criteria).toEqual(['quiet', 'strong airflow'])
+    expect(idea.picks[0]).toMatchObject({
+      price: 89,
+      caveat: 'Loud at full speed',
+      image: 'https://shop.be/fan.jpg',
+      rating: { value: 4.5, count: 120 },
+      sourceUrls: ['https://shop.be/fan'],
+      fetchedAt: '2026-11-01T10:00:00.000Z',
+    })
+    expect(idea.picks[0].suppliers).toEqual(finalPicks()[0].suppliers)
+    expect(idea.picks[1]).toMatchObject({ price: null, caveat: null, image: null, rating: null })
   })
 
   it('lists picks with their own idea', () => {
     const { db } = tempDb()
     const a = createIdea(db, 'a')
     const b = createIdea(db, 'b')
-    completeIdea(db, a, finalPicks())
-    completeIdea(db, b, finalPicks().slice(0, 1))
+    completeIdea(db, a, researchResult())
+    completeIdea(db, b, researchResult(finalPicks().slice(0, 1)))
     const byId = new Map(listIdeas(db).map((i) => [i.id, i]))
     expect(byId.get(a)?.picks).toHaveLength(2)
     expect(byId.get(b)?.picks).toHaveLength(1)
@@ -61,7 +71,7 @@ describe('ideas', () => {
     const id = createIdea(db, 'lamp')
     claimIdea(db, id)
     deleteIdea(db, id)
-    expect(completeIdea(db, id, finalPicks())).toBe(false)
+    expect(completeIdea(db, id, researchResult())).toBe(false)
     expect(getIdea(db, id)).toBeNull()
   })
 
@@ -76,7 +86,7 @@ describe('ideas', () => {
   it('delete reports whether the idea existed and cascades picks', () => {
     const { db } = tempDb()
     const id = createIdea(db, 'lamp')
-    completeIdea(db, id, finalPicks())
+    completeIdea(db, id, researchResult())
     expect(deleteIdea(db, id)).toBe(true)
     expect(deleteIdea(db, id)).toBe(false)
     expect((db.prepare('SELECT COUNT(*) AS n FROM picks').get() as { n: number }).n).toBe(0)
@@ -89,7 +99,7 @@ describe('failures and retries', () => {
   it('a scheduled retry stays queued, keeps old picks, and is due only at its time', () => {
     const { db } = tempDb()
     const id = createIdea(db, 'jacket')
-    completeIdea(db, id, finalPicks())
+    completeIdea(db, id, researchResult())
     requeueIdea(db, id)
     claimIdea(db, id)
     failIdea(db, id, 'quota', new Date('2026-11-07T13:00:00Z'))
@@ -121,7 +131,7 @@ describe('failures and retries', () => {
     claimIdea(db, id)
     failIdea(db, id, 'quota', new Date(0))
     claimIdea(db, id)
-    completeIdea(db, id, finalPicks())
+    completeIdea(db, id, researchResult())
     expect(getIdea(db, id)).toMatchObject({ status: 'done', error: null, attempts: 0, nextAttemptAt: null })
   })
 
@@ -165,6 +175,22 @@ describe('migrations', () => {
     const again = openDb(dir)
     expect(again.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
     again.close()
+  })
+
+  it('reads picks stored before verified offers (text prices, no stock)', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'old')
+    db.prepare(
+      `INSERT INTO picks (idea_id, rank, title, shop, url, price, suppliers) VALUES (?, 1, 'Fan', 'S', 'https://s.be/f', '1.299,00', ?)`,
+    ).run(id, JSON.stringify([{ shop: 'S', url: 'https://s.be/f', price: '€ 1.299,00' }, { shop: 'T', url: 'https://t.be/f', price: null }]))
+    const pick = listIdeas(db)[0].picks[0]
+    expect(pick.price).toBe(1299)
+    expect(pick.suppliers).toEqual([
+      { shop: 'S', url: 'https://s.be/f', price: 1299, availability: 'unknown', checked: false },
+      { shop: 'T', url: 'https://t.be/f', price: null, availability: 'unknown', checked: false },
+    ])
+    expect(pick).toMatchObject({ caveat: null, image: null, rating: null, sourceUrls: [] })
+    expect(listIdeas(db)[0]).toMatchObject({ summary: null, criteria: [] })
   })
 
   it('tolerates a database that already gained the suppliers column', () => {

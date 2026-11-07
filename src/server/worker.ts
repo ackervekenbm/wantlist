@@ -137,17 +137,17 @@ export function createWorker(opts: WorkerOptions): Worker {
       log(`researching #${id}: ${idea.text.slice(0, 60)}`)
 
       try {
-        const picks = await engine.research({
+        const result = await engine.research({
           ideaId: id,
           text: idea.text,
           onProgress: (step) => {
             if (state.current?.ideaId === id) state.current = { ideaId: id, step }
           },
         })
-        if (picks.length === 0) {
+        if (result.picks.length === 0) {
           failIdea(opts.db, id, 'No product survived verification. Try rewording the idea.', null)
           summary.failed += 1
-        } else if (completeIdea(opts.db, id, picks, now())) {
+        } else if (completeIdea(opts.db, id, result, now())) {
           summary.succeeded += 1
         }
       } catch (err) {

@@ -1,5 +1,6 @@
 import type { Idea, Pick } from '../../types'
 import { StatusBadge } from './StatusBadge'
+import { formatEur } from '../lib/format'
 
 interface Props {
   idea: Idea
@@ -68,7 +69,7 @@ function PickRow({ pick }: { pick: Pick }) {
       <div className="pick-body">
         <div className="pick-top">
           <p className="pick-title">{pick.title}</p>
-          {pick.price && <span className="pick-price">€{pick.price}</span>}
+          {pick.price !== null && <span className="pick-price">{formatEur(pick.price)}</span>}
         </div>
         {pick.why && <p className="pick-why">{pick.why}</p>}
         <div className="pick-bottom">
@@ -85,7 +86,7 @@ function PickRow({ pick }: { pick: Pick }) {
                 <a className="pick-alt-shop" href={s.url} target="_blank" rel="noreferrer noopener">
                   {s.shop} {hostOf(s.url)}
                 </a>
-                {s.price && <span className="pick-alt-price">€{s.price}</span>}
+                {s.price !== null && <span className="pick-alt-price">{formatEur(s.price)}</span>}
               </li>
             ))}
           </ul>

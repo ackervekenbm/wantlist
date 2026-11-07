@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { createIdea, getIdea } from '../src/server/db'
 import { ResearchError, type FailureKind } from '../src/server/research/errors'
 import { DEFAULT_RETRY, createWorker, retryAt, type WorkerOptions } from '../src/server/worker'
-import type { FinalPick, ResearchEngine, ResearchRequest } from '../src/types'
-import { finalPicks, tempDb } from './helpers'
+import type { ResearchEngine, ResearchRequest, ResearchResult } from '../src/types'
+import { researchResult, tempDb } from './helpers'
 
 function fail(
   message: string,
@@ -15,7 +15,7 @@ function fail(
 
 const NOW = new Date('2026-11-07T12:00:00Z')
 
-function engineOf(fn: (req: ResearchRequest) => Promise<FinalPick[]>): ResearchEngine & {
+function engineOf(fn: (req: ResearchRequest) => Promise<ResearchResult>): ResearchEngine & {
   calls: ResearchRequest[]
 } {
   const calls: ResearchRequest[] = []
@@ -70,7 +70,7 @@ describe('worker', () => {
     const { db } = tempDb()
     const a = createIdea(db, 'fan')
     const b = createIdea(db, 'lamp')
-    const engine = engineOf(async () => finalPicks())
+    const engine = engineOf(async () => researchResult())
     const summary = await makeWorker({ db, engine }).runOnce()
 
     expect(engine.calls.map((c) => c.ideaId)).toEqual([a, b])
@@ -84,7 +84,7 @@ describe('worker', () => {
     createIdea(db, 'a')
     createIdea(db, 'b')
     createIdea(db, 'c')
-    const engine = engineOf(async () => finalPicks())
+    const engine = engineOf(async () => researchResult())
     await makeWorker({ db, engine, queueCap: 2 }).runOnce()
     expect(engine.calls).toHaveLength(2)
   })
@@ -120,7 +120,7 @@ describe('worker', () => {
   it('treats an empty result as a failure that needs rewording', async () => {
     const { db } = tempDb()
     const id = createIdea(db, 'fan')
-    await makeWorker({ db, engine: engineOf(async () => []) }).runOnce()
+    await makeWorker({ db, engine: engineOf(async () => researchResult([])) }).runOnce()
     expect(getIdea(db, id)?.status).toBe('error')
     expect(getIdea(db, id)?.error).toMatch(/rewording/)
   })
@@ -146,7 +146,7 @@ describe('worker', () => {
     const engine = engineOf(async (req) => {
       req.onProgress?.('searching shops')
       await gate
-      return finalPicks()
+      return researchResult()
     })
     const worker = makeWorker({ db, engine })
     const run = worker.runOnce()
@@ -164,7 +164,7 @@ describe('worker', () => {
     const gate = new Promise<void>((r) => (release = r))
     const engine = engineOf(async (req) => {
       if (req.text === 'first') await gate
-      return finalPicks()
+      return researchResult()
     })
     const worker = makeWorker({ db, engine })
     const first = worker.runOnce()

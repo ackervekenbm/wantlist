@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach } from 'vitest'
 import { openDb, type WlDb } from '../src/server/db'
-import type { FinalPick } from '../src/types'
+import type { FinalPick, ResearchResult } from '../src/types'
 
 const cleanups: Array<() => void> = []
 
@@ -35,11 +35,15 @@ export function finalPicks(): FinalPick[] {
       title: 'A fan',
       shop: 'Shop Be',
       url: 'https://shop.be/fan',
-      price: '89',
+      price: 89,
       why: 'quiet at low rpm',
+      caveat: 'Loud at full speed',
+      image: 'https://shop.be/fan.jpg',
+      rating: { value: 4.5, count: 120 },
+      sourceUrls: ['https://shop.be/fan'],
       suppliers: [
-        { shop: 'Shop Be', url: 'https://shop.be/fan', price: '89' },
-        { shop: 'Alt Shop', url: 'https://alt.eu/fan', price: '99' },
+        { shop: 'Shop Be', url: 'https://shop.be/fan', price: 89, availability: 'in_stock', checked: true },
+        { shop: 'Alt Shop', url: 'https://alt.eu/fan', price: 99, availability: 'unknown', checked: false },
       ],
     },
     {
@@ -49,7 +53,15 @@ export function finalPicks(): FinalPick[] {
       url: 'https://other.eu/fan2',
       price: null,
       why: 'cheap',
-      suppliers: [{ shop: 'Other Shop', url: 'https://other.eu/fan2', price: null }],
+      caveat: null,
+      image: null,
+      rating: null,
+      sourceUrls: [],
+      suppliers: [{ shop: 'Other Shop', url: 'https://other.eu/fan2', price: null, availability: 'unknown', checked: false }],
     },
   ]
+}
+
+export function researchResult(picks: FinalPick[] = finalPicks()): ResearchResult {
+  return { brief: { summary: 'A quiet fan for indoor cycling', criteria: ['quiet', 'strong airflow'] }, picks }
 }
