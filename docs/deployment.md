@@ -13,6 +13,12 @@ see `.github/workflows/docker-build.yml`).
 - OMV with **omv-extras** installed, Docker enabled, and the **Compose**
   plugin enabled (Services → Compose).
 - `DATA` is a named volume — no host path needed.
+- **Ownership is automatic.** The app runs as the unprivileged user uid 1000,
+  not as root. Each time the container starts it gives the data folder and the
+  files in it to that user, also a volume an older image left owned by root.
+  Nothing to set up in OMV and no SSH needed. A host folder used instead of the
+  named volume must sit on a Linux filesystem (ext4, btrfs, xfs): NTFS, exFAT
+  and FAT can't store an owner.
 
 ## 2. GHCR login (one-time per host)
 

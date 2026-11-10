@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'Dockerfile'
+      - 'docker-entrypoint.sh'
       - '.dockerignore'
       - '.npmrc'
       - 'package.json'
@@ -20,6 +21,7 @@ on:
   pull_request:
     paths:
       - 'Dockerfile'
+      - 'docker-entrypoint.sh'
       - '.dockerignore'
       - '.npmrc'
       - 'package.json'
@@ -84,9 +86,63 @@ jobs:
           curl -fsSI "http://127.0.0.1:8091$asset" | grep -qi '^cache-control: public, max-age=31536000, immutable'
           echo "ok"
 
+      - name: Assert the app runs as the unprivileged node user
+        run: |
+          set -e
+          # PID 1 is the app after the entrypoint's exec; its owner is the user it runs as.
+          user=$(docker exec smoke stat -c %U /proc/1)
+          echo "app runs as: $user"
+          test "$user" = node
+          test "$(docker exec smoke stat -c %U /app/data)" = node
+
+      - name: Take over a data volume a root-run image left behind
+        run: |
+          set -e
+          # What a root-run image leaves: a root-owned folder and database that
+          # the node user can't write. Plus a root-owned symlink to the
+          # entrypoint: the handover must not follow it and give node a file
+          # that runs as root.
+          docker volume create smoke-old
+          docker run --rm -v smoke-old:/data alpine:3.24 sh -c \
+            'touch /data/wantlist.db && ln -s /usr/local/bin/wantlist-entrypoint /data/trap && chown -R -h 0:0 /data && chmod 755 /data && chmod 644 /data/wantlist.db'
+          docker run -d --name smoke-old -p 8092:3000 -v smoke-old:/app/data wantlist:smoke
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8092/api/health | grep -q '"ok":true'; then
+              echo "healthy after ${i}s"
+              break
+            fi
+            if [ "$i" = 60 ]; then echo "::error::root-owned volume: not healthy in 60s"; docker logs smoke-old; exit 1; fi
+            sleep 1
+          done
+          docker exec smoke-old sh -c 'stat -c "%U %n" /app/data /app/data/*'
+          test -z "$(docker exec smoke-old find /app/data ! -type l ! -user node)"
+          # The symlink was skipped: its target still belongs to root.
+          test "$(docker exec smoke-old stat -c %U /usr/local/bin/wantlist-entrypoint)" = root
+
+      - name: Run as uid 1000 from the start
+        run: |
+          set -e
+          docker volume create smoke-user
+          docker run --rm -v smoke-user:/data alpine:3.24 chown 1000:1000 /data
+          docker run -d --name smoke-user --user 1000:1000 -p 8093:3000 -v smoke-user:/app/data wantlist:smoke
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8093/api/health | grep -q '"ok":true'; then
+              echo "healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::--user 1000:1000: not healthy in 60s"
+          docker logs smoke-user
+          exit 1
+
       - name: Dump container logs
         if: failure()
-        run: docker logs smoke
+        run: |
+          for c in smoke smoke-old smoke-user; do
+            echo "== $c"
+            docker logs "$c" 2>&1 || true
+          done
 
   build:
     # Each architecture builds natively (no QEMU): amd64 on the x86 runner,
