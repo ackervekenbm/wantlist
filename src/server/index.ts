@@ -1,34 +1,33 @@
-import fs from 'node:fs'
 import path from 'node:path'
-import express from 'express'
+import { createApp } from './app'
+import { openDb, recoverInterrupted } from './db'
 import { env, envInt, loadEnv } from './env'
-import { openDb } from './db'
-import { createWorker } from './worker'
 import { buildModelRouter } from './research/chain'
 import { PipelineEngine } from './research/pipeline'
 import { SerperProvider } from './research/search'
-import {
-  createIdea,
-  deleteIdea,
-  getIdea,
-  listIdeas,
-  requeueIdea,
-} from './db'
+import { createWorker } from './worker'
 
 loadEnv()
 
-const app = express()
-app.use(express.json())
-
 const db = openDb(env('DATA_DIR', path.join(process.cwd(), 'data')))
+const recovered = recoverInterrupted(db)
+if (recovered > 0) console.log(`[worker] requeued ${recovered} idea(s) interrupted by a restart`)
+
 const serperKey = process.env.SERPER_API_KEY
 const router = buildModelRouter(process.env, (msg) => console.log(`[llm] ${msg}`))
-const engine = router && serperKey
-  ? new PipelineEngine({
-      router,
-      search: new SerperProvider(serperKey),
-    })
-  : null
+const missingKeys = [
+  router ? null : 'GEMINI_API_KEY',
+  serperKey ? null : 'SERPER_API_KEY',
+].filter((k): k is string => k !== null)
+
+const engine =
+  router && serperKey
+    ? new PipelineEngine({
+        router,
+        search: new SerperProvider(serperKey),
+        onProgress: (msg) => console.log(`[research] ${msg}`),
+      })
+    : null
 
 const worker = createWorker({
   db,
@@ -37,83 +36,44 @@ const worker = createWorker({
   queueCap: envInt('WORKER_QUEUE_CAP', 3),
 })
 
-// --- API ---
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true })
+const app = createApp({
+  db,
+  worker,
+  missingKeys,
+  modelHealth: () => router?.health() ?? [],
+  clientDist: path.join(process.cwd(), 'dist'),
 })
-
-app.get('/api/status', (_req, res) => {
-  const queued = db
-    .prepare(`SELECT COUNT(*) AS n FROM ideas WHERE status IN ('queued','error')`)
-    .get() as { n: number }
-  res.json({ ...worker.status(), queuedCount: queued.n })
-})
-
-app.get('/api/ideas', (_req, res) => {
-  res.json(listIdeas(db))
-})
-
-app.get('/api/ideas/:id', (req, res) => {
-  const id = Number(req.params.id)
-  const idea = Number.isInteger(id) ? getIdea(db, id) : null
-  if (!idea) return res.status(404).json({ error: 'not found' })
-  res.json(idea)
-})
-
-app.post('/api/ideas', (req, res) => {
-  const text = String(req.body?.text ?? '').trim()
-  if (!text) return res.status(400).json({ error: 'text is required' })
-  const id = createIdea(db, text)
-  void worker.runOnce().catch(() => undefined)
-  res.status(201).json({ id: String(id), text, status: 'queued' })
-})
-
-app.delete('/api/ideas/:id', (req, res) => {
-  const id = Number(req.params.id)
-  if (!Number.isInteger(id)) return res.status(400).json({ error: 'bad id' })
-  deleteIdea(db, id)
-  res.status(204).end()
-})
-
-app.post('/api/ideas/:id/rerun', (req, res) => {
-  const id = Number(req.params.id)
-  if (!Number.isInteger(id)) return res.status(400).json({ error: 'bad id' })
-  requeueIdea(db, id)
-  void worker.runOnce().catch(() => undefined)
-  res.json({ ok: true })
-})
-
-app.post('/api/worker/run', async (_req, res) => {
-  const result = await worker.runOnce()
-  res.json(result)
-})
-
-// --- static client ---
-const distDir = path.join(process.cwd(), 'dist')
-const indexFile = path.join(distDir, 'index.html')
-if (fs.existsSync(indexFile)) {
-  app.use(express.static(distDir))
-  app.get(/.*/, (req, res, next) => {
-    if (req.path.startsWith('/api')) return next()
-    res.sendFile(indexFile)
-  })
-}
 
 const host = env('HOST', '0.0.0.0')
 const port = envInt('PORT', 3000)
-app.listen(port, host, () => {
+const server = app.listen(port, host, () => {
   console.log(`wantlist listening on http://${host}:${port}`)
-  if (!engine) {
-    const missing = [
-      process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENROUTER_API_KEY
-        ? ''
-        : 'GEMINI_API_KEY (or GROQ_API_KEY / OPENROUTER_API_KEY)',
-      serperKey ? '' : 'SERPER_API_KEY',
-    ]
-      .filter(Boolean)
-      .join(' + ')
-    console.log(`warning: ${missing} not set - research worker is disabled`)
+  if (engine) {
+    console.log(`[llm] chain: ${router?.ids.join(' -> ')}`)
+  } else {
+    console.log(`warning: ${missingKeys.join(' + ')} not set - research is disabled`)
   }
-  // One immediate run at boot to clear anything left queued from a restart.
-  setTimeout(() => void worker.runOnce(), 1500)
+  worker.start()
+  // Clear anything left queued by a restart.
+  worker.kick()
 })
+
+let shuttingDown = false
+
+function shutdown(signal: string): void {
+  if (shuttingDown) return
+  shuttingDown = true
+  console.log(`${signal} received, shutting down`)
+  worker.stop()
+  server.close(() => {
+    // An idea still mid-research stays `researching`; the next boot requeues it.
+    db.close()
+    process.exit(0)
+  })
+  // Polling clients hold keep-alive sockets open; drop the idle ones.
+  server.closeIdleConnections()
+  setTimeout(() => process.exit(1), 10_000).unref()
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))

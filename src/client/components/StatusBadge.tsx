@@ -1,17 +1,18 @@
 import type { IdeaStatus } from '../../types'
 
-const STATUS_TEXT: Record<IdeaStatus, string> = {
+const TEXT: Record<IdeaStatus, string> = {
   queued: 'queued',
   researching: 'researching',
   done: 'done',
-  error: 'error',
+  error: 'stopped',
 }
 
-export function StatusBadge({ status }: { status: IdeaStatus }) {
+export function StatusBadge({ status, retrying = false }: { status: IdeaStatus; retrying?: boolean }) {
+  const label = status === 'queued' && retrying ? 'retrying later' : TEXT[status]
   return (
     <span className={`badge badge-${status}`}>
-      {status === 'researching' && <span className="badge-pulse" aria-hidden />}
-      {STATUS_TEXT[status]}
+      {status === 'researching' && <span className="pulse" aria-hidden="true" />}
+      {label}
     </span>
   )
 }

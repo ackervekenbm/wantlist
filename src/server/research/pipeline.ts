@@ -1,116 +1,147 @@
-import type { FinalPick, ResearchCandidate, ResearchEngine, ResearchRequest } from '../../types'
-import { checkUrl, fetchPageText } from './http'
+import type {
+  FinalPick,
+  PickSupplier,
+  ResearchCandidate,
+  ResearchEngine,
+  ResearchRequest,
+  ResearchResult,
+} from '../../types'
+import { ResearchError } from './errors'
+import { fetchPage, type Page } from './http'
+import type { ModelRouter } from './llm'
+import { mergePicksByProduct, mergeSuppliers, normalizeUrl, primaryFields, rankPicks } from './offers'
 import {
   buildCandidateUser,
   buildQueryUser,
   buildVerifyUser,
   CANDIDATE_SCHEMA,
   CANDIDATE_SYSTEM,
-  mergePicksByProduct,
-  mergeSuppliers,
   normalizePass1,
   normalizePass2,
   normalizePlan,
-  normalizeUrl,
+  offer,
   QUERY_SCHEMA,
   QUERY_SYSTEM,
-  rankPicks,
   VERIFY_SCHEMA,
   VERIFY_SYSTEM,
-} from './gemini'
-import { ModelError, type ModelRouter } from './llm'
-import type { CandidateInputRow, SearchProvider } from './search'
+  type CandidateInputRow,
+} from './prompts'
+import type { SearchProvider } from './search'
 
 export interface PipelineEngineOptions {
   router: ModelRouter
   search: SearchProvider
   maxCandidatesToFetch?: number
   onProgress?: (message: string) => void
+  /** Injectable sleep for tests (search retries). */
+  sleep?: (ms: number) => Promise<void>
 }
 
 const BACKOFF_BASE_MS = 3000
 const MAX_TRANSIENT_RETRIES = 3
+const MAX_SEARCH_ROWS = 24
+/** Shop pages fetched at once while checking offers. */
+const PAGE_CONCURRENCY = 6
 
 export class PipelineEngine implements ResearchEngine {
   constructor(private readonly opts: PipelineEngineOptions) {}
 
-  async research(request: ResearchRequest): Promise<FinalPick[]> {
-    const progress = this.opts.onProgress ?? (() => {})
-    const generate = this.opts.router.generate.bind(this.opts.router)
+  async research(request: ResearchRequest): Promise<ResearchResult> {
+    const log = this.opts.onProgress ?? (() => {})
+    const progress = (msg: string) => log(`#${request.ideaId} ${msg}`)
+    const step = request.onProgress ?? (() => {})
+    const router = this.opts.router
 
+    step('working out what to look for')
     progress('step 1: planning queries')
-    const plan = normalizePlan(
-      await generate({
+    const plan = await router.generate(
+      {
         systemInstruction: QUERY_SYSTEM,
-        contents: buildQueryUser(request.text),
+        contents: buildQueryUser(request),
         schema: QUERY_SCHEMA,
         temperature: 0.4,
-      }),
+      },
+      normalizePlan,
     )
     progress(`step 1: ${plan.searchQueries.length} query(ies)`)
 
+    step('searching shops and reviews')
     const results = await this.searchAll(plan.searchQueries, progress)
-    if (results.length === 0) {
-      throw new ModelError('search returned no results', 400, false)
-    }
     progress(`step 2: ${results.length} search hits`)
 
+    step(`shortlisting from ${results.length} results`)
     const allowed = new Set(results.map((r) => normalizeUrl(r.url)))
-    const rawCandidates = await generate({
-      systemInstruction: CANDIDATE_SYSTEM,
-      contents: buildCandidateUser(request.text, plan.summary, plan.criteria, results),
-      schema: CANDIDATE_SCHEMA,
-      temperature: 0.3,
-    })
-    const pass1 = normalizePass1(rawCandidates, allowed)
-    if (pass1.candidates.length === 0) {
-      throw new ModelError('candidate step returned no usable candidates', 200, false)
-    }
+    const pass1 = await router.generate(
+      {
+        systemInstruction: CANDIDATE_SYSTEM,
+        contents: buildCandidateUser(request, plan.summary, plan.criteria, results),
+        schema: CANDIDATE_SCHEMA,
+        temperature: 0.3,
+      },
+      (raw) => {
+        const parsed = normalizePass1(raw, allowed)
+        if (parsed.candidates.length === 0) {
+          throw new ResearchError('no candidate used a URL from the search results', { kind: 'invalid' })
+        }
+        return parsed
+      },
+    )
     progress(`step 2: ${pass1.candidates.length} candidates`)
 
+    step(`reading ${pass1.candidates.length} product pages`)
+    const pageCache = new PageCache()
     const maxFetch = this.opts.maxCandidatesToFetch ?? 3
-    const pages: Array<{ url: string; title: string; text: string }> = []
-    const fetchErrors: string[] = []
-    for (const candidate of pass1.candidates.slice(0, maxFetch)) {
-      try {
-        const page = await fetchPageText(candidate.url)
-        pages.push({ url: candidate.url, ...page })
-        progress(`step 3: fetched ${candidate.url}`)
-      } catch (err) {
-        fetchErrors.push(candidate.url)
-        progress(`step 3: fetch failed ${candidate.url}: ${(err as Error).message}`)
-      }
-    }
+    const toRead = pass1.candidates.slice(0, maxFetch).map((c) => c.url)
+    const read = await mapLimit(toRead, PAGE_CONCURRENCY, async (url) => ({ url, page: await pageCache.get(url) }))
+    const pages = read
+      .filter((r) => r.page.text)
+      .map((r) => ({ url: r.url, title: r.page.title, text: r.page.text, product: r.page.product }))
+    const fetchErrors = read.filter((r) => !r.page.text).map((r) => r.url)
+    progress(`step 3: read ${pages.length}/${read.length} pages`)
 
+    step('checking the evidence')
     progress('step 4: verifying')
-    const rawPicks = await generate({
-      systemInstruction: VERIFY_SYSTEM,
-      contents: buildVerifyUser({
-        ideaText: request.text,
-        summary: plan.summary,
-        criteria: plan.criteria,
-        candidates: pass1.candidates,
-        pages,
-        fetchErrors,
-      }),
-      schema: VERIFY_SCHEMA,
-      temperature: 0.3,
-    })
-    let picks = normalizePass2(rawPicks, pass1.candidates)
+    let picks = await router.generate(
+      {
+        systemInstruction: VERIFY_SYSTEM,
+        contents: buildVerifyUser({
+          idea: request,
+          summary: plan.summary,
+          criteria: plan.criteria,
+          candidates: pass1.candidates,
+          pages,
+          fetchErrors,
+        }),
+        schema: VERIFY_SCHEMA,
+        temperature: 0.3,
+      },
+      (raw) => normalizePass2(raw, pass1.candidates),
+    )
     if (picks.length === 0) picks = this.fallbackFromPass1(pass1.candidates)
 
-    progress('liveness: checking links')
-    picks = await this.filterLive(picks)
+    step(`checking ${picks.reduce((n, p) => n + p.suppliers.length, 0)} offers at the shops`)
+    progress('step 5: checking offers')
+    picks = await this.checkOffers(picks, pageCache)
+    const sourceUrls = pages.map((p) => p.url)
 
-    return rankPicks(picks)
+    return {
+      brief: { summary: plan.summary, criteria: plan.criteria },
+      picks: rankPicks(picks.map((p) => ({ ...p, sourceUrls }))),
+    }
   }
 
+  /**
+   * Runs every query, de-duplicating hits. One failed query is tolerated;
+   * when every query fails, the most telling error is rethrown (a refused key
+   * beats a flaky network), so the idea shows why instead of "no results".
+   */
   private async searchAll(
     queries: string[],
     progress: (msg: string) => void,
   ): Promise<CandidateInputRow[]> {
     const rows: CandidateInputRow[] = []
     const seen = new Set<string>()
+    const errors: ResearchError[] = []
     for (const q of queries) {
       try {
         const hits = await this.withRetry(() => this.opts.search.search(q))
@@ -123,68 +154,89 @@ export class PipelineEngine implements ResearchEngine {
         }
       } catch (err) {
         progress(`step 2: search "${q}" failed: ${(err as Error).message}`)
+        errors.push(
+          err instanceof ResearchError ? err : new ResearchError((err as Error).message, { kind: 'transient' }),
+        )
+        if (errors.at(-1)?.kind === 'unavailable') break
       }
-      if (rows.length >= 24) break
+      if (rows.length >= MAX_SEARCH_ROWS) break
     }
-    return rows
+    if (rows.length > 0) return rows
+    if (errors.length > 0) throw errors.find((e) => e.kind === 'unavailable') ?? errors[errors.length - 1]
+    throw new ResearchError('The searches found nothing to buy. Try describing the idea differently.', {
+      kind: 'no-results',
+    })
   }
 
   private fallbackFromPass1(candidates: ResearchCandidate[]): FinalPick[] {
-    const picks: FinalPick[] = []
-    for (const c of candidates) {
-      picks.push({
-        rank: 0,
-        title: c.title,
-        shop: c.shop,
-        url: c.url,
-        price: c.price ?? null,
-        why: c.why ?? '',
-        suppliers: [{ shop: c.shop, url: c.url, price: c.price ?? null }],
-      })
-    }
-    return mergePicksByProduct(picks)
-  }
-
-  private async filterLive(picks: FinalPick[]): Promise<FinalPick[]> {
-    const withStatus = await Promise.all(
-      picks.map(async (p) => {
-        const suppliers = await Promise.all(
-          p.suppliers.map(async (s) => ({
-            supplier: s,
-            status: await checkUrl(s.url),
-          })),
-        )
-        const live = suppliers.filter((s) => s.status !== 'dead').map((s) => s.supplier)
-        return { pick: p, live }
+    return mergePicksByProduct(
+      candidates.map((c) => {
+        const suppliers = [offer(c.shop, c.url, c.price)]
+        return {
+          rank: 0,
+          title: c.title,
+          ...primaryFields(suppliers),
+          why: c.why ?? '',
+          caveat: null,
+          image: null,
+          rating: null,
+          suppliers,
+          sourceUrls: [],
+        }
       }),
     )
-    // Keep picks with at least one live or unknown supplier, re-ordered best-first.
-    return withStatus
-      .filter((w) => w.live.length > 0)
-      .map((w) => {
-        const suppliers = mergeSuppliers(w.live)
-        const primary = suppliers[0]
-        return {
-          ...w.pick,
-          shop: primary.shop,
-          url: primary.url,
-          price: primary.price,
-          suppliers,
+  }
+
+  /**
+   * Opens every offer's page once (pages already read for verification are
+   * reused): dead links are dropped, and price, stock, photo and rating come
+   * from the shop's own product data when it has some. A pick with no live
+   * offer left is dropped; picks that are out of stock everywhere sink to the
+   * end, otherwise the model's order stands.
+   */
+  private async checkOffers(picks: FinalPick[], cache: PageCache): Promise<FinalPick[]> {
+    const urls = [...new Set(picks.flatMap((p) => p.suppliers.map((s) => s.url)))]
+    await mapLimit(urls, PAGE_CONCURRENCY, (url) => cache.get(url))
+
+    const checked: FinalPick[] = []
+    for (const pick of picks) {
+      const offers: PickSupplier[] = []
+      let image = pick.image
+      let rating = pick.rating
+      for (const s of pick.suppliers) {
+        const page = await cache.get(s.url)
+        if (page.status === 'dead') continue
+        const product = page.product
+        if (!product) {
+          offers.push(s)
+          continue
         }
-      })
+        offers.push({
+          ...s,
+          price: product.price ?? s.price,
+          availability: product.availability,
+          checked: product.price !== null || product.availability !== 'unknown',
+        })
+        image ??= product.image
+        rating ??= product.rating
+      }
+      if (offers.length === 0) continue
+      const suppliers = mergeSuppliers(offers)
+      checked.push({ ...pick, ...primaryFields(suppliers), suppliers, image, rating })
+    }
+    const soldOut = (p: FinalPick) => p.suppliers.every((s) => s.availability === 'out_of_stock')
+    return [...checked.filter((p) => !soldOut(p)), ...checked.filter(soldOut)]
   }
 
   private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
-    let attempt = 0
-    for (;;) {
+    const sleep = this.opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+    for (let attempt = 0; ; attempt += 1) {
       try {
         return await fn()
       } catch (err) {
-        if (err instanceof ModelError && err.retryable && attempt < MAX_TRANSIENT_RETRIES) {
+        if (err instanceof ResearchError && err.kind === 'transient' && attempt < MAX_TRANSIENT_RETRIES) {
           const base = err.retryAfterMs ?? BACKOFF_BASE_MS * 2 ** attempt
-          const jitter = 0.8 + Math.random() * 0.4
-          attempt += 1
-          await sleep(Math.round(base * jitter))
+          await sleep(Math.round(base * (0.8 + Math.random() * 0.4)))
           continue
         }
         throw err
@@ -193,8 +245,31 @@ export class PipelineEngine implements ResearchEngine {
   }
 }
 
-export type { SearchProvider }
+/** Each URL is fetched at most once per research run. */
+class PageCache {
+  private readonly pages = new Map<string, Promise<Page>>()
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  get(url: string): Promise<Page> {
+    const key = normalizeUrl(url)
+    let page = this.pages.get(key)
+    if (!page) {
+      page = fetchPage(url)
+      this.pages.set(key, page)
+    }
+    return page
+  }
+}
+
+/** Promise.all with at most `limit` tasks in flight, results in input order. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let next = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++
+      results[i] = await fn(items[i])
+    }
+  })
+  await Promise.all(workers)
+  return results
 }

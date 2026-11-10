@@ -12,7 +12,6 @@ Not a price tracker. Not a wishlist-with-links. The differentiator is the
 **async research pass** plus the accumulating personal backlog of buying ideas.
 
 **Repo**: `ackervekenbm/wantlist` (public)
-**Host**: `/mnt/c/Dev/wantlist`
 
 ## Decisions (locked)
 
@@ -45,15 +44,21 @@ One npm package, no separate job service:
 ### Schema
 
 ```
-ideas(id, text, status, created_at, researched_at, error)
-  status: queued | researching | done | error
-picks(id, idea_id, rank, title, url, price, why, source_urls, fetched_at, suppliers)
-  suppliers: JSON [{shop, url, price}] - every known offer, best first; top-level
-  shop/url/price mirror the best offer
+ideas(id, text, budget, notes, list, bought, status, created_at, researched_at,
+      error, attempts, next_attempt_at, summary, criteria)
+  list: wanted | bought | archived  (yours; only wanted is researched)
+  bought: JSON snapshot {title, shop, url, price, at} of the pick you bought
+  status: queued | researching | done | error  (queued + next_attempt_at = retry)
+  summary/criteria: the research brief from the latest successful run
+picks(id, idea_id, rank, title, shop, url, price, why, caveat, image, rating,
+      source_urls, fetched_at, suppliers)
+  suppliers: JSON [{shop, url, price (EUR number), availability, checked}] -
+  every known offer, best first; top-level shop/url/price mirror the best offer
+  rating: JSON {value (0-5), count}; source_urls: pages the verify step read
 ```
 
 `/api/ideas` returns full ideas with their picks; the UI needs only that one
-endpoint plus `POST /api/ideas`, `DELETE /api/ideas/:id`,
+endpoint plus `POST /api/ideas`, `PATCH /api/ideas/:id`, `DELETE /api/ideas/:id`,
 `POST /api/ideas/:id/rerun`, `GET /api/status`, `POST /api/worker/run` (debug).
 
 ## Research pipeline (per idea)
@@ -77,14 +82,21 @@ reasons over evidence we hand it.
    Normalized hard: **URL must be one of the search results** — nothing
    invented.
 4. **Verify** (`gemini-3.8-flash`): server-side fetch of the top 3 candidate
-   pages, page text fed back so only evidence-backed products survive, each
+   pages, page text plus a "Shop data" line from the page's product markup
+   (price, stock, rating) fed back so only evidence-backed products survive, each
    returned **once with a `suppliers` array** (every known shop offer for that
    product, best price first); the whole list is de-duplicated again at code
    level (`mergePicksByProduct`) so an identical product can never appear
-   twice. Best-effort: an unfetchable page degrades to candidate evidence.
-5. **Liveness**: HEAD (fallback GET) **each supplier URL**; dead suppliers are
-   dropped, the best live one becomes the pick's primary link; a pick with no
-   live supplier is dropped. Network failures count as unknown and are kept.
+   twice. Each pick also gets one honest **caveat** (a trade-off to check
+   before buying). Best-effort: an unfetchable page degrades to candidate
+   evidence.
+5. **Offer check**: one GET of **each supplier URL** (reusing step 4's
+   reads). Dead offers (404/410, bounced to the home page, "not found" title)
+   are dropped; bot walls and network failures count as unknown and are kept.
+   Where the page carries schema.org/OpenGraph product data, its EUR price,
+   stock, photo and rating replace what search or the model saw. Offers sort
+   in stock → priced → cheapest; the best becomes the pick's primary link; a
+   pick with no offer left is dropped, one sold out everywhere sinks to the end.
 
 Then, and only then, the idea is `done`.
 
@@ -106,10 +118,13 @@ chain, built from env by `chain.ts`:
    `OPENROUTER_API_KEY` (`:free` models, no card) — one generic
    OpenAI-compatible client (`openai.ts`) behind both.
 
-Failover rules: a daily-quota 429 memoizes that model as unavailable (until
-`Retry-After` or next 00:00 UTC) and advances **immediately**; 5xx/network
-errors get exponential backoff on the same entry (max 3) before advancing;
-non-retryable errors (safety, bad request, unparseable) fail the idea. The
+Failover rules: a 429 benches that model and advances **immediately** — until
+midnight Pacific for a per-day quota (Gemini's reset), for the `retryDelay`
+Google returns for a per-minute one; a 404 model or refused key benches it for
+a day; 5xx/network errors get exponential backoff on the same entry (max 3)
+before advancing; an unusable answer (bad JSON, no usable queries/candidates)
+advances; only blocked content fails the call. When every model is benched the
+idea is rescheduled for the earliest reset. The
 URL-allowlist normalizers are the quality safety net: a weaker fallback model
 can waste tokens but cannot inject products or links.
 
@@ -174,15 +189,20 @@ can waste tokens but cannot inject products or links.
 - [x] Server: schema, worker, API, static serving
 - [x] Research engine: two-pass + liveness
 - [x] Client: capture + check-in, status badges, writeup states, empty state
+- [x] Reliability: restart recovery, retry policy, quota-aware model routing
 - [ ] Deploy on OMV via GHCR image + compose (`docs/deployment.md`), verify live
 - [ ] Docker build validated locally/CI (no Docker on dev machine → CI)
 
 ### Phase 2 — later (explicitly not v1)
-- [ ] Mark picked/bought, archive ideas
+- [x] Mark picked/bought, archive ideas (Wanted / Bought / Archived)
+- [x] Budget and must-haves per idea, fed into every research step
+- [x] Price/stock enrichment for final picks from each shop page's own
+      schema.org / OpenGraph product data (no paid API needed)
 - [ ] "Research deeper" re-run with a higher budget
-- [ ] Price/stock enrichment for final picks via bol.com/Coolblue free tiers
-      (ReefAPI 1,000 credits / Parse.bot 100/mo) — optional, only if staleness
-      becomes a real problem
+- [ ] Price-drop watch: re-check a wanted idea's offers on a schedule and
+      flag a lower price (the offer check already reads the shop's price)
+- [ ] Notify when research finishes (e.g. ntfy on the homelab)
+- [ ] Installable PWA (manifest + icons) for capture from the phone
 - [ ] Configurable result language
 
 ## Risks & mitigations

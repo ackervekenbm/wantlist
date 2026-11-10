@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OpenAiCompatProvider } from '../src/server/research/openai'
-import { ModelError } from '../src/server/research/llm'
+import { ResearchError } from '../src/server/research/errors'
 
 const ARGS = {
   systemInstruction: 'Pick candidates.',
@@ -77,51 +77,60 @@ describe('OpenAiCompatProvider', () => {
         }),
     )
     const err = await provider().generate(ARGS).catch((e: unknown) => e)
-    expect(err).toBeInstanceOf(ModelError)
-    const me = err as ModelError
+    expect(err).toBeInstanceOf(ResearchError)
+    const me = err as ResearchError
     expect(me.status).toBe(429)
-    expect(me.quotaExhausted).toBe(true)
+    expect(me.kind).toBe('quota')
     expect(me.retryAfterMs).toBe(7000)
   })
 
   it('memoizes a header-less 429 for 15 minutes by default', async () => {
     stubFetch(() => new Response('rate limited', { status: 429 }))
-    const me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ModelError
-    expect(me.quotaExhausted).toBe(true)
+    const me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ResearchError
+    expect(me.kind).toBe('quota')
     expect(me.retryAfterMs).toBe(15 * 60 * 1000)
   })
 
   it('maps 5xx to retryable errors', async () => {
     stubFetch(() => new Response('oops', { status: 503 }))
-    const me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ModelError
+    const me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ResearchError
     expect(me.retryable).toBe(true)
     expect(me.status).toBe(503)
   })
 
-  it('maps other 4xx to non-retryable errors', async () => {
-    stubFetch(() => new Response('bad key', { status: 401 }))
-    const me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ModelError
-    expect(me.retryable).toBe(false)
-    expect(me.status).toBe(401)
-    expect(me.message).toContain('bad key')
+  it('maps a refused key or unknown model to unavailable', async () => {
+    for (const status of [401, 403, 404]) {
+      stubFetch(() => new Response('bad key', { status }))
+      const me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ResearchError
+      expect(me.kind).toBe('unavailable')
+      expect(me.retryable).toBe(false)
+      expect(me.status).toBe(status)
+      expect(me.message).toContain('bad key')
+    }
+  })
+
+  it('maps other 4xx to invalid, so the router tries the next model', async () => {
+    stubFetch(() => new Response('schema not supported', { status: 400 }))
+    const me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ResearchError
+    expect(me.kind).toBe('invalid')
   })
 
   it('maps network failures to retryable errors', async () => {
     stubFetch(() => new Error('ECONNRESET'))
-    const me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ModelError
+    const me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ResearchError
     expect(me.retryable).toBe(true)
     expect(me.message).toContain('ECONNRESET')
   })
 
-  it('fails non-retryably on empty or unparseable content', async () => {
+  it('marks empty or unparseable content invalid', async () => {
     stubFetch(() => chatResponse(''))
-    const empty = (await provider().generate(ARGS).catch((e: unknown) => e)) as ModelError
-    expect(empty.retryable).toBe(false)
-    expect(empty.message).toContain('no message content')
+    const empty = (await provider().generate(ARGS).catch((e: unknown) => e)) as ResearchError
+    expect(empty.kind).toBe('invalid')
+    expect(empty.message).toContain('empty answer')
 
     stubFetch(() => chatResponse('not json at all'))
-    const junk = (await provider().generate(ARGS).catch((e: unknown) => e)) as ModelError
-    expect(junk.retryable).toBe(false)
-    expect(junk.message).toContain('unparseable JSON')
+    const junk = (await provider().generate(ARGS).catch((e: unknown) => e)) as ResearchError
+    expect(junk.kind).toBe('invalid')
+    expect(junk.message).toContain('not valid JSON')
   })
 })
