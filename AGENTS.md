@@ -188,5 +188,11 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 
 Pi + OpenMediaVault, Compose pull from GHCR, named volume `wantlist-data`,
 host port 8091. Full walkthrough (incl. GHCR login) in `docs/deployment.md`.
+The process runs as the image's unprivileged `node` user (uid 1000):
+`docker-entrypoint.sh` starts as root only to hand `/app/data` to `node`
+(files a root-run image or a restore left there) and then drops to it with
+`su-exec`. The smoke job checks that the app runs as `node`, that a root-owned
+volume (with a planted symlink, which must not be followed) is taken over and
+boots, and that `--user 1000:1000` works.
 Dev machine has no Docker — container builds are validated by CI on GitHub
 runners.

@@ -23,11 +23,16 @@ COPY package.json package-lock.json .npmrc ./
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
-RUN mkdir -p /app/data && chown node:node /app/data
-USER node
+# The app runs as the image's unprivileged `node` user (uid 1000). The
+# entrypoint starts as root only to hand the data folder to `node` (files a
+# root-run image or restore left there), then drops to `node` with su-exec, a
+# tiny static helper, not a build toolchain.
+RUN apk add --no-cache su-exec && mkdir -p /app/data && chown node:node /app/data
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/wantlist-entrypoint
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1
 
 EXPOSE 3000
+ENTRYPOINT ["wantlist-entrypoint"]
 CMD ["node", "dist-server/server/index.js"]
