@@ -1,16 +1,15 @@
-# syntax=docker/dockerfile:1
-
-# --- build stage ---
+# Build stage
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 # `.npmrc` turns dependency lifecycle scripts off, so npm's implicit
-# `node-gyp rebuild` for better-sqlite3 never runs: no toolchain needed.
+# `node-gyp rebuild` for better-sqlite3 (binding.gyp without an install script)
+# never runs here — the client/server build needs no compiled dependency.
 RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 
-# --- runtime stage ---
+# Serve stage
 FROM node:22-alpine
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
@@ -18,17 +17,13 @@ ENV NODE_ENV=production \
     DATA_DIR=/app/data
 WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
-# Production dependencies only. better-sqlite3 ships musl prebuilds for amd64
-# and arm64, so the native binary comes straight out of the package.
+# Script-free install (`.npmrc`): better-sqlite3 ships musl prebuilds, so the
+# runtime binary comes straight out of the package and no python3/build-base
+# toolchain has to be installed — or compiled away again — in this stage.
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
-# Runs as root, like jukebox: an existing data volume or OMV host folder is
-# root-owned, and a non-root user could not open the database in it.
 RUN mkdir -p /app/data
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1
-
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1
 CMD ["node", "dist-server/server/index.js"]
