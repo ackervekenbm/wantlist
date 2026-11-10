@@ -23,8 +23,9 @@ COPY package.json package-lock.json .npmrc ./
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
-RUN mkdir -p /app/data && chown node:node /app/data
-USER node
+# Runs as root, like jukebox: an existing data volume or OMV host folder is
+# root-owned, and a non-root user could not open the database in it.
+RUN mkdir -p /app/data
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1
