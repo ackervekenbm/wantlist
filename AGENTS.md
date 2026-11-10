@@ -187,7 +187,8 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 ## Deployment
 
 Pi + OpenMediaVault, Compose pull from GHCR, named volume `wantlist-data`,
-host port 8091. Full walkthrough (incl. GHCR login) in `docs/deployment.md`.
+host port 8091. Full walkthrough in `docs/deployment.md`.
+The GHCR package is public, so the OMV plugin's **Pull** works anonymously.
 The process runs as the image's unprivileged `node` user (uid 1000):
 `docker-entrypoint.sh` starts as root only to hand `/app/data` to `node`
 (files a root-run image or a restore left there) and then drops to it with

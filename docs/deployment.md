@@ -19,23 +19,10 @@ see `.github/workflows/docker-build.yml`).
   Nothing to set up in OMV and no SSH needed. A host folder used instead of the
   named volume must sit on a Linux filesystem (ext4, btrfs, xfs): NTFS, exFAT
   and FAT can't store an owner.
+- **No registry login.** The image on GHCR is public, so the plugin's **Pull**
+  works anonymously.
 
-## 2. GHCR login (one-time per host)
-
-GHCR requires a login even for public images. Over SSH:
-
-```bash
-sudo docker login ghcr.io -u ackervekenbm
-```
-
-The password is a GitHub **classic** personal access token (fine-grained
-tokens don't support GitHub Packages):
-
-1. https://github.com/settings/tokens → *Tokens (classic)* → **Generate new token**
-2. Tick **`read:packages`** (add `repo` too if you `git pull` on the Pi with the same token)
-3. Expiry ≤ 1 year; re-login when it lapses.
-
-## 3. Create the compose file
+## 2. Create the compose file
 
 In the OMV web UI (Services → Compose), create a file `wantlist.yml`:
 
@@ -80,7 +67,7 @@ and/or `OPENROUTER_API_KEY` (https://openrouter.ai/keys).
 
 `.env` is never committed and never appears in the repo.
 
-## 4. Start
+## 3. Start
 
 Save → select `wantlist.yml` → **Up**. Then open from your laptop/phone on the
 LAN: **http://<pi-ip>:8091**
@@ -89,17 +76,17 @@ LAN: **http://<pi-ip>:8091**
 - First boot runs a worker pass after ~1.5 s to clear anything queued from a
   restart.
 
-## 5. Updating after a merge
+## 4. Updating after a merge
 
 - Select the file → **Pull** → **Up** (an unchanged image is a no-op).
 - The app shell is served with no-cache headers; a normal refresh picks up the
   new build. Force-refresh once if a tab looks stale.
 
-## 6. Troubleshooting
+## 5. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| **Pull** fails with an auth error | Re-run the GHCR login from step 2, then Pull → Up again |
+| **Pull** is denied (`unauthorized` / `denied`) | The package was made private on GitHub (Packages → wantlist → Package settings → visibility). Set it back to public, or log in once over SSH: `sudo docker login ghcr.io -u ackervekenbm` with a classic token that has `read:packages` |
 | Container starts but ideas stay `queued` | Check both keys are set: `sudo docker exec wantlist printenv GEMINI_API_KEY SERPER_API_KEY` (non-empty). The app shows a banner naming the missing key, and the server logs a warning at boot |
 | Research errors on an idea | Temporary failures (quota, 5xx, network) retry by themselves: the card says when (15 min, doubling to 6 h, up to 5 attempts). Anything else stops with the reason on the card; *research again* (`POST /api/ideas/:id/rerun`) requeues it |
 | Gemini API 429 rate limits | Expected on free tier when the daily request quota is spent (fresh projects start at 20 req/day/model, grows with maturity); ideas wait in the queue and retry once a model's quota resets. Monitor: `https://ai.dev/rate-limit` |
