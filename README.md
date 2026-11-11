@@ -79,17 +79,17 @@ first reset instead of failing.
 
 ## Where your data lives
 
-One SQLite file on the server (`data/wantlist.db`, the `wantlist-data`
-volume in Docker): your ideas, budgets, notes, picks and what you bought.
+One SQLite file on the server (`data/wantlist.db`; in Docker, the
+`wantlist-data` folder or volume): your ideas, budgets, notes, picks and what you bought.
 API keys live only in the server's environment (`.env`), never in the repo
 or the browser. The browser keeps only which cards you collapsed. There is
 no login, so keep it on your LAN or tailnet.
 
 ## Run it
 
-**Production (Pi / OpenMediaVault):** the image
-`ghcr.io/ackervekenbm/wantlist:latest` (amd64 + arm64) with the keys in a
-`.env`. See [docs/deployment.md](docs/deployment.md).
+**Production (any always-on 64-bit Docker host; OpenMediaVault is the
+reference):** the public image `ghcr.io/ackervekenbm/wantlist:latest` (amd64 +
+arm64) with the two keys. See [docs/deployment.md](docs/deployment.md).
 
 **Development:**
 
