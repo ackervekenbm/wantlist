@@ -9,15 +9,15 @@ services:
     environment:
       GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY in .env}
       SERPER_API_KEY: ${SERPER_API_KEY:?set SERPER_API_KEY in .env}
-      # Optional settings: each shows its default (docs/deployment.md#settings).
+      # Optional: blank uses the app's default (docs/deployment.md#settings).
       GEMINI_MODEL: ${GEMINI_MODEL:-}
-      MODEL_CHAIN: ${MODEL_CHAIN:-gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite}
+      MODEL_CHAIN: ${MODEL_CHAIN:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
-      GROQ_MODEL: ${GROQ_MODEL:-qwen/qwen3.8-27b}
+      GROQ_MODEL: ${GROQ_MODEL:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemma-4-31b-it:free}
-      WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-900000}
-      WORKER_QUEUE_CAP: ${WORKER_QUEUE_CAP:-3}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+      WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-}
+      WORKER_QUEUE_CAP: ${WORKER_QUEUE_CAP:-}
     volumes:
       - wantlist-data:/app/data
     logging:

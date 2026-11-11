@@ -38,15 +38,15 @@ Compose → Settings**.
        environment:
          GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY in Environment}
          SERPER_API_KEY: ${SERPER_API_KEY:?set SERPER_API_KEY in Environment}
-         # Optional settings: each shows its default. See the table below.
+         # Optional: blank uses the app's default (table below).
          GEMINI_MODEL: ${GEMINI_MODEL:-}
-         MODEL_CHAIN: ${MODEL_CHAIN:-gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite}
+         MODEL_CHAIN: ${MODEL_CHAIN:-}
          GROQ_API_KEY: ${GROQ_API_KEY:-}
-         GROQ_MODEL: ${GROQ_MODEL:-qwen/qwen3.8-27b}
+         GROQ_MODEL: ${GROQ_MODEL:-}
          OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-         OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemma-4-31b-it:free}
-         WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-900000}
-         WORKER_QUEUE_CAP: ${WORKER_QUEUE_CAP:-3}
+         OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+         WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-}
+         WORKER_QUEUE_CAP: ${WORKER_QUEUE_CAP:-}
        volumes:
          - CHANGE_TO_COMPOSE_DATA_PATH/wantlist-data:/app/data
        logging:

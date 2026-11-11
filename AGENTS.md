@@ -191,7 +191,8 @@ Any 64-bit Docker host; OpenMediaVault's Compose plugin is the reference route
 (`docker-compose.yml`, named volume) the other. Guide and settings table in
 `docs/deployment.md`; keep it generic (no host names, IPs or other apps):
 the owner's actual host setup is tracked outside this repo. Every setting the
-server reads is passed through in both compose files with its default.
+server reads is passed through in both compose files as `${VAR:-}`: blank
+means the app's default, so defaults live only in the code and the settings table.
 The GHCR package is public, so the OMV plugin's **Pull** works anonymously.
 The process runs as the image's unprivileged `node` user (uid 1000):
 `docker-entrypoint.sh` starts as root only to hand `/app/data` to `node`
