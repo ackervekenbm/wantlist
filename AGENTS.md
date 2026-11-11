@@ -186,8 +186,12 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 
 ## Deployment
 
-Pi + OpenMediaVault, Compose pull from GHCR, named volume `wantlist-data`,
-host port 8091. Full walkthrough in `docs/deployment.md`.
+Any 64-bit Docker host; OpenMediaVault's Compose plugin is the reference route
+(data in the plugin's Data folder, `wantlist-data`), plain Docker Compose
+(`docker-compose.yml`, named volume) the other. Guide and settings table in
+`docs/deployment.md`; keep it generic (no host names, IPs or other apps):
+the owner's actual host setup is tracked outside this repo. Every setting the
+server reads is passed through in both compose files with its default.
 The GHCR package is public, so the OMV plugin's **Pull** works anonymously.
 The process runs as the image's unprivileged `node` user (uid 1000):
 `docker-entrypoint.sh` starts as root only to hand `/app/data` to `node`
