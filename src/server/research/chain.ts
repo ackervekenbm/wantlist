@@ -17,10 +17,10 @@ export function buildProviderChain(env: NodeJS.ProcessEnv = process.env): LlmPro
 
   const geminiKey = env.GEMINI_API_KEY
   if (geminiKey) {
-    const configured = (env.MODEL_CHAIN ?? DEFAULT_GEMINI_CHAIN)
-      .split(',')
-      .map((m) => m.trim())
-      .filter(Boolean)
+    const split = (list: string) => list.split(',').map((m) => m.trim()).filter(Boolean)
+    // Empty counts as unset (a compose file passes `${MODEL_CHAIN:-}` as ""), like every other setting.
+    const listed = split(env.MODEL_CHAIN ?? '')
+    const configured = listed.length > 0 ? listed : split(DEFAULT_GEMINI_CHAIN)
     const primary = env.GEMINI_MODEL?.trim()
     const models = primary ? [primary, ...configured.filter((m) => m !== primary)] : configured
     for (const model of models) {
