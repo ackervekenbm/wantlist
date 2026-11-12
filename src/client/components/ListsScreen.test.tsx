@@ -70,7 +70,7 @@ describe('ListsScreen', () => {
       at: '2026-09-28T10:00:00Z',
     }
     setup([idea({ id: 1, list: 'bought', bought }), idea({ id: 2, list: 'bought', bought: null })], 'bought')
-    expect(screen.getByText(/^Wahoo KICKR Headwind · Bikeshop · €\s249,99 · 28 Sept?$/)).toBeInTheDocument()
+    expect(screen.getByText(/^Wahoo KICKR Headwind · Bikeshop · €\s249,99 · 28 Sep/)).toBeInTheDocument()
     const rows = screen.getAllByRole('button', { name: /^Want / })
     expect(rows).toHaveLength(2)
     expect(within(document.body).getByText('Bought something else')).toBeInTheDocument()

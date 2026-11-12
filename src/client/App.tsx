@@ -56,6 +56,7 @@ export function App() {
     </div>
   ) : route.name === 'lists' ? (
     <ListsScreen
+      key={route.tab}
       ideas={state.ideas}
       tab={route.tab}
       onTab={(tab) => navigate({ name: 'lists', tab }, { replace: true })}
