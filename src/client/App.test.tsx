@@ -64,12 +64,12 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Add to wantlist' })).toBeDisabled()
   })
 
-  it('shows the brief and the picks of a researched idea', async () => {
+  it('shows the preferences and the picks of a researched idea', async () => {
     fakeApi([idea()])
     await renderApp()
     const card = screen.getByRole('article', { name: 'A fan for my indoor bike setup' })
     expect(within(card).getByText('A strong, quiet fan aimed at you on the trainer')).toBeInTheDocument()
-    expect(within(card).getByRole('list', { name: 'What matters' })).toHaveTextContent('airflownoiseprice')
+    expect(within(card).getByRole('list', { name: 'Preferences' })).toHaveTextContent(/must have: airflow.*must have: noise.*must have: price/)
     expect(within(card).getByRole('heading', { name: 'Wahoo KICKR Headwind' })).toBeInTheDocument()
     expect(within(card).getByRole('link', { name: /Bikeshop/ })).toHaveAttribute('href', 'https://bikeshop.be/headwind')
   })

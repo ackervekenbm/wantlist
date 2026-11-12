@@ -115,6 +115,8 @@ export function App() {
                 step={state.status?.current?.ideaId === idea.id ? state.status.current.step : null}
                 onPatch={(patch) => state.patch(idea.id, patch)}
                 onRerun={() => state.rerun(idea.id)}
+                onReact={state.react}
+                onRefine={() => state.refine(idea.id)}
                 onRemove={() => state.remove(idea.id)}
               />
             ))}

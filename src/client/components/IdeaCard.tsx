@@ -1,10 +1,16 @@
 import { useId, useState } from 'react'
-import type { Idea, IdeaPatch } from '../../types'
+import type { Idea, IdeaPatch, Pick, PickPatch } from '../../types'
 import { readCollapsed, writeCollapsed } from '../lib/storage'
 import { clockTime, formatEur, hostOf, timeAgo } from '../lib/format'
-import { BagIcon, ChevronIcon, ExternalIcon } from './icons'
+import { EarlierRounds } from './EarlierRounds'
+import { BagIcon, ExternalIcon } from './icons'
 import { IdeaForm } from './IdeaForm'
+import { IdeaTitle, shownTitle } from './IdeaTitle'
+import { Keepers } from './Keepers'
 import { PickCard } from './PickCard'
+import { PreferencesPanel } from './PreferencesPanel'
+import { ReactionBar } from './ReactionBar'
+import { RefineBar } from './RefineBar'
 import { StatusBadge } from './StatusBadge'
 
 interface Props {
@@ -13,15 +19,44 @@ interface Props {
   step: string | null
   onPatch: (patch: IdeaPatch) => Promise<void>
   onRerun: () => Promise<void>
+  onReact: (pickId: number, patch: PickPatch) => Promise<void>
+  onRefine: () => Promise<void>
   onRemove: () => void
 }
 
-export function IdeaCard({ idea, step, onPatch, onRerun, onRemove }: Props) {
+export function IdeaCard({ idea, step, onPatch, onRerun, onReact, onRefine, onRemove }: Props) {
   const [collapsed, setCollapsed] = useState(() => readCollapsed().has(idea.id))
   const [editing, setEditing] = useState(false)
   const bodyId = useId()
   const busy = idea.status === 'researching'
-  const top = idea.picks[0]
+  const pending = busy || idea.status === 'queued'
+  const wanted = idea.list === 'wanted'
+  // Picks come newest round first; reading the round off them keeps the card full even if idea.round disagrees.
+  const latest = idea.picks[0]?.round
+  const current = idea.picks.filter((p) => p.round === latest)
+  const earlier = idea.picks.filter((p) => p.round !== latest)
+  const keepers = earlier.filter((p) => p.reaction === 'yes')
+  const top = current[0]
+  const bought = (pick: Pick) => fire(onPatch({ list: 'bought', boughtPickId: pick.id }))
+
+  const renderPick = (pick: Pick) => (
+    <PickCard
+      key={pick.id}
+      pick={pick}
+      budget={idea.budget}
+      onBought={wanted ? () => bought(pick) : undefined}
+      reaction={
+        wanted && (
+          <ReactionBar
+            title={pick.title}
+            reaction={pick.reaction}
+            reason={pick.reason}
+            onReact={(patch) => onReact(pick.id, patch)}
+          />
+        )
+      }
+    />
+  )
 
   const toggle = () => {
     setCollapsed((was) => {
@@ -31,12 +66,15 @@ export function IdeaCard({ idea, step, onPatch, onRerun, onRemove }: Props) {
   }
 
   return (
-    <article className={`idea idea-${idea.list}`} aria-label={idea.text}>
+    <article className={`idea idea-${idea.list}`} aria-label={shownTitle(idea)}>
       <header className="idea-head">
-        <button type="button" className="idea-toggle" aria-expanded={!collapsed} aria-controls={bodyId} onClick={toggle}>
-          <h3 className="idea-text">{idea.text}</h3>
-          <ChevronIcon className={collapsed ? 'chevron' : 'chevron chevron-open'} />
-        </button>
+        <IdeaTitle
+          idea={idea}
+          collapsed={collapsed}
+          onToggle={toggle}
+          bodyId={bodyId}
+          onRename={(title) => onPatch({ title })}
+        />
         <div className="idea-meta">
           {idea.list === 'wanted' && idea.status !== 'done' && (
             <StatusBadge status={idea.status} retrying={!!idea.nextAttemptAt} />
@@ -55,7 +93,7 @@ export function IdeaCard({ idea, step, onPatch, onRerun, onRemove }: Props) {
             : top
               ? `Top pick: ${top.title}${top.price !== null ? ` · ${formatEur(top.price)}` : ''}`
               : 'No picks yet'}
-          {idea.picks.length > 1 && !idea.bought ? ` · ${idea.picks.length} picks` : ''}
+          {current.length > 1 && !idea.bought ? ` · ${current.length} picks` : ''}
         </p>
       ) : (
         <div className="idea-body" id={bodyId}>
@@ -82,33 +120,32 @@ export function IdeaCard({ idea, step, onPatch, onRerun, onRemove }: Props) {
 
           <ResearchState idea={idea} step={step} />
 
-          {idea.preferences?.summary && (
-            <div className="brief">
-              <p className="brief-summary">{idea.preferences.summary}</p>
-              {idea.preferences.mustHaves.length > 0 && (
-                <ul className="brief-criteria" aria-label="What matters">
-                  {idea.preferences.mustHaves.map((c) => (
-                    <li key={c}>{c}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
+          {idea.preferences && (
+            <PreferencesPanel
+              preferences={idea.preferences}
+              editable={!pending}
+              onSave={(preferences) => onPatch({ preferences })}
+            />
           )}
 
-          {idea.picks.length > 0 && (
-            <ol className="picks" aria-label={`Picks for ${idea.text}`}>
-              {idea.picks.map((pick) => (
-                <PickCard
-                  key={pick.id}
-                  pick={pick}
-                  budget={idea.budget}
-                  onBought={
-                    idea.list === 'wanted' ? () => fire(onPatch({ list: 'bought', boughtPickId: pick.id })) : undefined
-                  }
-                />
-              ))}
+          <Keepers picks={keepers} onBought={wanted ? bought : undefined} />
+
+          {current.length > 0 && (
+            <ol className="picks" aria-label={`Round ${latest} picks`}>
+              {current.map(renderPick)}
             </ol>
           )}
+
+          {wanted && !pending && idea.picks.length > 0 && (
+            <RefineBar
+              reactions={current.filter((p) => p.reaction).length}
+              anyReaction={idea.picks.some((p) => p.reaction)}
+              preferencesEdited={idea.preferencesEdited}
+              onRefine={onRefine}
+            />
+          )}
+
+          <EarlierRounds picks={earlier} renderPick={renderPick} />
 
           {editing ? (
             <IdeaForm
@@ -181,7 +218,7 @@ function ResearchState({ idea, step }: { idea: Idea; step: string | null }) {
     )
   }
   if (idea.status === 'queued') {
-    return <p className="idea-note">Waiting for the researcher. Results usually take a minute or two.</p>
+    return <p className="idea-note" role="status">Waiting for the researcher. Results usually take a minute or two.</p>
   }
   if (idea.status === 'error') {
     return (
