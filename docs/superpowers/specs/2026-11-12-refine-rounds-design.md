@@ -24,6 +24,8 @@ and walk away" stays the product's promise).
   edited. Then a new round is researched in the background.
 - Earlier rounds and their reactions stay readable. Keepers stay in view.
 - A rejected product never comes back in a later round.
+- Once research has worked out what the idea is about, the card gets a
+  **proper title** instead of the owner's half-formed prompt (owner's request).
 
 ## Non-goals (this version)
 
@@ -98,6 +100,9 @@ Considered:
   `{summary, mustHaves[], avoid[], likes[]}`). Existing ideas: `summary` from
   `ideas.summary`, `mustHaves` from `ideas.criteria`, the others empty. The old
   columns stay (append-only) but are no longer written.
+- `ideas.title TEXT` (model-written, ≤ 60 characters) and
+  `ideas.title_by_owner INTEGER NOT NULL DEFAULT 0`. NULL until the first
+  successful round; existing ideas get one on their next round.
 - `ideas.preferences_edited INTEGER NOT NULL DEFAULT 0`: set when the owner
   edits the preferences after the last round. This tells the learn step to
   treat the owner's edits as authoritative.
@@ -107,11 +112,13 @@ today). `boughtPickId` can point at a pick from any round.
 
 ### API
 
-- `Idea` gains `round`, `preferences`; `Pick` gains `round`, `reaction`,
+- `Idea` gains `title`, `round`, `preferences`; `Pick` gains `round`, `reaction`,
   `reason`. `Idea.picks` holds every round, newest round first, rank order
   within a round. `summary`/`criteria` leave the type.
 - `PATCH /api/picks/:id` `{ reaction?: 'no'|'maybe'|'yes'|null, reason?:
-  string|null }`. Reason up to 300 characters. 404 for an unknown pick. Any
+  string|null }`. Reason up to 300 characters.
+- `PATCH /api/ideas/:id` accepts `title` (1–60 characters, or `null` to hand
+  naming back to wantlist). A non-null title sets `title_by_owner`. 404 for an unknown pick. Any
   round's picks can be reacted to. Reacting doesn't start anything.
 - `PATCH /api/ideas/:id` also accepts `preferences` (same shape; each list
   ≤ 12 items of ≤ 120 characters, summary ≤ 300). It sets
@@ -131,7 +138,9 @@ edited by the owner, and every earlier pick as `{round, title, shop, price,
 why, reaction, reason}`.
 
 - **No history (round 1):** unchanged. The plan step writes summary, criteria
-  (now as `mustHaves`; `avoid`/`likes` empty) and queries.
+  (now as `mustHaves`; `avoid`/`likes` empty), queries, and a **`title`**:
+  a short, specific name for what is being looked for (e.g. "Cozy open-back
+  slippers for her"), ≤ 60 characters, in English.
 - **History present (round ≥ 2):** the plan step is replaced by the **learn
   step**. Input: the idea (text, budget, notes), the current preferences
   (marked authoritative when edited), and every earlier pick with its reaction
@@ -139,6 +148,8 @@ why, reaction, reason}`.
   - updated `preferences`: keep what still holds; turn each reason into a
     concrete `avoid` (or `mustHave`); turn `yes`/`maybe` picks into `likes`
     (traits, not product names); never drop an owner-edited item;
+  - an updated `title` when what was learned sharpens it (else the current
+    one);
   - 1–4 `searchQueries` aimed at what's still missing, phrased so they don't
     resurface rejected products.
   Normalizer rules: at least one query (else `invalid` → next model, as
@@ -171,7 +182,9 @@ why, reaction, reason}`.
 - A round that ends with no picks for any other reason fails the way round 1
   does today ("No product survived verification"), keeping all earlier rounds.
 - On success: the new round's picks are stored, `ideas.round` +1, the new
-  preferences replace the old, and `preferences_edited` is reset to 0.
+  preferences replace the old, the model's title replaces the stored one
+  unless `title_by_owner` is set (trimmed and capped at 60; an empty title
+  keeps the old one), and `preferences_edited` is reset to 0.
 
 ### Editing the idea (owner's choice: option A)
 
@@ -181,7 +194,8 @@ why, reaction, reason}`.
   preferences are cleared, and the next round runs the **plan step** (as
   round 1 does), not the learn step. Its history carries only the products
   marked **No way**, for exclusion; she still won't want those. Earlier rounds
-  stay visible below, and round numbers keep counting up. Mechanism (e.g. an
+  stay visible below, and round numbers keep counting up. The model writes a
+  new title too, unless the owner named the card. Mechanism (e.g. an
   `ideas.fresh_since_round` marker set on a text change, so history only
   includes later reactions plus all `no` picks) is left to the builder.
 - A plain **research again** is the same as refine (it finds new products).
@@ -201,6 +215,10 @@ handling, `kick()` and the 15-minute interval apply unchanged.
 ### Screen (working UI, current styles)
 
 On an idea card:
+
+- **Title**: the model's title once a round is done, with the owner's own words
+  underneath in smaller type ("you asked: …"). Before that, the owner's text
+  as today. The title can be renamed in place; clearing it hands naming back.
 
 - **Preferences strip** at the top: the summary, then chips for must-haves
   (✓), avoid (✗) and likes (♥). An edit button opens the three lists as
@@ -236,6 +254,8 @@ Slippers — round 2                  ✓ open back  ✗ faux fur  ✗ grandma l
 - db: migration 5 on a fresh DB, on a v4 DB with picks (round 1, preferences
   from summary/criteria), and on a pre-versioning DB; rounds accumulate;
   failure keeps rounds; reactions saved and cleared.
+- title: plan/learn normalizers cap the title; completion keeps an
+  owner-set title; rename/clear via PATCH.
 - app: reaction PATCH validation (values, reason length, unknown pick),
   preferences PATCH limits, refine 400/409/202, rerun still always allowed.
 - prompts: learn-step builder includes reasons and owner-edited flag; the
