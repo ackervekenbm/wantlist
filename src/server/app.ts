@@ -1,15 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express'
-import type { IdeaList, IdeaPatch, ModelHealth, NewIdea, ServerStatus } from '../types'
+import type { IdeaList, IdeaPatch, ModelHealth, NewIdea, PickPatch, Preferences, Reaction, ServerStatus } from '../types'
+import { PREF_ITEMS_MAX, PREF_ITEM_CHARS, PREF_SUMMARY_CHARS, REASON_MAX, TITLE_MAX } from '../types/limits'
 import type { WlDb } from './db'
 import {
+  BusyError,
   PatchError,
   countQueued,
   createIdea,
   deleteIdea,
   getIdea,
   listIdeas,
+  reactToPick,
   requeueIdea,
   updateIdea,
 } from './db'
@@ -19,6 +22,7 @@ import type { Worker } from './worker'
 export const MAX_IDEA_LENGTH = 500
 export const MAX_NOTES_LENGTH = 500
 export const MAX_BUDGET_EUR = 1_000_000
+const REACTIONS: readonly Reaction[] = ['no', 'maybe', 'yes']
 const LISTS: readonly IdeaList[] = ['wanted', 'bought', 'archived']
 
 export interface AppOptions {
@@ -92,6 +96,7 @@ export function createApp(opts: AppOptions): express.Express {
       res.json(idea)
     } catch (err) {
       if (err instanceof PatchError) return badRequest(res, err.message)
+      if (err instanceof BusyError) return busy(res)
       throw err
     }
   })
@@ -103,17 +108,28 @@ export function createApp(opts: AppOptions): express.Express {
     res.status(204).end()
   })
 
-  app.post('/api/ideas/:id/rerun', (req, res) => {
+  app.patch('/api/picks/:id', (req, res) => {
     const id = ideaId(req, res)
     if (id === null) return
-    const idea = getIdea(db, id)
+    const patch = parsePickPatch(req.body)
+    if (typeof patch === 'string') return badRequest(res, patch)
+    const idea = reactToPick(db, id, patch)
     if (!idea) return notFound(res)
-    if (requeueIdea(db, id, { requireSignal: false }) !== 'queued') {
-      return res.status(409).json({ error: 'this idea is being researched right now' })
-    }
+    res.json(idea)
+  })
+
+  const requeue = (requireSignal: boolean) => (req: Request, res: Response) => {
+    const id = ideaId(req, res)
+    if (id === null) return
+    const outcome = requeueIdea(db, id, { requireSignal })
+    if (outcome === null) return notFound(res)
+    if (outcome === 'busy') return busy(res)
+    if (outcome === 'nothing') return badRequest(res, 'react to a pick or edit the preferences first')
     worker.kick()
     res.status(202).json(getIdea(db, id))
-  })
+  }
+  app.post('/api/ideas/:id/refine', requeue(true))
+  app.post('/api/ideas/:id/rerun', requeue(false))
 
   /** Debug: run a worker pass now and wait for it. */
   app.post('/api/worker/run', async (_req, res) => {
@@ -237,8 +253,65 @@ function parsePatch(body: unknown): IdeaPatch | string {
     if (b.boughtPickId !== null && !Number.isSafeInteger(b.boughtPickId)) return 'boughtPickId must be a pick id'
     patch.boughtPickId = b.boughtPickId as number | null
   }
+  if (b.title !== undefined) {
+    const title = parseTitle(b.title)
+    if (title !== null && typeof title === 'object') return title.error
+    patch.title = title
+  }
+  if (b.preferences !== undefined) {
+    const prefs = parsePreferences(b.preferences)
+    if ('error' in prefs) return prefs.error
+    patch.preferences = prefs
+  }
   if (Object.keys(patch).length === 0) return 'nothing to change'
   return patch
+}
+
+function parsePickPatch(body: unknown): PickPatch | string {
+  const b = asBody(body)
+  const patch: PickPatch = {}
+  if (b.reaction !== undefined) {
+    if (b.reaction !== null && !REACTIONS.includes(b.reaction as Reaction)) {
+      return `reaction must be one of ${REACTIONS.join(', ')} or null`
+    }
+    patch.reaction = b.reaction as Reaction | null
+  }
+  if (b.reason !== undefined) {
+    if (b.reason !== null && typeof b.reason !== 'string') return 'reason must be text'
+    if (typeof b.reason === 'string' && b.reason.trim().length > REASON_MAX) {
+      return `reason is longer than ${REASON_MAX} characters`
+    }
+    patch.reason = typeof b.reason === 'string' ? b.reason.trim() || null : null
+  }
+  if (Object.keys(patch).length === 0) return 'nothing to change'
+  return patch
+}
+
+/** A string names the idea; null hands the name back to the model. */
+function parseTitle(raw: unknown): string | null | { error: string } {
+  if (raw === null) return null
+  if (typeof raw !== 'string' || !raw.trim() || raw.trim().length > TITLE_MAX) {
+    return { error: `title must be 1 to ${TITLE_MAX} characters` }
+  }
+  return raw.trim()
+}
+
+const PREF_LISTS = ['mustHaves', 'avoid', 'likes'] as const
+
+function parsePreferences(raw: unknown): Preferences | { error: string } {
+  const b = asBody(raw)
+  const bad = { error: 'preferences need a summary and the lists mustHaves, avoid and likes' }
+  if (typeof b.summary !== 'string' || b.summary.trim().length > PREF_SUMMARY_CHARS) return bad
+  const prefs: Preferences = { summary: b.summary.trim(), mustHaves: [], avoid: [], likes: [] }
+  for (const key of PREF_LISTS) {
+    const items = b[key]
+    if (!Array.isArray(items) || items.length > PREF_ITEMS_MAX) return bad
+    for (const item of items) {
+      if (typeof item !== 'string' || !item.trim() || item.trim().length > PREF_ITEM_CHARS) return bad
+      prefs[key].push(item.trim())
+    }
+  }
+  return prefs
 }
 
 function ideaId(req: Request, res: Response): number | null {
@@ -252,6 +325,10 @@ function ideaId(req: Request, res: Response): number | null {
 
 function badRequest(res: Response, error: string): void {
   res.status(400).json({ error })
+}
+
+function busy(res: Response): void {
+  res.status(409).json({ error: 'a round is in progress' })
 }
 
 function notFound(res: Response): void {
