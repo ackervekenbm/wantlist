@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createIdea, getIdea } from '../src/server/db'
+import { createIdea, getIdea, reactToPick, requeueIdea } from '../src/server/db'
 import { ResearchError, type FailureKind } from '../src/server/research/errors'
 import { DEFAULT_RETRY, createWorker, retryAt, type WorkerOptions } from '../src/server/worker'
 import type { ResearchEngine, ResearchRequest, ResearchResult } from '../src/types'
@@ -191,5 +191,23 @@ describe('worker', () => {
     const summary = await makeWorker({ db, engine: null }).runOnce()
     expect(summary.message).toMatch(/disabled/)
     expect(getIdea(db, id)?.status).toBe('queued')
+  })
+})
+
+describe('worker history', () => {
+  it('hands the title and history to the engine', async () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'fan')
+    const engine = engineOf(async () => researchResult())
+    const w = makeWorker({ db, engine })
+    await w.runOnce()
+    reactToPick(db, getIdea(db, id)!.picks[0].id, { reaction: 'no' })
+    requeueIdea(db, id, { requireSignal: false })
+    await w.runOnce()
+
+    expect(engine.calls[0].history).toBeNull()
+    expect(engine.calls[1].title).toBe('Quiet fan')
+    expect(engine.calls[1].history?.mode).toBe('learn')
+    expect(engine.calls[1].history?.picks.find((p) => p.reaction === 'no')).toBeDefined()
   })
 })
