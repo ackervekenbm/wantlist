@@ -5,8 +5,18 @@ import {
 } from '../src/server/research/http'
 import { parseJsonLoose } from '../src/server/research/json'
 import { isHttpUrl, mergePicksByProduct, normalizeProductTitle, normalizeUrl } from '../src/server/research/offers'
-import { normalizePass1, normalizePass2, normalizePlan } from '../src/server/research/prompts'
-import type { FinalPick, ResearchCandidate } from '../src/types'
+import { ResearchError } from '../src/server/research/errors'
+import {
+  buildCandidateUser,
+  buildLearnUser,
+  capPreferences,
+  keepOwnerItems,
+  normalizeLearn,
+  normalizePass1,
+  normalizePass2,
+  normalizePlan,
+} from '../src/server/research/prompts'
+import type { FinalPick, HistoryPick, Preferences, ResearchCandidate, ResearchHistory } from '../src/types'
 
 describe('parseJsonLoose', () => {
   it('parses plain json', () => {
@@ -106,7 +116,7 @@ describe('normalizePass2', () => {
         },
       ],
     }
-    const result = normalizePass2(raw, allowed)
+    const result = normalizePass2(raw, allowed, 0).picks
     expect(result).toHaveLength(1)
     expect(result[0].shop).toBe('Sportimo')
     expect(result[0].url).toBe('https://a.be/fan')
@@ -128,7 +138,7 @@ describe('normalizePass2', () => {
         { title: 'B', why: 'w', caveat: '', suppliers: [{ shop: 'S', url: 'https://b.eu/fan', price: '' }] },
       ],
     }
-    const [a, b] = normalizePass2(raw, allowed)
+    const [a, b] = normalizePass2(raw, allowed, 0).picks
     expect(a.caveat).toBe('Loud at full speed')
     expect(b.caveat).toBeNull()
   })
@@ -140,7 +150,7 @@ describe('normalizePass2', () => {
         { title: 'Wahoo KICKR Headwind Smart Fan', why: 'b', suppliers: [{ shop: 'B', url: 'https://b.eu/fan', price: '279.99' }] },
       ],
     }
-    const result = normalizePass2(raw, allowed)
+    const result = normalizePass2(raw, allowed, 0).picks
     expect(result).toHaveLength(1)
     expect(result[0].suppliers).toHaveLength(2)
   })
@@ -149,7 +159,7 @@ describe('normalizePass2', () => {
     const raw = {
       picks: [{ url: 'https://b.eu/fan', why: 'solo' }],
     }
-    const result = normalizePass2(raw, allowed)
+    const result = normalizePass2(raw, allowed, 0).picks
     expect(result[0].title).toBe('Fan B')
     expect(result[0].shop).toBe('Shop2')
     expect(result[0].suppliers).toHaveLength(1)
@@ -161,7 +171,109 @@ describe('normalizePass2', () => {
         { title: 'Ghost', suppliers: [{ shop: 'X', url: 'https://not-allowed.example/p', price: null }] },
       ],
     }
-    expect(normalizePass2(raw, allowed)).toHaveLength(0)
+    expect(normalizePass2(raw, allowed, 0).picks).toHaveLength(0)
+  })
+})
+
+describe('refine-round prompts', () => {
+  const prefs: Preferences = { summary: 'a cosy throw', mustHaves: ['washable'], avoid: ['no fleece'], likes: [] }
+  const hp = (i: number, extra: Partial<HistoryPick> = {}): HistoryPick => ({
+    round: 1,
+    title: `Throw ${i}`,
+    shop: 'Shop',
+    price: 40,
+    why: null,
+    reaction: null,
+    reason: null,
+    urls: [`https://s.be/${i}`],
+    ...extra,
+  })
+  const pass2Pick = (url: string, repeatOf: number) => ({
+    title: `P ${url}`,
+    why: 'w',
+    repeatOf,
+    suppliers: [{ shop: 'S', url, price: '' }],
+  })
+  const allowed: ResearchCandidate[] = [
+    { title: 'Fan A', shop: 'Shop', url: 'https://a.be/fan', price: null, why: null },
+    { title: 'Fan B', shop: 'Shop2', url: 'https://b.eu/fan', price: null, why: null },
+  ]
+
+  it('normalizePlan caps the title', () => {
+    const plan = normalizePlan({ title: ` ${'t'.repeat(61)} `, searchQueries: ['q'] })
+    expect(plan.title).toBe('t'.repeat(60))
+  })
+
+  it('capPreferences coerces, trims, drops empties and caps', () => {
+    expect(capPreferences({ summary: 5, mustHaves: [' a ', '', 'x'.repeat(200)], avoid: 'nope' })).toEqual({
+      summary: '5',
+      mustHaves: ['a', 'x'.repeat(120)],
+      avoid: [],
+      likes: [],
+    })
+    const many = Array.from({ length: 20 }, (_, i) => `item ${i}`)
+    expect(capPreferences({ likes: many }).likes).toHaveLength(12)
+    expect(capPreferences(null)).toEqual({ summary: '', mustHaves: [], avoid: [], likes: [] })
+  })
+
+  it('keepOwnerItems keeps an owner item the model dropped', () => {
+    const learned = { summary: 's', mustHaves: [], avoid: ['no wool'], likes: [] }
+    expect(keepOwnerItems(learned, prefs).avoid).toEqual(['no fleece', 'no wool'])
+    expect(keepOwnerItems(learned, prefs).mustHaves).toEqual(['washable'])
+  })
+
+  it('buildLearnUser lists reactions, the owner heading and at most 40 picks', () => {
+    const history: ResearchHistory = {
+      mode: 'learn',
+      preferences: prefs,
+      preferencesEdited: true,
+      picks: [
+        hp(0, { reaction: 'no', reason: 'too fluffy' }),
+        ...Array.from({ length: 49 }, (_, i) => hp(i + 1)),
+      ],
+    }
+    const user = buildLearnUser({ text: 'a throw', budget: null, notes: null }, 'Cosy throw', history)
+    expect(user).toContain('reaction: no — "too fluffy"')
+    expect(user).toContain('set by the owner — keep every item')
+    expect(user.split('\n').filter((l) => l.startsWith('round ')).length).toBe(40)
+  })
+
+  it('normalizeLearn throws an invalid ResearchError without queries', () => {
+    try {
+      normalizeLearn({ title: 't', preferences: prefs, searchQueries: [] })
+      expect.fail('should throw')
+    } catch (err) {
+      expect(err).toBeInstanceOf(ResearchError)
+      expect((err as ResearchError).kind).toBe('invalid')
+    }
+  })
+
+  it('buildCandidateUser adds the already-shown block only when something was shown', () => {
+    const idea = { text: 'a throw', budget: null, notes: null }
+    const results = [{ title: 'r', url: 'https://r.be', snippet: 's' }]
+    const shown = buildCandidateUser(idea, prefs, results, [hp(1, { title: 'Old Throw' })])
+    expect(shown).toContain('Already shown')
+    expect(shown).toContain('Old Throw')
+    expect(buildCandidateUser(idea, prefs, results, [])).not.toContain('Already shown')
+  })
+
+  it('normalizePass2 drops and counts repeats of shown products', () => {
+    const raw = { picks: [pass2Pick('https://a.be/fan', 2), pass2Pick('https://b.eu/fan', 0)] }
+    const result = normalizePass2(raw, allowed, 3)
+    expect(result.picks).toHaveLength(1)
+    expect(result.repeats).toBe(1)
+  })
+
+  it('ignores repeatOf in round 1 or out of range', () => {
+    expect(normalizePass2({ picks: [pass2Pick('https://a.be/fan', 1)] }, allowed, 0).picks).toHaveLength(1)
+    expect(normalizePass2({ picks: [pass2Pick('https://a.be/fan', 5)] }, allowed, 2).picks).toHaveLength(1)
+  })
+
+  it('normalizePass1 filters excluded candidates before the cut', () => {
+    const candidates = Array.from({ length: 7 }, (_, i) => ({ title: `p${i}`, shop: 's', url: `https://e.com/p${i}` }))
+    const excluded = new Set(['p0', 'p1', 'p2'])
+    const result = normalizePass1({ candidates }, undefined, (c) => excluded.has(c.title))
+    expect(result.candidates.map((c) => c.title)).toEqual(['p3', 'p4', 'p5', 'p6'])
   })
 })
 
