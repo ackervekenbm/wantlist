@@ -1,4 +1,4 @@
-import { useState, type SyntheticEvent } from 'react'
+import { useState, type ReactNode, type SyntheticEvent } from 'react'
 import type { Availability, Pick, PickSupplier } from '../../types'
 import { formatEur, hostOf } from '../lib/format'
 import { AlertIcon, BagIcon, CheckIcon, ChevronIcon, ExternalIcon, StarIcon } from './icons'
@@ -9,6 +9,8 @@ interface Props {
   budget: number | null
   /** Shown on the wanted list: records this pick as the one you bought. */
   onBought?: () => void
+  /** Slot for the reaction bar. */
+  reaction?: ReactNode
 }
 
 const STOCK_LABEL: Record<Availability, string | null> = {
@@ -18,7 +20,7 @@ const STOCK_LABEL: Record<Availability, string | null> = {
   unknown: null,
 }
 
-export function PickCard({ pick, budget, onBought }: Props) {
+export function PickCard({ pick, budget, onBought, reaction }: Props) {
   const [showShops, setShowShops] = useState(false)
   const best = pick.suppliers[0]
   const others = pick.suppliers.slice(1)
@@ -99,6 +101,8 @@ export function PickCard({ pick, budget, onBought }: Props) {
             ))}
           </ul>
         )}
+
+        {reaction}
       </div>
     </li>
   )
