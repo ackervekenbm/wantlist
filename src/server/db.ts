@@ -427,7 +427,9 @@ export function reactToPick(db: WlDb, pickId: number, patch: PickPatch): Idea | 
     if (!row) return null
     if (patch.reaction !== undefined) {
       db.prepare('UPDATE picks SET reaction = ? WHERE id = ?').run(patch.reaction, pickId)
-      if (patch.reaction === null) db.prepare('UPDATE picks SET reason = NULL WHERE id = ?').run(pickId)
+      // A why-not belongs to No way: switching to Kind of / Yes without a new one drops it.
+      if (patch.reaction === null || (patch.reaction !== 'no' && patch.reason === undefined))
+        db.prepare('UPDATE picks SET reason = NULL WHERE id = ?').run(pickId)
     }
     if (patch.reason !== undefined && patch.reaction !== null) {
       db.prepare('UPDATE picks SET reason = ? WHERE id = ?').run(patch.reason?.trim() || null, pickId)

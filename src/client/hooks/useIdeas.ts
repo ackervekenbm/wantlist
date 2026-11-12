@@ -156,7 +156,8 @@ export function useIdeas(): IdeasState & IdeasActions {
             list.map((i) => ({ ...i, picks: i.picks.map((p) => (p.id === pickId ? { ...p, reaction, reason } : p)) })),
           )
         const reaction = patch.reaction !== undefined ? patch.reaction : before?.reaction ?? null
-        apply(reaction, reaction === null ? null : patch.reason !== undefined ? patch.reason : before?.reason ?? null)
+        const dropsReason = reaction === null || (patch.reaction !== undefined && reaction !== 'no' && patch.reason === undefined)
+        apply(reaction, dropsReason ? null : patch.reason !== undefined ? patch.reason : before?.reason ?? null)
         try {
           const updated = await api.patchPick(pickId, patch)
           if (pickSeq.current.get(pickId) === seq) replace(updated)

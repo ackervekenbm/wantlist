@@ -38,7 +38,7 @@ export function ReactionBar({ title, reaction, reason, onReact }: Props) {
               }}
             >
               <span aria-hidden="true">{glyph}</span>
-              <span className="visually-hidden">{name}</span>
+              <span>{name}</span>
             </button>
           )
         })}

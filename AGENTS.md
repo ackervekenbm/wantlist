@@ -100,14 +100,15 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   Otherwise `learn` mode: the preferences plus the picks since the last reword,
   and every `no` pick.
 - `src/server/research/pipeline.ts` — `PipelineEngine` implements `ResearchEngine`
-  with a **no-grounding** flow. Round 1 plans (queries, title, preferences). A
-  later round first runs a **learn** step ("learning from your reactions"):
+  with a **no-grounding** flow. Round 1, or a reworded idea with no preferences yet, plans (queries, title,
+  preferences); otherwise a **learn** step runs first ("learning from your reactions"):
   reactions and reasons become preferences and new queries, and the owner's
   edited items are kept word-for-word (`keepOwnerItems`). Then: Serper search →
   candidate selection → read the top pages → verify → **offer check**. It
   returns the brief (title + preferences, stored on the idea) with the round's
   picks.
-  Exclusion: every earlier product is left out. Search hits are dropped by URL
+  Exclusion: every product shown since the last reword, plus every one marked
+  No way, is left out. Search hits are dropped by URL
   before they count toward the 24-row cap; candidates and picks by any supplier
   URL or normalized title; the verifier's `repeatOf` flag catches the rest.
   When only products the owner has already seen turn up, the round throws

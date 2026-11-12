@@ -135,6 +135,10 @@ To pin a version instead of tracking `:latest`, use a commit tag,
 also tagged with its 7-character commit SHA (listed on the repo's *Packages*
 page). Editing that line and pressing **Up** is also how you roll back.
 
+Don't roll back to an image from before refine rounds: older images replace
+all picks of an idea on its next research, so earlier rounds and reactions
+would be lost.
+
 ## Backups
 
 `wantlist.db` in the data folder is the only state (the database runs in WAL

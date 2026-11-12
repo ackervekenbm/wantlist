@@ -263,6 +263,17 @@ describe('rounds and reactions', () => {
     expect(reactToPick(db, 9999, { reaction: 'yes' })).toBeNull()
   })
 
+  it('no + reason then yes clears the reason; yes with an explicit reason keeps it', () => {
+    const { db, id } = twoRounds()
+    const pickId = getIdea(db, id)!.picks[0].id
+    const pick = () => getIdea(db, id)!.picks.find((p) => p.id === pickId)!
+    reactToPick(db, pickId, { reaction: 'no', reason: 'too fluffy' })
+    reactToPick(db, pickId, { reaction: 'yes' })
+    expect(pick()).toMatchObject({ reaction: 'yes', reason: null })
+    reactToPick(db, pickId, { reaction: 'maybe', reason: 'pricey' })
+    expect(pick()).toMatchObject({ reaction: 'maybe', reason: 'pricey' })
+  })
+
   it('a reworded idea clears preferences and marks a fresh start; same text does not', () => {
     const { db, id } = twoRounds()
     const before = getIdea(db, id)!

@@ -36,6 +36,17 @@ describe('useIdeas reactions', () => {
     expect(result.current.error).toBeTruthy()
   })
 
+  it('switching from no to yes clears the reason right away', async () => {
+    const { result } = await setup()
+    await act(() => result.current.react(1, { reaction: 'no', reason: 'too fluffy' }))
+    let done!: Promise<void>
+    act(() => {
+      done = result.current.react(1, { reaction: 'yes' })
+    })
+    expect(result.current.ideas[0].picks[0]).toMatchObject({ reaction: 'yes', reason: null })
+    await act(() => done)
+  })
+
   it('a poll that started before a reaction does not undo it', async () => {
     const { fake, result } = await setup()
     const release = fake.holdNextList()
