@@ -1,0 +1,1053 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wantlist · Quote Slip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ECE6DB; --surface:#FBF8F3; --surface-2:#F3EEE5; --sunk:#E9E2D6;
+  --ink:#201C17; --ink-2:#5B5247; --ink-3:#73685B;
+  --rule:#DCD3C5; --rule-strong:#BDB09E; --key-edge:#CBBFAD;
+  --accent:#2C5B4B; --accent-ink:#FBF8F3; --accent-soft:#DCE7DF;
+  --brass:#9C6A14; --brass-soft:#F2E6CC;
+  --no:#A2402B; --no-soft:#F4E0D8; --maybe:#7F6210; --maybe-soft:#F1E7C9; --yes:#2B6A45; --yes-soft:#DBEADD;
+  --warn:#9A4A12; --warn-soft:#F6E4D2;
+  --slip:#FFFDF8; --slip-shadow:rgba(70,48,20,.22);
+  --photo-a:#E5DCCD; --photo-b:#D8CCB9;
+  --focus:#2C5B4B;
+  --sans:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --mono:var(--sans); /* figures: same face, tabular numerals */
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12100D; --surface:#1E1B17; --surface-2:#26221D; --sunk:#171511;
+  --ink:#F1EBE1; --ink-2:#BFB5A7; --ink-3:#A09484;
+  --rule:#36312A; --rule-strong:#4F473D; --key-edge:#070605;
+  --accent:#8DC4A9; --accent-ink:#0F1E17; --accent-soft:#1F3129;
+  --brass:#D9A85A; --brass-soft:#352A17;
+  --no:#E89079; --no-soft:#3B231C; --maybe:#E0BE62; --maybe-soft:#352C13; --yes:#88C79D; --yes-soft:#1C3124;
+  --warn:#EFA46A; --warn-soft:#3A2717;
+  --slip:#29251F; --slip-shadow:rgba(0,0,0,.55);
+  --photo-a:#2E2923; --photo-b:#38322A; --focus:#8DC4A9; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#12100D; --surface:#1E1B17; --surface-2:#26221D; --sunk:#171511;
+  --ink:#F1EBE1; --ink-2:#BFB5A7; --ink-3:#A09484;
+  --rule:#36312A; --rule-strong:#4F473D; --key-edge:#070605;
+  --accent:#8DC4A9; --accent-ink:#0F1E17; --accent-soft:#1F3129;
+  --brass:#D9A85A; --brass-soft:#352A17;
+  --no:#E89079; --no-soft:#3B231C; --maybe:#E0BE62; --maybe-soft:#352C13; --yes:#88C79D; --yes-soft:#1C3124;
+  --warn:#EFA46A; --warn-soft:#3A2717;
+  --slip:#29251F; --slip-shadow:rgba(0,0,0,.55);
+  --photo-a:#2E2923; --photo-b:#38322A; --focus:#8DC4A9; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--sans);font-optical-sizing:auto;-webkit-font-smoothing:antialiased}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:8px}
+.mono,.f,.price,.big{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* stage */
+.stage{display:flex;flex-direction:column;align-items:center}
+.phone{position:relative;width:100%;height:100vh;height:100dvh;overflow:hidden;background:var(--bg)}
+.screen{height:100%;overflow-y:auto;overflow-x:hidden;scroll-behavior:auto}
+@media (min-width:760px){
+  body{min-height:100vh}
+  .stage{flex-direction:row;align-items:flex-start;justify-content:center;gap:40px;padding:40px 24px}
+  .phone{width:390px;height:844px;border-radius:40px;border:1px solid var(--rule-strong);box-shadow:0 1px 0 var(--key-edge),0 30px 60px -30px var(--slip-shadow);flex:none}
+}
+.pad{padding:0 16px}
+
+/* header */
+.top{display:flex;align-items:center;gap:8px;padding:10px 16px 6px;min-height:60px}
+.mark{font-weight:700;font-size:21px;letter-spacing:-.03em;display:flex;align-items:center;gap:6px;flex:none}
+.mark svg{flex:none}
+.chip{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:18px;background:var(--surface);border:1px solid var(--rule);font-size:13px;color:var(--ink-2)}
+.chip span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip b{color:var(--ink);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
+.dot.live{animation:pulse 1.6s ease-in-out infinite}
+.dot.warn{background:var(--warn)} .dot.off{background:var(--ink-3)}
+@keyframes pulse{50%{opacity:.35}}
+.iconbtn{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;border:1px solid var(--rule);background:var(--surface);box-shadow:0 2px 0 var(--key-edge)}
+.iconbtn:active{transform:translateY(2px);box-shadow:none}
+
+/* capture */
+.capture{margin:4px 16px 0;background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:6px 6px 4px 14px;box-shadow:0 1px 0 var(--key-edge)}
+.cap-row{display:flex;gap:8px;align-items:flex-end}
+.cap-row textarea{flex:1;min-height:44px;max-height:120px;resize:none;border:0;background:transparent;padding:11px 0 9px;line-height:1.35;outline:none}
+.cap-row textarea::placeholder{color:var(--ink-3)}
+.capture:focus-within{border-color:var(--rule-strong)}
+.cap-more{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cap-extra{display:grid;grid-template-columns:112px 1fr;gap:8px;padding:2px 6px 8px 0}
+.field{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--ink-2)}
+.field input,.field textarea{height:40px;border:1px solid var(--rule);background:var(--surface-2);border-radius:10px;padding:0 10px}
+.hint{font-size:12px;color:var(--ink-3)}
+
+/* buttons: keycaps */
+.btn{min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--rule-strong);background:var(--surface);box-shadow:0 2px 0 var(--key-edge);font-weight:600;font-size:15px;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;transition:transform .08s,box-shadow .08s}
+.btn:active:not(:disabled){transform:translateY(2px);box-shadow:0 0 0 var(--key-edge)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);box-shadow:0 2px 0 color-mix(in srgb,var(--accent) 55%,#000)}
+.btn.quiet{border-color:transparent;background:transparent;box-shadow:none;color:var(--ink-2);padding:0 8px;font-weight:500}
+.btn.small{min-height:44px;font-size:14px;padding:0 12px}
+.btn:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
+.btn.wide{width:100%}
+.linkish{background:none;border:0;padding:0 4px;min-height:44px;color:var(--ink-2);font-size:13px;font-weight:500;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--rule-strong)}
+
+/* sections */
+.sec{margin:18px 16px 0}
+.sec-h{display:flex;align-items:baseline;gap:8px;margin:0 2px 8px;font:650 11.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2)}
+.sec-h .n{color:var(--ink-3)}
+.sec-h .rule{flex:1;border-bottom:1px solid var(--rule);transform:translateY(-3px)}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:16px;box-shadow:0 1px 0 var(--key-edge)}
+
+/* signature: dotted leader */
+.lead{display:flex;align-items:baseline;gap:6px;min-width:0}
+.lead .l{flex:1;min-width:14px;border-bottom:2px dotted var(--rule-strong);transform:translateY(-4px)}
+.lead .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lead .f{flex:none;white-space:nowrap}
+
+/* rows (home + lists) */
+.rows{overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:10px 14px;background:none;border:0;text-align:left;border-top:1px solid var(--rule)}
+.rows>.row:first-child,.rows>:first-child .row{border-top:0}
+.row:hover{background:var(--surface-2)}
+.glyph{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:9px;background:var(--surface-2);color:var(--ink-2)}
+.glyph svg{width:20px;height:20px;display:block}
+.glyph.hunt{color:var(--brass);background:var(--brass-soft)}
+.glyph.explore{color:var(--accent);background:var(--accent-soft)}
+.row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.row-title{font-weight:600;font-size:15px}
+.row-sub{font-size:13px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-sub .act{color:var(--accent);font-weight:600}
+.row-sub .bad{color:var(--warn);font-weight:600}
+.t1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-sub.lead{overflow:visible}.row-sub .f{color:var(--ink-2)}.row-sub .fig{color:var(--ink);font-size:14px;font-weight:500}
+.chev{color:var(--ink-3);flex:none}
+.mini{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 14px;border-top:1px solid var(--rule);width:100%;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left;font-size:14px}
+.mini:first-child{border-top:0}
+.mini .lead{flex:1}
+.mini .f{font-size:13px;color:var(--ink-2)}
+.pantry{display:flex;align-items:center;gap:6px;padding:4px 8px 4px 0;border-top:1px solid var(--rule)}
+.pantry:first-child{border-top:0}
+.pantry .row{border:0;flex:1;min-width:0;padding-right:4px}
+.listlinks{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:18px 16px 24px}
+.listlinks button{min-height:52px;border-radius:12px;border:1px solid var(--rule);background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:12px;color:var(--ink-2)}
+.listlinks b{font:600 16px/1 var(--mono);color:var(--ink)}
+.notice{margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:var(--warn-soft);color:var(--ink);font-size:13.5px;display:flex;gap:10px;align-items:flex-start}
+.notice b{color:var(--warn)}
+
+/* detail */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px 0 6px;min-height:56px}
+.back{display:inline-flex;align-items:center;gap:2px;min-height:44px;padding:0 10px;border:0;background:none;color:var(--ink-2);font-weight:500}
+.seg{display:inline-flex;padding:3px;border-radius:12px;background:var(--sunk);border:1px solid var(--rule)}
+.seg button{min-height:38px;min-width:72px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--ink-2);font-weight:600;font-size:13.5px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 0 var(--key-edge),0 0 0 1px var(--rule-strong)}
+.seg-wrap{display:flex;flex-direction:column;align-items:flex-end}
+.head{padding:6px 16px 0}
+.kicker{font:650 11.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);display:flex;gap:8px;align-items:center}
+h1{font-size:26px;line-height:1.12;letter-spacing:-.025em;margin:8px 0 6px;font-weight:650}
+.yours{font-size:13.5px;color:var(--ink-2);margin:0}
+.yours q{font-style:italic}
+
+/* explore deck */
+.roundbar{display:flex;align-items:center;gap:10px;margin:16px 16px 10px}
+.roundbar .lab{font:600 13px/1 var(--mono)}
+.pips{display:flex;gap:6px;flex:1}
+.pip{width:44px;height:44px;border:0;background:none;padding:0;display:grid;place-items:center}
+.pip i{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font:600 12px/1 var(--mono);font-style:normal;border:1px solid var(--rule-strong);background:var(--surface);color:var(--ink-2)}
+.pip[aria-current="true"] i{border-color:var(--ink);color:var(--ink);box-shadow:0 2px 0 var(--key-edge)}
+.pip.no i{background:var(--no-soft);border-color:var(--no);color:var(--no)}
+.pip.maybe i{background:var(--maybe-soft);border-color:var(--maybe);color:var(--maybe)}
+.pip.yes i{background:var(--yes-soft);border-color:var(--yes);color:var(--yes)}
+.tally{font-size:12.5px;color:var(--ink-3);white-space:nowrap}
+.deck{margin:0 16px;touch-action:pan-y;user-select:none}
+.pick{overflow:hidden;position:relative;transition:transform .25s ease,opacity .25s ease;will-change:transform}
+.pick.out-l{transform:translateX(-30px) rotate(-3deg);opacity:0}
+.pick.out-r{transform:translateX(30px) rotate(3deg);opacity:0}
+.pick.in{animation:dealin .28s ease}
+@keyframes dealin{from{transform:translateY(8px) scale(.985);opacity:0}}
+.photo{position:relative;height:148px;background:
+  repeating-linear-gradient(135deg,transparent 0 9px,color-mix(in srgb,var(--photo-b) 70%,transparent) 9px 10px),
+  linear-gradient(160deg,var(--photo-a),var(--photo-b));display:grid;place-items:center;color:var(--ink-3)}
+.photo svg{width:76px;height:76px;opacity:.75}
+.photo .ph{position:absolute;left:10px;bottom:8px;font:500 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.photo .rank{position:absolute;right:10px;top:10px;font:600 11px/1 var(--mono);padding:5px 7px;border-radius:6px;background:var(--surface);color:var(--ink-2)}
+.stamp{position:absolute;left:12px;top:12px;padding:5px 9px;border-radius:7px;border:1.5px solid;font:600 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;background:var(--surface);transform:rotate(-4deg)}
+.stamp.no{color:var(--no)} .stamp.maybe{color:var(--maybe)} .stamp.yes{color:var(--yes)}
+.pick-body{padding:12px 14px 6px}
+.pick-title{font-size:17px;font-weight:650;letter-spacing:-.01em;margin:0 0 6px;line-height:1.25}
+.priceline{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+.price{font:650 21px/1 var(--sans);font-variant-numeric:tabular-nums;color:var(--ink);letter-spacing:-.015em}
+.ck{font-size:12px;color:var(--accent);font-weight:600}
+.approx{font-size:12px;color:var(--ink-3)}
+.why{margin:8px 0 0;font-size:14px}
+.caveat{margin:6px 0 0;font-size:13px;color:var(--ink-2)}
+.caveat b{color:var(--ink);font-weight:600}
+.pick-foot{display:flex;justify-content:space-between;align-items:center;padding:0 6px 4px 8px;border-top:1px dashed var(--rule);margin-top:10px}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 16px 0}
+.key{min-height:56px;border-radius:14px;border:1px solid var(--rule-strong);background:var(--surface);box-shadow:0 3px 0 var(--key-edge);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-weight:600;font-size:14px;transition:transform .08s,box-shadow .08s,background .15s}
+.key svg{width:18px;height:18px}
+.key.no{color:var(--no)} .key.maybe{color:var(--maybe)} .key.yes{color:var(--yes)}
+.key:active{transform:translateY(3px);box-shadow:0 0 0 var(--key-edge)}
+.key[aria-pressed="true"]{transform:translateY(3px);box-shadow:inset 0 2px 3px rgba(0,0,0,.12)}
+.key.no[aria-pressed="true"]{background:var(--no-soft);border-color:var(--no)}
+.key.maybe[aria-pressed="true"]{background:var(--maybe-soft);border-color:var(--maybe)}
+.key.yes[aria-pressed="true"]{background:var(--yes-soft);border-color:var(--yes)}
+.keyhint{text-align:center;font-size:12px;color:var(--ink-3);margin:8px 16px 0}
+.whynot{margin:10px 16px 0;padding:12px;border-radius:14px;background:var(--no-soft);border:1px solid color-mix(in srgb,var(--no) 35%,transparent)}
+.whynot p{margin:0 0 8px;font-size:13.5px;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chipbtn{min-height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--rule-strong);background:var(--surface);font-size:13px}
+.chipbtn[aria-pressed="true"]{border-color:var(--no);color:var(--no);font-weight:600}
+.whynot .wrow{display:flex;gap:8px;margin-top:10px}
+.whynot input{flex:1;min-width:0;height:44px;border-radius:10px;border:1px solid var(--rule-strong);background:var(--surface);padding:0 10px}
+.endcard{padding:18px 16px;text-align:center}
+.endcard h3{margin:0 0 4px;font-size:18px}
+.endcard p{margin:0 0 14px;color:var(--ink-2);font-size:14px}
+
+/* learned + panels */
+.panel{margin:18px 16px 0}
+.panel .card{padding:12px 14px}
+.lsum{margin:0 0 10px;font-size:14px}
+.pref{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--rule);font-size:14px}
+.pref:first-of-type{border-top:0}
+.pref .g{width:20px;flex:none;font:600 14px/1.4 var(--mono)}
+.g.must{color:var(--accent)} .g.avoid{color:var(--no)} .g.like{color:var(--yes)}
+.pref .x{margin-left:auto;width:36px;height:32px;border:0;background:none;color:var(--ink-3);border-radius:8px;flex:none}
+.addpref{display:flex;gap:6px;margin-top:8px}
+.addpref input{flex:1;min-width:0;height:44px;border-radius:10px;border:1px solid var(--rule);background:var(--surface-2);padding:0 10px}
+.addpref select{height:44px;border-radius:10px;border:1px solid var(--rule);background:var(--surface-2);padding:0 6px;color:var(--ink)}
+.lock{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--ink-2);margin-top:8px}
+details.round{border-top:1px solid var(--rule)}
+details.round:first-child{border-top:0}
+details.round summary{list-style:none;display:flex;align-items:center;gap:10px;min-height:48px;padding:0 14px;cursor:pointer;font-weight:600;font-size:14px}
+details.round summary::-webkit-details-marker{display:none}
+details.round summary .tally{margin-left:auto}
+.erow{display:flex;flex-direction:column;gap:6px;padding:8px 14px 10px;border-top:1px dashed var(--rule)}
+.minikeys{display:flex;gap:6px}
+.minikeys .key{min-height:44px;flex:1;flex-direction:row;font-size:13px;border-radius:10px;box-shadow:0 2px 0 var(--key-edge)}
+.minikeys .key[aria-pressed="true"]{transform:translateY(2px)}
+
+/* sticky dock */
+.dock{position:sticky;bottom:0;margin-top:20px;padding:10px 16px 14px;background:linear-gradient(to top,var(--bg) 70%,transparent);display:flex;align-items:center;gap:10px}
+.dock .why{margin:0;font-size:12.5px;color:var(--ink-2);flex:1}
+
+/* status steps */
+.status{margin:14px 16px 0;padding:12px 14px}
+.status h3{margin:0 0 6px;font-size:15px;display:flex;align-items:center;gap:8px}
+.steps{list-style:none;margin:0;padding:0;font-size:13.5px}
+.steps li{display:flex;gap:8px;align-items:center;min-height:26px;color:var(--ink-3)}
+.steps li.done{color:var(--ink-2)}
+.steps li.now{color:var(--ink);font-weight:600}
+.steps .sm{width:16px;font:600 12px/1 var(--mono);text-align:center;flex:none}
+.status p{margin:6px 0 0;font-size:13px;color:var(--ink-2)}
+.status .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+/* hunt: product plate */
+.plate{margin:12px 16px 0;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--rule-strong);background:var(--surface-2)}
+.plate .prod{font-size:15px;font-weight:650;line-height:1.3;letter-spacing:-.01em}
+.plate small{display:block;font:12px/1.3 var(--sans);color:var(--ink-3);margin-top:2px}
+/* hunt: the quote slip (signature) */
+.slipwrap{margin:16px 16px 0;filter:drop-shadow(0 1px 0 var(--key-edge)) drop-shadow(0 10px 14px var(--slip-shadow))}
+.slip{background:var(--slip);padding:20px 18px 18px;
+  -webkit-mask:radial-gradient(circle 4px at 7px 0,#0000 98%,#000) 0 0/14px 51% repeat-x,radial-gradient(circle 4px at 7px 100%,#0000 98%,#000) 0 100%/14px 51% repeat-x;
+          mask:radial-gradient(circle 4px at 7px 0,#0000 98%,#000) 0 0/14px 51% repeat-x,radial-gradient(circle 4px at 7px 100%,#0000 98%,#000) 0 100%/14px 51% repeat-x}
+.slip-h{display:flex;justify-content:space-between;align-items:baseline;font:650 11px/1.2 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);padding-bottom:10px;border-bottom:1px dashed var(--rule-strong)}
+.slip-h .best{color:var(--brass);font-weight:600}
+.slip-shop{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:12px 0 2px}
+.slip-shop b{font-size:20px;letter-spacing:-.02em}
+.trust{font-size:12.5px;color:var(--ink-2)}
+.qlines{margin:10px 0 0;padding:0;list-style:none;font-size:14px;line-height:1.2}
+.qlines .f{font-weight:600;color:var(--ink)}
+.qlines li{padding:5px 0;color:var(--ink-2)}
+.qlines li .f{color:var(--ink)}
+.total{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:8px;padding-top:12px;border-top:1.5px solid var(--ink)}
+.total .lab{font-size:13px;color:var(--ink-2);flex:1;min-width:0;line-height:1.3}
+.big{font:650 38px/1 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.02em;white-space:nowrap}
+.big small{font-size:15px;font-weight:500;letter-spacing:0;color:var(--ink-2);margin-left:2px}
+.vs{margin-top:10px;font-size:13px;color:var(--ink-2)}
+.vs b{color:var(--yes);font-weight:650}
+.vs b.up{color:var(--warn)}
+.slip-acts{display:flex;gap:8px;margin-top:16px}
+.slip-acts .btn{flex:1}
+/* hunt: offers */
+.offers .off{border-top:1px solid var(--rule)}
+.offers .off:first-child{border-top:0}
+.offbtn{display:block;width:100%;background:none;border:0;text-align:left;padding:10px 14px;min-height:56px}
+.offbtn .lead{font-size:15px}
+.offbtn .t{font-weight:600}
+.offbtn .f{font-weight:600;font-size:15px}
+.osub{font-size:12.5px;color:var(--ink-2);margin-top:3px}
+.osub .ok{color:var(--accent);font-weight:600}
+.osub .warnc{color:var(--warn);font-weight:600}
+.off.sold .lead{opacity:.55}
+.off.sold .lead .f{text-decoration:line-through}
+.off-x{display:flex;gap:8px;padding:0 14px 12px}
+.off-x .btn{flex:1}
+.flag{display:inline-block;font:600 12.5px/1.3 var(--sans);padding:3px 7px;border-radius:5px;background:var(--warn-soft);color:var(--warn);vertical-align:1px}
+.flag.n{background:var(--sunk);color:var(--ink-2)}
+details.apart summary{list-style:none;display:flex;align-items:center;gap:8px;min-height:48px;padding:0 14px;cursor:pointer;font-size:14px;color:var(--ink-2)}
+details.apart summary::-webkit-details-marker{display:none}
+details[open]>summary .chev{transform:rotate(90deg)}
+.chev{transition:transform .15s}
+.apart .offbtn{cursor:default}
+.covered{padding:16px 16px 14px}
+.covered .cov-h{display:flex;align-items:center;gap:10px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:13px;font:600 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;background:var(--accent-soft);color:var(--accent)}
+.pill.b{background:var(--brass-soft);color:var(--brass)}
+.covered p{margin:10px 0 0;font-size:14px}
+
+/* lists */
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:10px 16px 0;padding:3px;border-radius:12px;background:var(--sunk);border:1px solid var(--rule)}
+.tabs button{min-height:44px;border:0;border-radius:9px;background:transparent;font-size:13px;font-weight:600;color:var(--ink-2);padding:0 4px}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 0 var(--key-edge),0 0 0 1px var(--rule-strong)}
+.tabs .c{font-family:var(--mono);font-weight:500;color:var(--ink-3);margin-left:3px}
+.filter{margin:10px 16px 0;position:relative}
+.filter input{width:100%;height:44px;border-radius:12px;border:1px solid var(--rule);background:var(--surface);padding:0 12px 0 36px}
+.filter svg{position:absolute;left:12px;top:14px;color:var(--ink-3)}
+.lrow{display:flex;align-items:center;border-top:1px solid var(--rule)}
+.lrow:first-child{border-top:0}
+.lrow .row{border:0;flex:1;min-width:0;padding-right:4px}
+.lrow .btn{margin-right:4px;flex:none;padding:0 8px}
+.lrow .iconbtn.x{margin-right:10px;box-shadow:none;border-color:transparent;background:transparent;color:var(--ink-3)}
+.lrow .iconbtn.x svg{width:16px;height:16px}
+.empty{padding:22px 16px;text-align:center;color:var(--ink-2);font-size:14px}
+
+/* overlays */
+.scrim{position:absolute;inset:0;background:rgba(20,14,8,.42);display:flex;align-items:flex-end;z-index:20;animation:fade .2s}
+.sheet{width:100%;background:var(--surface);border-radius:22px 22px 0 0;padding:8px 16px 20px;box-shadow:0 -10px 30px -10px rgba(0,0,0,.3);animation:up .22s ease;max-height:90%;overflow:auto}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--rule-strong);margin:2px auto 12px}
+.sheet h2{margin:0 0 4px;font-size:20px;letter-spacing:-.02em}
+.sheet p{margin:0 0 12px;color:var(--ink-2);font-size:14px}
+.choice{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 6px}
+.choice .key{min-height:64px;color:var(--ink);padding:6px 8px;text-align:center}
+.choice .key small{font-weight:400;font-size:12px;color:var(--ink-2)}
+.choice .key[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.sheet .acts{display:flex;gap:8px;margin-top:16px}
+.sheet .acts .btn{flex:1}
+@keyframes fade{from{opacity:0}} @keyframes up{from{transform:translateY(30px);opacity:.4}}
+.toast{position:absolute;left:12px;right:12px;bottom:14px;z-index:30;display:flex;align-items:center;gap:8px;padding:6px 6px 6px 14px;border-radius:14px;background:var(--ink);color:var(--bg);font-size:14px;box-shadow:0 10px 24px -8px rgba(0,0,0,.4);animation:up .2s}
+.toast span{flex:1}
+.toast button{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--bg) 30%,transparent);background:transparent;color:var(--bg);font-weight:600}
+
+/* control panel (outside the phone) */
+.ctl{width:100%;max-width:390px;padding:20px 16px 40px;font-size:13px;color:var(--ink-2)}
+@media (min-width:760px){.ctl{width:280px;padding:0}}
+.ctl h2{font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink);margin:0 0 12px}
+.ctl h3{font-size:12px;margin:16px 0 6px;color:var(--ink)}
+.ctl .g{display:flex;flex-wrap:wrap;gap:6px}
+.ctl button{min-height:36px;padding:0 10px;border-radius:9px;border:1px solid var(--rule-strong);background:var(--surface);font-size:12.5px}
+.ctl button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.ctl p{margin:6px 0 0;line-height:1.4}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="phone" id="phone">
+    <div class="screen" id="screen"></div>
+    <div id="overlay"></div>
+  </div>
+  <aside class="ctl" aria-label="Mockup controls">
+    <h2>Mockup controls</h2>
+    <p>States that take time in real life. The phone is the product; this panel is not.</p>
+    <h3>Researcher</h3>
+    <div class="g" id="ctl-res">
+      <button data-ctl="res:on">Working</button>
+      <button data-ctl="res:quota">Out of quota</button>
+      <button data-ctl="res:off">Research off</button>
+    </div>
+    <h3>Time</h3>
+    <div class="g">
+      <button data-ctl="finish">Finish all research now</button>
+    </div>
+    <h3>Open hunt / idea states</h3>
+    <div class="g">
+      <button data-ctl="hstate:retrying">Retrying</button>
+      <button data-ctl="hstate:nothing">Nothing found</button>
+      <button data-ctl="hstate:ready">Offers ready</button>
+    </div>
+    <p>Applies to the hunt that is open on the phone.</p>
+    <h3>Theme</h3>
+    <div class="g">
+      <button data-ctl="theme:light">Light</button>
+      <button data-ctl="theme:dark">Dark</button>
+      <button data-ctl="theme:auto">System</button>
+    </div>
+    <h3>Reset</h3>
+    <div class="g"><button data-ctl="reset">Start over</button></div>
+  </aside>
+</div>
+<script>
+/* ---------- icons (fixed-size inline SVG; never stretched) ---------- */
+const I = {
+  back:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
+  chev:'<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
+  ext:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+  moon:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>',
+  sun:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6L19 19M5 19l1.4-1.4M17.6 6.4L19 5"/></svg>',
+  no:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  maybe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 13c2.5-3 5-3 8 0s5.5 3 8 0"/></svg>',
+  yes:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
+  lock:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  search:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>',
+  /* mode glyphs: explore = fanned cards, hunt = perforated slip */
+  explore:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="10" height="13" rx="2" transform="rotate(-10 8 12)"/><rect x="11" y="5" width="10" height="13" rx="2" transform="rotate(8 16 11)" fill="var(--surface)"/></svg>',
+  hunt:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z" stroke-linejoin="round"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
+  covered:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4h10v3H7zM6 7h12v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"/><path d="M9.5 14l2 2 3.5-4"/></svg>',
+  logo:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 2.5h14v19l-2.33-1.6-2.34 1.6L12 19.9l-2.33 1.6-2.34-1.6L5 21.5z" fill="var(--accent)"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4" stroke="var(--accent-ink)" stroke-width="1.8" stroke-linecap="round"/></svg>',
+};
+const KIND = {
+  slipper:'<path d="M10 52c0-10 10-16 22-18l14-3c8-1 14 4 14 11v6c0 6-5 10-12 10H18c-5 0-8-2-8-6z"/><path d="M28 36c4 6 12 8 22 6"/>',
+  press:'<path d="M14 44h52M18 44c0 10 10 16 22 16s22-6 22-16"/><path d="M28 44c0-10 5-20 12-24 7 4 12 14 12 24"/><path d="M62 50h8"/>',
+  fan:'<circle cx="40" cy="34" r="20"/><path d="M40 34c-2-10 6-14 8-10s-4 8-8 10zM40 34c10 2 12 10 8 11s-7-6-8-11zM40 34c-6 8-14 6-13 2s8-4 13-2z"/><path d="M40 54v10M28 66h24"/>',
+  vial:'<rect x="30" y="22" width="20" height="40" rx="5"/><path d="M34 22v-8h12v8M30 40h20"/>',
+  beans:'<path d="M24 20h32l4 46H20z"/><path d="M24 20l4-6h24l4 6"/><ellipse cx="40" cy="44" rx="7" ry="10"/><path d="M40 34c-3 6 3 14 0 20"/>',
+  phone:'<rect x="26" y="12" width="28" height="56" rx="6"/><path d="M36 17h8"/>',
+};
+const kindSvg = (k)=>`<svg viewBox="0 0 80 80" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${KIND[k]||KIND.vial}</svg>`;
+
+/* ---------- helpers ---------- */
+const eur = (n)=> n==null ? '—' : '€'+n.toLocaleString('nl-BE',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc = (s)=> String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const RL = {no:'No way',maybe:'Kind of',yes:'Yes'};
+let uid = 1000;
+const P = (o)=>({id:++uid,reaction:null,reason:null,checked:false,stock:'unknown',others:[],...o});
+const O = (o)=>({id:++uid,units:1,ship:0,stock:'in',checked:true,mismatch:null,trust:null,note:null,...o});
+
+/* ---------- data ---------- */
+function seed(){
+return [
+ { id:3, mode:'explore', kind:'slipper', text:'female slippers for indoor, cozy', notes:'size 36', budget:null,
+   title:'Cozy wool slippers, size 36', list:'wanted', status:'ready', idx:0,
+   prefs:{summary:'Warm indoor slippers for women in size 36, delivered in Belgium.',
+     must:['Size 36 EU','Warm lining: wool, sheepskin or fleece','A sole made for indoors'], avoid:[], likes:[]},
+   rounds:[{n:1,picks:[
+     P({title:'Camper Wabi Wool Slippers',shop:'Camper Belgium',price:90,why:'Cozy wool slippers designed for indoor comfort, available in size 36 with free delivery in Belgium.',caveat:'Minimalist shape has a low heel lip which some may find less secure.'}),
+     P({title:"Giesswein Women's Hohenau Slippers",shop:'Amazon.com.be',price:65.95,why:'Cozy ballerina-style slippers crafted from pure new wool for breathable warmth in size 36 EU.',caveat:'Ballerina design offers minimal ankle coverage for severe cold.'}),
+     P({title:"Giesswein Gloggnitz Women's Lambskin Slippers",shop:'Amazon.com.be',price:null,why:'Ultra-warm indoor slippers made with 100% genuine lambskin fur lining and non-slip rubber soles in size 36.',caveat:'Dense lambskin lining can feel snug initially until broken in.'}),
+     P({title:"Skechers Cozy Fit Women's Slippers",shop:'Skechers Belgium',price:null,why:'Plush faux-fur lined slip-on slippers providing cushioned indoor comfort in size 36.',caveat:'Faux fur offers plush warmth but is less breathable than natural wool.'}),
+   ]}],
+   next:[[
+     P({title:'Haflinger Grizzly Kanon wool slippers',shop:'Zalando.be',price:64.95,checked:true,stock:'in',why:'Boiled-wool clog with a closed heel: the warmth of the Hohenau with more ankle cover.',caveat:'Runs half a size large; 36 may need a thin sock.',others:[{shop:'Bol',price:69.99}]}),
+     P({title:'Glerups felted wool shoe, leather sole',shop:'Torfs',price:89.95,checked:true,stock:'in',why:'Pure felted wool with a full back, the closed version of the style you liked.',caveat:'Leather sole can be slippery on tiles.'}),
+     P({title:'Giesswein Veitsch wool slipper boots',shop:'Amazon.com.be',price:79.9,why:'Ankle-high wool boots for cold floors, in your size.',caveat:'Boot height is warm but slower to slip on.'}),
+   ]] },
+
+ { id:5, mode:'explore', kind:'fan', text:'a good fan to add to my indoor biking setup', notes:null, budget:200,
+   title:'Strong, quiet fan for the bike trainer', list:'wanted', status:'nothing', idx:0,
+   prefs:{summary:'A floor fan that moves a lot of air at 1–2 m and stays quiet enough for music.',
+     must:['Strong airflow at 1–2 m','Quiet enough to hear music'], avoid:['Over € 200'], likes:['Floor-standing, tilting head']},
+   rounds:[{n:1,picks:[
+     P({title:'Wahoo KICKR Headwind',shop:'Bol',price:249,checked:true,stock:'in',why:'Speed-matched airflow aimed at a rider, made for trainers.',caveat:'Pricey for a fan.',reaction:'no',reason:'Too expensive'}),
+     P({title:'Vornado 630 floor fan',shop:'Coolblue',price:99.99,checked:true,stock:'in',why:'Strong directed air in a compact body, tilts upward.',caveat:'Loud on its top setting.',reaction:'yes'}),
+     P({title:'Rowenta Turbo Silence Extreme+',shop:'MediaMarkt',price:129.99,checked:true,stock:'in',why:'Quiet mode at 35 dB, five speeds.',caveat:'Pedestal fan: wide airflow, less punch.',reaction:'maybe'}),
+   ]}], next:[] },
+
+ { id:1, mode:'explore', kind:'press', text:"An orange/citrus press. I don't know how it's called exactly, but something used to get the juice out of oranges, lemons, …", notes:null, budget:null,
+   title:'Easy-clean citrus press', list:'wanted', status:'queued', idx:0,
+   prefs:{summary:'A citrus juicer that is quick to clean, for oranges and lemons.',
+     must:['Dishwasher-safe parts','Few parts'], avoid:['Plastic body','Too small for oranges'], likes:['Sturdy manual lever (KitchenAid)']},
+   rounds:[{n:1,picks:[
+     P({title:'Moulinex Ultra Compact Electric Citrus Press',shop:'Amazon.com.be',price:27.65,why:"An efficient electric model with dishwasher-safe parts and a compact design.",caveat:'The 0.45 L capacity is relatively small.',reaction:'maybe'}),
+     P({title:'Bestron ACJ350CO Juicer',shop:'Amazon.com.be',price:14.99,why:'Budget-friendly electric option with minimal parts.',caveat:'Plastic construction is less durable than stainless steel.',reaction:'no',reason:'Plastic feels cheap'}),
+     P({title:'KitchenAid Citrus Squeezer',shop:'Amazon',price:25.81,why:'A robust manual press with a built-in strainer and pour spout; dishwasher safe.',caveat:'Manual operation takes more effort.',reaction:'yes'}),
+     P({title:'Dreamfarm Fluicer Fold-Flat Citrus Juicer',shop:'Amazon',price:17.86,why:'Extremely compact, quick to use and clean.',caveat:'Best suited for lemons and limes.',reaction:'no',reason:'Too small for oranges'}),
+   ]}],
+   next:[[
+     P({title:'Zwilling Enfinigy citrus juicer',shop:'Coolblue',price:59.99,checked:true,stock:'in',why:'Stainless body, two cones, all parts in the dishwasher.',caveat:'Heavier than it looks.'}),
+     P({title:'Gastroback Design Citrus Press Advanced',shop:'Bol',price:79.95,checked:true,stock:'in',why:'A lever press in brushed steel, built for daily oranges.',caveat:'Takes counter space.'}),
+     P({title:'Braun CJ5050 citrus juicer',shop:'MediaMarkt',price:34.99,checked:true,stock:'in',why:'Pulp control and a drip-stop spout, three parts to rinse.',caveat:'Plastic jug, steel trim.'}),
+   ]] },
+
+ { id:2, mode:'hunt', kind:'vial', text:'Feliway friends navulling', title:'Feliway Friends refill', refill:true, unit:'vial', list:'wanted',
+   product:'Feliway Friends refill · 48 ml vial', productNote:'One vial lasts about 30 days. Not Optimum, not Classic.',
+   status:'ready', lowSince:'11 Nov', checkedAt:'12 Nov, 08:14',
+   history:[{shop:'Zooplus',total:65.85,units:3,pack:'3 × 48 ml',at:'14 Sep'},{shop:'Zoolini',total:65.53,units:3,pack:'3 × 48 ml',at:'15 Jun'}],
+   offers:[
+     O({shop:'Zooplus',pack:'3 × 48 ml',units:3,price:59.95,note:'Free delivery over € 49'}),
+     O({shop:'Bol',pack:'6 × 48 ml',units:6,price:124.9}),
+     O({shop:'Zoolini',pack:'3 × 48 ml',units:3,price:65.53}),
+     O({shop:'Medi-Market',pack:'3 × 48 ml',units:3,price:62.97,stock:'out'}),
+     O({shop:'Nutritienda',pack:'1 × 48 ml',units:1,price:24.99,ship:4.95,checked:false,stock:'unknown'}),
+     O({shop:'24PHARMA',pack:'1 × 48 ml',units:1,price:28.5,checked:false,stock:'unknown'}),
+     O({shop:'Goe Beestig',pack:'1 × 48 ml',units:1,price:29.95,note:'Delivery 2–4 working days'}),
+     O({shop:'Amazon.com.be',pack:'1 × 48 ml',units:1,price:17.99,mismatch:'Feliway Optimum, not Friends'}),
+     O({shop:'Maxi Zoo',pack:'diffuser + 48 ml',units:1,price:32.99,mismatch:'Starter kit with a diffuser'}),
+   ] },
+
+ { id:6, mode:'hunt', kind:'beans', text:'illy Classico whole beans 1 kg', title:'illy Classico beans', refill:true, unit:'kg', list:'wanted',
+   product:'illy Classico whole beans · 1 kg', productNote:'Medium roast, whole bean. Not Intenso, not ground.',
+   status:'covered', checkedAt:'12 Nov, 10:02',
+   history:[{shop:'Colruyt',total:26.99,units:1,pack:'1 kg',at:'2 Oct'},{shop:'Delhaize',total:28.49,units:1,pack:'1 kg',at:'21 Aug'}],
+   offers:[],
+   nextOffers:[
+     O({shop:'Delhaize',pack:'2 × 1 kg',units:2,price:43.49,note:'2nd bag half price, until 18 Nov'}),
+     O({shop:'Colruyt',pack:'1 kg',units:1,price:25.49}),
+     O({shop:'Bol',pack:'1 kg',units:1,price:27.45,checked:false,stock:'unknown'}),
+     O({shop:'Coolblue',pack:'1 kg',units:1,price:29.99}),
+     O({shop:'Amazon.com.be',pack:'6 × 250 g tin',units:1.5,price:52.8}),
+     O({shop:'Carrefour',pack:'1 kg',units:1,price:24.99,mismatch:'Intenso, not Classico'}),
+     O({shop:'Albert Heijn',pack:'4 × 250 g',units:1,price:27.96,mismatch:'Ground, not whole beans'}),
+   ] },
+
+ { id:7, mode:'hunt', kind:'phone', text:'iPhone 17 Pro 256GB deep blue', title:'iPhone 17 Pro', refill:false, unit:null, list:'wanted',
+   product:'iPhone 17 Pro · 256 GB · Deep Blue · new', productNote:'Belgian retail, factory sealed, full warranty.',
+   status:'hunting', step:2, checkedAt:'12 Nov, 10:41', history:[], offers:[],
+   nextOffers:[
+     O({shop:'Coolblue',price:1279,trust:'Official reseller · 2-year warranty',note:'Delivered tomorrow'}),
+     O({shop:'Apple.com/be',price:1329,trust:'Apple · 2-year warranty'}),
+     O({shop:'Proximus',price:1299,trust:'Operator · no plan needed · 2-year warranty'}),
+     O({shop:'MediaMarkt',price:1269,stock:'out',trust:'Official reseller · 2-year warranty'}),
+     O({shop:'Bol',price:1189,checked:false,stock:'unknown',mismatch:'Marketplace seller, EU import, 1-year seller warranty'}),
+     O({shop:'Back Market',price:1049,mismatch:'Refurbished, "Excellent"'}),
+     O({shop:'Amazon.com.be',price:1449,mismatch:'512 GB, not 256 GB'}),
+   ] },
+];
+}
+function seedPast(){
+  return [
+    {id:20,mode:'explore',title:'Trainer mat for the bike',list:'bought',bought:{title:'Elite training mat',shop:'Decathlon',price:39.99,at:'3 Oct'}},
+    {id:21,mode:'hunt',title:'Philips Sonicare heads',refill:false,list:'bought',bought:{title:'Sonicare C3 4-pack',shop:'Bol',price:34.99,at:'28 Sep'}},
+    {id:22,mode:'explore',title:'Warm desk lamp',list:'bought',bought:{title:'IKEA Tertial',shop:'IKEA',price:19.99,at:'12 Sep'}},
+    {id:23,mode:'explore',title:'Packable rain jacket',list:'bought',bought:{title:'Rab Downpour Eco',shop:'A.S.Adventure',price:129.95,at:'30 Aug'}},
+    {id:24,mode:'explore',title:'Quiet kettle',list:'bought',bought:{title:'Bosch TWK3P420',shop:'Coolblue',price:54.99,at:'2 Aug'}},
+    {id:25,mode:'explore',title:'Standing desk',list:'archived'},
+    {id:26,mode:'explore',title:'Robot vacuum for one floor',list:'archived'},
+  ];
+}
+
+/* ---------- state ---------- */
+let S;
+function reset(){
+  S = { screen:'home', id:null, tab:'wanted', res:'on', ideas:[...seed(),...seedPast()], whyNot:null, open:null,
+        showMore:false, filter:'', sheet:null, toast:null, prefDraft:'' };
+}
+reset();
+const byId = (id)=> S.ideas.find(i=>i.id===id);
+const cur = ()=> byId(S.id);
+const latest = (i)=> i.rounds[i.rounds.length-1];
+const busy = (i)=> ['researching','queued','hunting','retrying'].includes(i.status);
+
+/* ---------- hunt maths ---------- */
+const total = (o)=> o.price + (o.ship||0);
+const unitP = (o)=> total(o)/o.units;
+function huntView(h){
+  const match = h.offers.filter(o=>!o.mismatch);
+  const unitMatters = h.unit && new Set(match.map(o=>o.units)).size>1;
+  const eligible = match.filter(o=>o.checked && o.stock!=='out');
+  const best = eligible.slice().sort((a,b)=>unitP(a)-unitP(b))[0] || null;
+  const rest = match.filter(o=>o!==best).sort((a,b)=>(a.stock==='out')-(b.stock==='out') || unitP(a)-unitP(b));
+  const apart = h.offers.filter(o=>o.mismatch);
+  const last = h.history[0];
+  const lastUnit = last ? last.total/last.units : null;
+  return {best,rest,apart,unitMatters,last,lastUnit};
+}
+const unitLabel = (h,o,um)=> um ? `${eur(unitP(o))}<small> /${h.unit}</small>` : eur(total(o));
+const unitText = (h,o,um)=> um ? `${eur(unitP(o))}/${h.unit}` : eur(total(o));
+
+/* ---------- triage ---------- */
+function needs(i){
+  if(i.list!=='wanted') return null;
+  if(i.mode==='explore'){
+    if(i.status==='nothing') return {txt:'<span class="bad">Nothing new found</span>', fig:`round ${i.rounds.length+1}`};
+    if(i.status==='error') return {txt:'<span class="bad">Stopped</span> · try again', fig:''};
+    if(i.status==='ready'){
+      const ps = latest(i).picks, left = ps.filter(p=>!p.reaction).length;
+      if(left) return {txt:`<span class="act">React</span> · round ${latest(i).n}`, fig:`${left} new pick${left>1?'s':''}`};
+      return {txt:'<span class="act">Refine</span> or leave it here', fig:`${ps.length} sorted`};
+    }
+  } else {
+    if(i.status==='ready'){ const v=huntView(i); return {txt:`<span class="act">Offers ready</span> · ${esc(v.best?.shop||'—')}`, fig: v.best? unitText(i,v.best,v.unitMatters):'—', price:true}; }
+    if(i.status==='nothing') return {txt:'<span class="bad">No exact match found</span>', fig:''};
+  }
+  return null;
+}
+function waitLine(i){
+  if(S.res==='off') return 'research off';
+  if(S.res==='quota') return 'paused until 09:00';
+  if(i.status==='retrying') return 'retrying at 11:30';
+  if(i.status==='queued') return i.mode==='explore'? `round ${i.rounds.length+1} · queued`:'queued';
+  const st = i.mode==='hunt'? HSTEPS : ESTEPS;
+  return st[Math.min(i.step||0, st.length-1)].toLowerCase();
+}
+const ESTEPS = ['Reading your reactions','Updating what you like','Searching 8 queries','Reading 11 shop pages','Checking prices and stock'];
+const HSTEPS = ['Searching 9 shops','Reading offer pages','Matching the exact product','Checking price, shipping and stock'];
+
+/* ---------- rendering ---------- */
+const scr = document.getElementById('screen');
+const ov = document.getElementById('overlay');
+function themeIcon(){ const t=document.documentElement.dataset.theme; const dark = t? t==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; return dark? I.sun : I.moon; }
+function chip(){
+  if(S.res==='off') return `<div class="chip" role="status"><span class="dot off"></span><span><b>Research off</b> · API keys missing</span></div>`;
+  if(S.res==='quota') return `<div class="chip" role="status"><span class="dot warn"></span><span><b>Out of quota</b> until 09:00</span></div>`;
+  const a = S.ideas.find(i=>i.status==='researching'||i.status==='hunting');
+  const q = S.ideas.filter(i=>i.status==='queued').length;
+  if(!a) return `<div class="chip" role="status"><span class="dot"></span><span>${q? `<b>${q} queued</b>`:'Researcher idle'}</span></div>`;
+  return `<div class="chip" role="status"><span class="dot live"></span><span><b>${a.mode==='hunt'?'Hunting':'Researching'}</b> ${esc(a.title)}${q?` · ${q} queued`:''}</span></div>`;
+}
+function topbar(){
+  return `<header class="top"><div class="mark">${I.logo}<span>wantlist</span></div>${chip()}
+  <button class="iconbtn" data-act="theme" aria-label="Switch light or dark theme">${themeIcon()}</button></header>`;
+}
+
+function render(){
+  const y = scr.scrollTop;
+  scr.innerHTML = S.screen==='home'? home() : S.screen==='lists'? lists() : (cur().mode==='explore'? explore(cur()) : hunt(cur()));
+  scr.scrollTop = y;
+  ov.innerHTML = (S.sheet? sheet():'') + (S.toast? `<div class="toast" role="status"><span>${S.toast.msg}</span>${S.toast.undo?'<button data-act="undo">Undo</button>':''}</div>`:'');
+  document.querySelectorAll('[data-ctl^="res:"]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.ctl==='res:'+S.res));
+  const t=document.documentElement.dataset.theme||'auto';
+  document.querySelectorAll('[data-ctl^="theme:"]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.ctl==='theme:'+t));
+  bindDeck();
+}
+function go(screen,id){ S.screen=screen; S.id=id??null; S.whyNot=null; S.open=null; render(); scr.scrollTop=0; }
+
+/* home */
+function home(){
+  const wanted = S.ideas.filter(i=>i.list==='wanted');
+  const need = wanted.map(i=>[i,needs(i)]).filter(x=>x[1]);
+  const wait = wanted.filter(busy);
+  const pantry = wanted.filter(i=>i.mode==='hunt' && i.status==='covered');
+  const resting = wanted.filter(i=>!needs(i) && !busy(i) && i.status!=='covered');
+  const cnt = (l)=> S.ideas.filter(i=>i.list===l).length;
+  return `${topbar()}
+  ${capture()}
+  ${S.res==='off'?`<div class="notice"><b>!</b><div><b>Research is off.</b> GEMINI_API_KEY and SERPER_API_KEY are missing on the server. Ideas are kept and researched once the keys are set.</div></div>`:''}
+  <section class="sec" aria-labelledby="h-need"><h2 class="sec-h" id="h-need">Needs you <span class="n">${need.length}</span><span class="rule"></span></h2>
+   ${need.length? `<div class="card rows">${need.map(([i,n])=>`
+    <button class="row" data-act="open" data-id="${i.id}">
+      <span class="glyph ${i.mode}">${I[i.mode]}</span>
+      <span class="row-main"><span class="row-title t1">${esc(i.title)}</span>
+      <span class="lead row-sub"><span class="t">${n.txt}</span><span class="l"></span><span class="f ${n.price?'mono fig':''}">${n.fig}</span></span></span>${I.chev}</button>`).join('')}</div>`
+   : `<div class="card empty">Nothing needs you. New ideas are researched in the background.</div>`}
+  </section>
+  ${wait.length?`<section class="sec" aria-labelledby="h-wait"><h2 class="sec-h" id="h-wait">With the researcher <span class="n">${wait.length}</span><span class="rule"></span></h2>
+   <div class="card rows">${wait.map(i=>`<button class="mini" data-act="open" data-id="${i.id}">
+     <span class="dot ${S.res==='off'||i.status==='queued'?'off':S.res==='quota'||i.status==='retrying'?'warn':'live'}"></span>
+     <span class="lead"><span class="t">${esc(i.title)}</span><span class="l"></span><span class="f">${esc(waitLine(i))}</span></span></button>`).join('')}</div></section>`:''}
+  ${pantry.length?`<section class="sec" aria-labelledby="h-pan"><h2 class="sec-h" id="h-pan">Pantry · covered <span class="n">${pantry.length}</span><span class="rule"></span></h2>
+   <div class="card rows">${pantry.map(i=>{const l=i.history[0];return `<div class="pantry">
+     <button class="row" data-act="open" data-id="${i.id}"><span class="glyph">${I.covered}</span>
+      <span class="row-main"><span class="row-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.title)}</span>
+      <span class="row-sub">Covered · ${esc(l.shop)}, ${l.at}</span></span></button>
+     <button class="btn small" data-act="low" data-id="${i.id}">Running low</button></div>`}).join('')}</div></section>`:''}
+  <nav class="listlinks" aria-label="Lists">
+    <button data-act="lists" data-tab="wanted"><b>${cnt('wanted')}</b>Wanted</button>
+    <button data-act="lists" data-tab="pantry"><b>${S.ideas.filter(i=>i.mode==='hunt'&&i.refill&&i.list==='wanted').length}</b>Pantry</button>
+    <button data-act="lists" data-tab="bought"><b>${cnt('bought')}</b>Bought</button>
+    <button data-act="lists" data-tab="archived"><b>${cnt('archived')}</b>Archived</button>
+  </nav>
+  ${resting.length?`<p class="hint" style="text-align:center;margin:-14px 16px 20px">${resting.length} more wanted, resting · in Wanted</p>`:''}`;
+}
+function capture(){
+  return `<form class="capture" id="cap" autocomplete="off">
+   <label class="sr" for="cap-t">What do you want?</label>
+   <div class="cap-row"><textarea id="cap-t" rows="1" placeholder="What do you want?"></textarea>
+   <button class="btn primary" type="submit" style="margin-bottom:2px">Add</button></div>
+   ${S.showMore?`<div class="cap-extra"><label class="field">Budget<input id="cap-b" inputmode="decimal" placeholder="€ max"></label><label class="field">Notes<input id="cap-n" placeholder="size 36, no subscription…"></label></div>`:''}
+   <div class="cap-more"><button type="button" class="linkish" data-act="more" aria-expanded="${S.showMore}">${S.showMore?'Hide budget & notes':'+ Budget & notes'}</button><span class="hint">Enter adds</span></div>
+  </form>`;
+}
+
+/* explore */
+function keys(p, mini){
+  return ['no','maybe','yes'].map(r=>`<button class="key ${r}" data-act="react" data-pid="${p.id}" data-r="${r}" aria-pressed="${p.reaction===r}">${I[r]}<span>${RL[r]}</span></button>`).join('');
+}
+function pickCard(i,p,k){
+  return `<article class="card pick in" id="pickcard" aria-label="Pick ${k+1} of ${latest(i).picks.length}">
+    <div class="photo">${kindSvg(i.kind)}<span class="ph">photo</span><span class="rank">#${k+1}</span>
+     ${p.reaction?`<span class="stamp ${p.reaction}">${RL[p.reaction]}</span>`:''}</div>
+    <div class="pick-body">
+      <h3 class="pick-title">${esc(p.title)}</h3>
+      <div class="priceline"><span class="price">${eur(p.price)}</span>${p.price==null?'<span class="approx">no price found</span>':p.checked?'<span class="ck">✓ checked</span>':'<span class="approx">≈ search price</span>'}
+        <span>· ${esc(p.shop)}</span>${p.stock==='in'?'<span>· in stock</span>':''}</div>
+      <p class="why">${esc(p.why)}</p>
+      ${p.caveat?`<p class="caveat"><b>Check:</b> ${esc(p.caveat)}</p>`:''}
+      ${p.others.length?`<p class="caveat">Also at ${p.others.map(o=>`${esc(o.shop)} ${eur(o.price)}`).join(', ')}</p>`:''}
+    </div>
+    <div class="pick-foot"><button class="linkish" data-act="buypick" data-pid="${p.id}">I bought this</button><a class="linkish" href="#" data-act="noop" style="display:inline-flex;align-items:center;gap:4px">Open shop ${I.ext}</a></div>
+  </article>`;
+}
+function explore(i){
+  const r = latest(i), ps = r.picks, k = Math.min(i.idx, ps.length);
+  const reacted = ps.filter(p=>p.reaction).length;
+  const locked = busy(i);
+  const all = i.rounds.flatMap(x=>x.picks);
+  const keepers = all.filter(p=>p.reaction==='yes');
+  const n = reacted + i.rounds.slice(0,-1).flatMap(x=>x.picks).filter(p=>p.dirty).length;
+  const p = ps[k];
+  return `<div class="bar"><button class="back" data-act="home">${I.back} Home</button>${modeSeg(i)}</div>
+  <div class="head"><div class="kicker">${I.explore} Explore · ${r.n?'round '+r.n:'first round'}</div>
+   <h1>${esc(i.title)}</h1><p class="yours">You wrote <q>${esc(i.text)}</q>${i.notes?` · ${esc(i.notes)}`:''}${i.budget?` · max ${eur(i.budget)}`:''}</p></div>
+  ${statusBlock(i)}
+  ${ps.length?`<div class="roundbar"><span class="lab">R${r.n}</span><div class="pips" role="group" aria-label="Picks in round ${r.n}">${ps.map((q,j)=>`<button class="pip ${q.reaction||''}" data-act="goto" data-k="${j}" aria-current="${j===k}" aria-label="Pick ${j+1}${q.reaction?', '+RL[q.reaction]:''}"><i>${j+1}</i></button>`).join('')}</div><span class="tally">${reacted} of ${ps.length}</span></div>
+  <div class="deck" id="deck">${p? pickCard(i,p,k) : endCard(i,ps)}</div>
+  ${p?`<div class="keys" role="group" aria-label="Your reaction">${keys(p)}</div>
+   ${S.whyNot===p.id?whyNot(i,p):`<p class="keyhint">Tap again to clear · swipe the card: left No way, right Yes</p>`}`:''}`:''}
+  ${learned(i,locked)}
+  ${keepers.length?`<section class="panel"><h2 class="sec-h">Keepers <span class="n">${keepers.length}</span><span class="rule"></span></h2><div class="card rows">${keepers.map(q=>`<div class="mini"><span class="lead"><span class="t">♥ ${esc(q.title)}</span><span class="l"></span><span class="f">${eur(q.price)}</span></span></div>`).join('')}</div></section>`:''}
+  ${i.rounds.length>1?`<section class="panel"><h2 class="sec-h">Earlier rounds<span class="rule"></span></h2><div class="card">${i.rounds.slice(0,-1).reverse().map(x=>`
+    <details class="round"><summary>Round ${x.n}<span class="tally">${x.picks.map(q=>q.reaction?RL[q.reaction]:'–').join(' · ')}</span>${I.chev}</summary>
+     ${x.picks.map(q=>`<div class="erow"><div class="lead"><span class="t" style="font-weight:600;font-size:14px">${esc(q.title)}</span><span class="l"></span><span class="f mono" style="font-size:13px">${eur(q.price)}</span></div>
+      <div class="minikeys" role="group" aria-label="Reaction to ${esc(q.title)}">${keys(q,true)}</div>${q.reason?`<span class="hint">Why not: ${esc(q.reason)}</span>`:''}</div>`).join('')}</details>`).join('')}</div></section>`:''}
+  <div class="dock">${locked? `<p class="why">Round ${r.n+1} is being researched. You can keep reacting; it counts next round.</p>`
+    : `<p class="why">${n? `${n} reaction${n>1?'s':''} will steer round ${r.n+1}.`:'React to a pick to refine.'}</p>
+       <button class="btn primary" data-act="refine" ${n?'':'disabled'}>Refine${n?` with ${n}`:''}</button>`}</div>`;
+}
+function modeSeg(i){
+  return `<div class="seg" role="group" aria-label="Mode"><button data-act="mode" data-m="explore" aria-pressed="${i.mode==='explore'}">Explore</button><button data-act="mode" data-m="hunt" aria-pressed="${i.mode==='hunt'}">Hunt</button></div>`;
+}
+function endCard(i,ps){
+  const c = (r)=>ps.filter(p=>p.reaction===r).length;
+  return `<div class="card endcard"><h3>Round ${latest(i).n} sorted</h3><p>${c('yes')} yes · ${c('maybe')} kind of · ${c('no')} no way</p>
+   ${busy(i)?'':`<button class="btn primary" data-act="refine">Refine with these</button>`} <button class="btn quiet" data-act="goto" data-k="0">Look again</button></div>`;
+}
+function whyNot(i,p){
+  const opts = ['Too expensive','Not my style','Wrong type','Doubt the quality'];
+  return `<div class="whynot" role="group" aria-label="Why not"><p>What's off? <span style="font-weight:400;color:var(--ink-2)">Optional, it steers the next round.</span></p>
+   <div class="chips">${opts.map(o=>`<button class="chipbtn" data-act="reason" data-v="${o}" aria-pressed="${p.reason===o}">${o}</button>`).join('')}</div>
+   <div class="wrow"><input id="wn-t" placeholder="In your words…" value="${esc(opts.includes(p.reason)?'':p.reason||'')}" aria-label="Why not, in your words"><button class="btn small" data-act="wndone">Next</button></div></div>`;
+}
+function learned(i,locked){
+  const pr=i.prefs;
+  const line=(g,cls,list,key)=>list.map((t,j)=>`<div class="pref"><span class="g ${cls}" aria-hidden="true">${g}</span><span>${esc(t)}</span>${locked?'':`<button class="x" data-act="delpref" data-k="${key}" data-j="${j}" aria-label="Remove ${esc(t)}">✕</button>`}</div>`).join('');
+  return `<section class="panel"><h2 class="sec-h">What I've learned<span class="rule"></span></h2><div class="card">
+   <p class="lsum">${esc(pr.summary)}</p>
+   ${line('✓','must',pr.must,'must')}${line('✗','avoid',pr.avoid,'avoid')}${line('♥','like',pr.likes,'likes')}
+   ${locked?`<div class="lock">${I.lock} Locked while the next round researches.</div>`
+    :`<form class="addpref" id="addpref"><select id="pk" aria-label="Kind"><option value="must">✓ must</option><option value="avoid">✗ avoid</option><option value="likes">♥ like</option></select><input id="pv" placeholder="Add a preference" aria-label="Preference"><button class="btn small">Add</button></form>`}
+  </div></section>`;
+}
+function statusBlock(i){
+  if(i.status==='nothing' && i.mode==='explore') return `<div class="card status"><h3><span class="dot warn"></span>Nothing new found</h3><p>Round ${i.rounds.length+1} turned up only picks you've already seen. Loosen a criterion or reword the idea.</p>
+    <div class="acts"><button class="btn small" data-act="loosen">Loosen a criterion</button><button class="btn small quiet" data-act="reword">Reword</button></div></div>`;
+  if(!busy(i)) return '';
+  if(S.res!=='on' || i.status==='retrying') return pausedBlock(i);
+  if(i.status==='queued') return `<div class="card status"><h3><span class="dot off"></span>Round ${i.rounds.length+1} is queued</h3><p>It starts after the current research, usually within minutes. No need to wait here.</p></div>`;
+  return stepsBlock(i, i.mode==='hunt'?HSTEPS:ESTEPS, i.mode==='hunt'?'Hunting':'Researching round '+(i.rounds.length+1));
+}
+function pausedBlock(i){
+  const msg = S.res==='off'? ['Research is off','API keys are missing on the server. This waits until they are set.']
+    : S.res==='quota'? ['Out of quota until 09:00','Every model used its free quota. It picks up again by itself.']
+    : ['Retrying at 11:30','The model was busy (attempt 2 of 5). Your previous results stay until new ones arrive.'];
+  return `<div class="card status"><h3><span class="dot ${S.res==='off'?'off':'warn'}"></span>${msg[0]}</h3><p>${msg[1]}</p>${S.res==='on'?'<div class="acts"><button class="btn small" data-act="trynow">Try now</button></div>':''}</div>`;
+}
+function stepsBlock(i,steps,h){
+  const s=i.step||0;
+  return `<div class="card status" aria-live="polite"><h3><span class="dot live"></span>${h}</h3><ol class="steps">${steps.map((t,j)=>`<li class="${j<s?'done':j===s?'now':''}"><span class="sm">${j<s?'✓':j===s?'›':'·'}</span>${t}</li>`).join('')}</ol>
+   <p>Usually a few minutes. You can leave; it shows up under Needs you.</p></div>`;
+}
+
+/* hunt */
+function hunt(h){
+  const v = huntView(h);
+  const covered = h.status==='covered';
+  return `<div class="bar"><button class="back" data-act="home">${I.back} Home</button>${modeSeg(h)}</div>
+  <div class="head"><div class="kicker">${I.hunt} Hunt · ${h.refill?'refill':'one-off'}</div><h1>${esc(h.title)}</h1>
+   <p class="yours">You wrote <q>${esc(h.text)}</q></p></div>
+  <div class="plate"><span class="glyph hunt">${I.hunt}</span><div><span class="prod">${esc(h.product)}</span><small>Exact match only. ${esc(h.productNote)}</small></div></div>
+  ${covered? coveredBlock(h) : ''}
+  ${!covered? statusBlock(h):''}
+  ${h.status==='nothing'?`<div class="card status"><h3><span class="dot warn"></span>No exact match on sale</h3><p>Nine shops searched; none sells this exact product right now. Shops that sell something close are listed apart below.</p><div class="acts"><button class="btn small" data-act="trynow">Hunt again</button><button class="btn small quiet" data-act="mode" data-m="explore">Explore instead</button></div></div>`:''}
+  ${!covered && v.best && h.status!=='nothing'? slip(h,v):''}
+  ${!covered && h.offers.length? offerList(h,v):''}
+  ${h.history.length?`<section class="panel"><h2 class="sec-h">You paid<span class="rule"></span></h2><div class="card rows">${h.history.map(x=>`<div class="mini"><span class="lead"><span class="t">${x.at} · ${esc(x.shop)} · ${esc(x.pack)}</span><span class="l"></span><span class="f mono">${h.unit&&x.units?eur(x.total/x.units)+'/'+h.unit:eur(x.total)}</span></span></div>`).join('')}</div></section>`:''}
+  <div style="height:28px"></div>`;
+}
+function slip(h,v){
+  const b=v.best, um=v.unitMatters;
+  const diff = v.lastUnit? (unitP(b)-v.lastUnit)/v.lastUnit : null;
+  const cheaperApprox = v.rest.find(o=>!o.checked && o.stock!=='out' && unitP(o)<unitP(b));
+  return `<div class="slipwrap"><div class="slip" role="group" aria-label="Best real offer">
+    <div class="slip-h"><span class="best">Best real offer</span><span>✓ checked ${esc(h.checkedAt)}</span></div>
+    <div class="slip-shop"><b>${esc(b.shop)}</b><span class="trust">${b.stock==='in'?'In stock':b.stock==='pre'?'Pre-order':'Stock unknown'}</span></div>
+    ${b.trust?`<div class="trust">${esc(b.trust)}</div>`:''}
+    <ul class="qlines">
+      ${h.unit? `<li class="lead"><span class="t">${esc(b.pack)}</span><span class="l"></span><span class="f">${eur(b.price)}</span></li>`:`<li class="lead"><span class="t">Price</span><span class="l"></span><span class="f">${eur(b.price)}</span></li>`}
+      <li class="lead"><span class="t">Shipping</span><span class="l"></span><span class="f">${b.ship?eur(b.ship):'free'}</span></li>
+      ${b.note?`<li class="lead"><span class="t">${esc(b.note)}</span><span class="l"></span><span class="f">✓</span></li>`:''}
+    </ul>
+    <div class="total"><span class="lab">${um?`Per ${h.unit}<br>you pay ${eur(total(b))}`:'You pay<br>shipping included'}</span><span class="big">${unitLabel(h,b,um)}</span></div>
+    ${diff!=null?`<div class="vs">${diff<0?`<b>${Math.round(-diff*100)}% less</b>`:`<b class="up">${Math.round(diff*100)}% more</b>`} than last time · ${eur(v.lastUnit)}${um?'/'+h.unit:''} at ${esc(v.last.shop)}, ${v.last.at}</div>`
+      : `<div class="vs">First time buying this.</div>`}
+    ${cheaperApprox?`<div class="vs" style="color:var(--ink-3)">${esc(cheaperApprox.shop)} shows ≈ ${unitText(h,cheaperApprox,um)} in search, not confirmed at the shop.</div>`:''}
+    <div class="slip-acts"><button class="btn primary" data-act="bought" data-oid="${b.id}">Bought here</button><button class="btn" data-act="noop">Open shop ${I.ext}</button></div>
+  </div></div>`;
+}
+function offerList(h,v){
+  const um=v.unitMatters;
+  const row=(o,apart)=>{
+    const sub = apart? `<span class="flag">${esc(o.mismatch)}</span>`
+      : [o.checked?'<span class="ok">✓</span>':'≈', h.unit&&um? `${esc(o.pack)} ${eur(o.price)}`:null, o.ship?`+${eur(o.ship)} ship`:null,
+         o.stock==='out'?'<span class="warnc">sold out</span>':o.stock==='pre'?'pre-order':o.stock==='in'?'in stock':'stock unknown',
+         o.trust? esc(o.trust):null, o.checked?null:'search price'].filter(Boolean).join(' · ').replace(/^(<span class="ok">✓<\/span>|≈) · /,'$1 ');
+    const open = S.open===o.id && !apart;
+    return `<div class="off ${o.stock==='out'?'sold':''}"><button class="offbtn" ${apart?'disabled':`data-act="offer" data-oid="${o.id}" aria-expanded="${open}"`}>
+      <span class="lead"><span class="t">${esc(o.shop)}</span><span class="l"></span><span class="f">${unitText(h,o,um)}</span></span>
+      <div class="osub">${sub}</div></button>
+      ${open?`<div class="off-x"><button class="btn small" data-act="bought" data-oid="${o.id}" ${o.stock==='out'?'disabled':''}>Bought here</button><button class="btn small" data-act="noop">Open shop ${I.ext}</button></div>`:''}</div>`;
+  };
+  return `<section class="panel"><h2 class="sec-h">Other shops <span class="n">${v.rest.length}</span><span class="rule"></span><span class="n">${um?'per '+h.unit+', shipping in':'price, shipping in'}</span></h2>
+   <div class="card offers">${v.rest.map(o=>row(o)).join('')}</div>
+   ${v.apart.length?`<div class="card" style="margin-top:10px"><details class="apart"><summary>Not an exact match <span class="n mono">${v.apart.length}</span><span style="margin-left:auto">${I.chev}</span></summary><div class="offers" style="border-top:1px solid var(--rule)">${v.apart.map(o=>row(o,true)).join('')}</div></details></div>`:''}
+  </section>`;
+}
+function coveredBlock(h){
+  const l=h.history[0];
+  return `<div class="slipwrap"><div class="slip covered">
+    <div class="cov-h"><span class="pill">✓ Covered</span><span class="hint">since ${l.at}</span></div>
+    <p>You bought <b>${esc(l.pack)}</b> at <b>${esc(l.shop)}</b> for <span class="mono">${eur(l.total)}</span>${h.unit?` · <span class="mono">${eur(l.total/l.units)}/${h.unit}</span>`:''}.</p>
+    <p class="hint" style="margin-top:6px">This hunt sleeps. When you're running low, it looks again for the cheapest real offer.</p>
+    <div class="slip-acts"><button class="btn primary" data-act="low" data-id="${h.id}">Running low</button></div>
+  </div></div>`;
+}
+
+/* lists */
+function lists(){
+  const tabs=[['wanted','Wanted'],['pantry','Pantry'],['bought','Bought'],['archived','Archived']];
+  const sel=(t)=> t==='pantry'? S.ideas.filter(i=>i.mode==='hunt'&&i.refill&&i.list==='wanted') : S.ideas.filter(i=>i.list===t);
+  const total=S.ideas.length;
+  let items=sel(S.tab);
+  if(S.filter) items=items.filter(i=>(i.title+' '+(i.text||'')).toLowerCase().includes(S.filter.toLowerCase()));
+  const sub=(i)=>{
+    if(i.list==='bought') return `${esc(i.bought.shop)} · <span class="mono">${eur(i.bought.price)}</span> · ${i.bought.at}`;
+    if(i.list==='archived') return 'Archived';
+    if(i.status==='covered') return `Covered · ${esc(i.history[0].shop)} · ${i.history[0].at}`;
+    const n=needs(i); if(n) return n.txt;
+    if(busy(i)) return esc(waitLine(i));
+    return i.mode==='explore'? `Resting · round ${i.rounds.length}`:'Resting';
+  };
+  return `${topbar()}
+  <div class="bar" style="min-height:44px;padding-top:0"><button class="back" data-act="home">${I.back} Home</button></div>
+  <div class="head" style="padding-top:0"><h1 style="margin-top:0">Lists</h1></div>
+  <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-act="tab" data-tab="${k}" aria-selected="${S.tab===k}">${l}<span class="c">${sel(k).length}</span></button>`).join('')}</div>
+  ${total>8?`<div class="filter">${I.search}<input id="flt" type="search" placeholder="Filter ${total} ideas" value="${esc(S.filter)}" aria-label="Filter ideas"></div>`:''}
+  <div class="card rows" style="margin:12px 16px 24px">${items.length? items.map(i=>`<div class="lrow">
+    <button class="row" ${i.rounds||i.offers?`data-act="open" data-id="${i.id}"`:''}><span class="glyph ${i.mode}">${I[i.status==='covered'?'covered':i.mode]}</span>
+     <span class="row-main"><span class="row-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.title)}</span><span class="row-sub">${sub(i)}</span></span></button>
+    ${i.list==='wanted'? `<button class="btn small quiet" data-act="archive" data-id="${i.id}">Archive</button>`
+      : `<button class="btn small quiet" data-act="again" data-id="${i.id}">Want again</button><button class="iconbtn x" data-act="remove" data-id="${i.id}" aria-label="Remove ${esc(i.title)}" title="Remove">${I.no}</button>`}
+   </div>`).join('') : `<div class="empty">Nothing here${S.filter?' for that filter':''}.</div>`}</div>`;
+}
+
+/* sheets */
+function sheet(){
+  const s=S.sheet;
+  if(s.type==='bought'){
+    const h=byId(s.id), o=h.offers.find(x=>x.id===s.oid);
+    return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t">
+      <div class="grab"></div><h2 id="sh-t">Bought at ${esc(o.shop)}</h2>
+      <p>${h.unit?esc(o.pack)+' · ':''}${esc(h.product)}</p>
+      <label class="field" style="margin-bottom:14px">You paid, in € incl. shipping<input id="paid" inputmode="decimal" value="${total(o).toFixed(2).replace('.',',')}" style="font-family:var(--mono)"></label>
+      <div style="font-weight:600;font-size:15px">Will you buy this again?</div>
+      <div class="hint">My guess: ${h.refill?'yes, it runs out':'no, a one-off buy'}. Change it if I'm wrong.</div>
+      <div class="choice" role="group" aria-label="Will you buy this again?">
+        <button class="key" data-act="again?" data-v="1" aria-pressed="${s.again}">Yes, it's a refill<small>Keep in Pantry, wake on Running low</small></button>
+        <button class="key" data-act="again?" data-v="0" aria-pressed="${!s.again}">No, one-off<small>Move to Bought</small></button>
+      </div>
+      <div class="acts"><button class="btn quiet" data-act="closesheet">Cancel</button><button class="btn primary" data-act="savebuy">Save purchase</button></div>
+    </div></div>`;
+  }
+  if(s.type==='mode'){
+    const i=byId(s.id), to=s.m;
+    return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t"><div class="grab"></div>
+      <h2 id="sh-t">${to==='hunt'?'Hunt one exact product?':'Explore options instead?'}</h2>
+      <p>${to==='hunt'?'No more picks to react to. I look for every shop selling exactly this, and show the cheapest real offer.':'You get 3–5 different picks to react to, and refine from there. The offers stay saved.'}</p>
+      ${to==='hunt'?`<label class="field">Exact product<input id="exact" value="${esc((i.rounds.flatMap(r=>r.picks).find(p=>p.reaction==='yes')||latest(i).picks[0]).title)}"></label><div class="hint" style="margin-top:4px">${i.rounds.some(r=>r.picks.some(p=>p.reaction==='yes'))?'From your keeper. ':'From the top pick. '}Add size, colour or pack if it matters.</div>`:''}
+      <div class="acts"><button class="btn quiet" data-act="closesheet">Keep ${i.mode==='hunt'?'Hunt':'Explore'}</button><button class="btn primary" data-act="domode">Switch to ${to==='hunt'?'Hunt':'Explore'}</button></div></div></div>`;
+  }
+  if(s.type==='buypick'){
+    const i=byId(s.id), p=i.rounds.flatMap(r=>r.picks).find(x=>x.id===s.pid);
+    return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t"><div class="grab"></div>
+      <h2 id="sh-t">Bought ${esc(p.title)}?</h2><p>At ${esc(p.shop)}${p.price?' for '+eur(p.price):''}. The idea moves to Bought; you can want it again later.</p>
+      <div class="acts"><button class="btn quiet" data-act="closesheet">Cancel</button><button class="btn primary" data-act="savepick">Yes, bought it</button></div></div></div>`;
+  }
+  return '';
+}
+
+/* ---------- actions ---------- */
+let toastT;
+function toast(msg,undo){ clearTimeout(toastT); S.toast={msg,undo}; toastT=setTimeout(()=>{S.toast=null;render();},6000); }
+function snapshot(){ return JSON.parse(JSON.stringify(S.ideas)); }
+const timers={};
+function run(i){
+  clearInterval(timers[i.id]);
+  i.step=0;
+  timers[i.id]=setInterval(()=>{
+    if(S.res!=='on' || i.status==='retrying' || i.status==='queued') return;
+    const steps=i.mode==='hunt'?HSTEPS:ESTEPS;
+    if(i.step<steps.length-1){ i.step++; render(); } else finish(i);
+  },1800);
+}
+function finish(i){
+  clearInterval(timers[i.id]);
+  if(i.mode==='explore'){
+    const nx=i.next.shift();
+    i.rounds.forEach(r=>r.picks.forEach(p=>p.dirty=false));
+    if(nx){ if(!latest(i).picks.length) i.rounds.pop(); i.rounds.push({n:i.rounds.length+1,picks:nx}); i.idx=0; i.status='ready'; }
+    else i.status='nothing';
+  } else {
+    if(i.nextOffers){ i.offers=i.nextOffers; i.nextOffers=null; }
+    i.status='ready'; i.checkedAt='12 Nov, '+new Date().toTimeString().slice(0,5);
+  }
+  render();
+}
+function learnFrom(i){
+  latest(i).picks.forEach(p=>{
+    if(p.reaction==='no' && p.reason && !i.prefs.avoid.includes(p.reason)) i.prefs.avoid.push(p.reason);
+    if(p.reaction==='yes'){ const t=p.title.split(' ').slice(0,3).join(' '); if(!i.prefs.likes.includes(t)) i.prefs.likes.push(t); }
+  });
+}
+function guessMode(t){ return /\b\d+\s?(g|kg|ml|l|gb|tb|x)\b|\b(refill|navulling|pro|max|classico)\b/i.test(t) ? 'hunt':'explore'; }
+
+function act(a, el){
+  const id=+el.dataset.id||S.id, i=byId(id);
+  switch(a){
+    case 'theme': { const dark = themeIcon()===I.sun; document.documentElement.dataset.theme = dark?'light':'dark'; break; }
+    case 'more': S.showMore=!S.showMore; break;
+    case 'home': return go('home');
+    case 'open': return go('idea', id);
+    case 'lists': S.tab=el.dataset.tab; return go('lists');
+    case 'tab': S.tab=el.dataset.tab; break;
+    case 'goto': i.idx=+el.dataset.k; S.whyNot=null; break;
+    case 'react': {
+      const p=i.rounds.flatMap(r=>r.picks).find(x=>x.id===+el.dataset.pid), r=el.dataset.r;
+      const inLatest = latest(i).picks.includes(p);
+      if(!inLatest) p.dirty=true;
+      if(p.reaction===r){ p.reaction=null; p.reason=null; S.whyNot=null; break; }
+      p.reaction=r; if(r!=='no') p.reason=null;
+      if(!inLatest) break;
+      if(r==='no'){ S.whyNot=p.id; break; }
+      S.whyNot=null; render(); advance(i, r==='yes'?'out-r':'out-l'); return;
+    }
+    case 'reason': { const p=latest(i).picks.find(x=>x.id===S.whyNot); p.reason = p.reason===el.dataset.v? null : el.dataset.v; break; }
+    case 'wndone': { const p=latest(i).picks.find(x=>x.id===S.whyNot); const t=document.getElementById('wn-t').value.trim(); if(t) p.reason=t; S.whyNot=null; render(); advance(i,'out-l'); return; }
+    case 'refine': learnFrom(i); i.status = S.res==='on'?'researching':'queued'; i.idx=0; run(i); scr.scrollTop=0; toast(`Round ${i.rounds.length+1} is on its way. I'll put it under Needs you.`); break;
+    case 'delpref': i.prefs[el.dataset.k].splice(+el.dataset.j,1); break;
+    case 'loosen': i.prefs.avoid=[]; i.status='researching'; run(i); toast('Dropped “avoid” items. Researching again.'); break;
+    case 'reword': { S.sheet=null; go('home'); const t=document.getElementById('cap-t'); t.value=i.text; t.focus(); return; }
+    case 'trynow': i.status=i.mode==='hunt'?'hunting':'researching'; if(i.mode==='hunt'&&!i.nextOffers&&!i.offers.length) i.nextOffers=genericOffers(); run(i); break;
+    case 'mode': if(el.dataset.m===i.mode) return; S.sheet={type:'mode',id:i.id,m:el.dataset.m}; break;
+    case 'domode': {
+      const s=S.sheet; const x=byId(s.id); S.sheet=null;
+      if(s.m==='hunt'){ const ex=(document.getElementById('exact')?.value||x.title).trim();
+        Object.assign(x,{mode:'hunt',product:ex,productNote:'Switched from Explore.',refill:false,unit:null,history:[],offers:[],status:'hunting',
+          nextOffers:[O({shop:'Zalando.be',price:62.95,trust:'Official stockist'}),O({shop:'Bol',price:64.99}),O({shop:'Amazon.com.be',price:59.9,checked:false,stock:'unknown'}),O({shop:'Torfs',price:69.95,stock:'out'})]});
+      } else {
+        Object.assign(x,{mode:'explore',status:'researching',rounds:x.rounds||[{n:1,picks:[]}],idx:0,next:x.next||[],kind:x.kind,
+          prefs:x.prefs||{summary:x.product,must:[],avoid:[],likes:[]}});
+        if(!x.rounds[0].picks.length){ x.rounds=[]; x.next=[[...x.offers.filter(o=>!o.mismatch).slice(0,3).map(o=>P({title:x.product,shop:o.shop,price:o.price,checked:o.checked,stock:o.stock,why:'Same product, a different shop: start here and react to steer.',caveat:o.note}))]]; x.rounds=[{n:0,picks:[]}]; }
+      }
+      run(x); toast(`Switched to ${s.m==='hunt'?'Hunt':'Explore'}. Researching.`); break;
+    }
+    case 'offer': S.open = S.open===+el.dataset.oid? null : +el.dataset.oid; break;
+    case 'bought': S.sheet={type:'bought',id:i.id,oid:+el.dataset.oid,again:!!i.refill}; break;
+    case 'again?': S.sheet.again = el.dataset.v==='1'; break;
+    case 'savebuy': {
+      const s=S.sheet, h=byId(s.id), o=h.offers.find(x=>x.id===s.oid);
+      const paid = parseFloat((document.getElementById('paid').value||'').replace(/\./g,'').replace(',','.')) || total(o);
+      const before=snapshot(); S.sheet=null;
+      h.history.unshift({shop:o.shop,total:paid,units:o.units,pack:o.pack||'1',at:'12 Nov'});
+      if(s.again){ h.refill=true; h.unit=h.unit||'piece'; h.status='covered'; h.nextOffers=h.offers; h.offers=[]; toast(`Covered. ${esc(h.title)} sleeps in the Pantry until you're running low.`, before); }
+      else { h.refill=false; h.list='bought'; h.bought={title:h.product,shop:o.shop,price:paid,at:'12 Nov'}; toast(`${esc(h.title)} moved to Bought.`, before); return go('home'); }
+      break;
+    }
+    case 'buypick': S.sheet={type:'buypick',id:i.id,pid:+el.dataset.pid}; break;
+    case 'savepick': { const s=S.sheet,x=byId(s.id),p=x.rounds.flatMap(r=>r.picks).find(q=>q.id===s.pid); const before=snapshot(); S.sheet=null;
+      x.list='bought'; x.bought={title:p.title,shop:p.shop,price:p.price,at:'12 Nov'}; toast(`${esc(x.title)} moved to Bought.`,before); return go('home'); }
+    case 'low': { const h=i; if(!h.nextOffers) h.nextOffers=h.offers.length?h.offers:genericOffers(); h.status='hunting'; h.lowSince='12 Nov'; run(h); toast(`Hunting ${esc(h.title)} again. Usually a few minutes.`); break; }
+    case 'archive': { const before=snapshot(); i.list='archived'; toast(`${esc(i.title)} archived.`,before); break; }
+    case 'again': { i.list='wanted'; if(i.mode==='explore'){ if(!i.rounds) Object.assign(i,freshExplore(i.title)); i.status = i.rounds[0].picks.length?'ready':'researching'; if(!i.rounds[0].picks.length) run(i); } else if(i.mode==='hunt'){ i.status='hunting'; i.offers=[]; i.nextOffers=genericOffers(i.bought.price); i.history=i.history||[]; i.product=i.product||i.bought.title; i.productNote=''; i.text=i.text||i.title; run(i);} toast(`${esc(i.title)} is wanted again.`); break; }
+    case 'remove': { const before=snapshot(); S.ideas=S.ideas.filter(x=>x!==i); toast(`Removed ${esc(i.title)}.`,before); break; }
+    case 'undo': S.ideas=S.toast.undo; S.toast=null; S.sheet=null; if(S.id && !byId(S.id)) S.screen='home'; break;
+    case 'closesheet': if(el!==ev_target && el.classList.contains('scrim')) return; S.sheet=null; break;
+    case 'noop': break;
+  }
+  render();
+}
+function genericOffers(p=24){ return [O({shop:'Bol',price:p}),O({shop:'Coolblue',price:+(p*1.06).toFixed(2)}),O({shop:'Amazon.com.be',price:+(p*0.93).toFixed(2),checked:false,stock:'unknown'}),O({shop:'MediaMarkt',price:+(p*1.02).toFixed(2),stock:'out'})]; }
+function freshExplore(t){ return {kind:'fan',text:t,notes:null,budget:null,idx:0,prefs:{summary:'Learning as you react.',must:[],avoid:[],likes:[]},rounds:[{n:0,picks:[]}],
+  next:[[P({title:'Sample pick one',shop:'Bol',price:49.99,checked:true,stock:'in',why:'A well-reviewed all-rounder that fits what you wrote.',caveat:'Mock pick for a new idea.'}),
+         P({title:'Sample pick two',shop:'Coolblue',price:79,checked:true,stock:'in',why:'The step up: better build, quieter.',caveat:'Mock pick for a new idea.'}),
+         P({title:'Sample pick three',shop:'Amazon.com.be',price:34.5,why:'The budget option that still does the job.',caveat:'Mock pick for a new idea.'})]]}; }
+function feliOffers(){ return seed().find(x=>x.id===2).offers.map(o=>({...o,id:++uid})); }
+function advance(i,cls){
+  const c=document.getElementById('pickcard'); const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const nextIdx=()=>{ const ps=latest(i).picks; const j=ps.findIndex((p,k)=>k>i.idx && !p.reaction); const a=ps.findIndex(p=>!p.reaction); i.idx = j>-1?j : a>-1?a : ps.length; render(); };
+  if(c && !reduce){ setTimeout(()=>{ c.classList.add(cls); setTimeout(nextIdx,230); },260); } else nextIdx();
+}
+
+/* ---------- swipe (horizontal only; vertical scroll never reacts) ---------- */
+function bindDeck(){
+  const c=document.getElementById('pickcard'); if(!c) return;
+  let x0,y0,dx=0,on=false,dir=null;
+  c.addEventListener('pointerdown',e=>{ if(e.target.closest('button,a')) return; x0=e.clientX;y0=e.clientY;dx=0;on=true;dir=null; });
+  c.addEventListener('pointermove',e=>{ if(!on) return; const ddx=e.clientX-x0, ddy=e.clientY-y0;
+    if(!dir && Math.hypot(ddx,ddy)>10) dir = Math.abs(ddx)>Math.abs(ddy)*1.5?'h':'v';
+    if(dir!=='h') return; dx=ddx; c.style.transition='none'; c.style.transform=`translateX(${dx}px) rotate(${dx/30}deg)`; });
+  const end=()=>{ if(!on) return; on=false; c.style.transition=''; c.style.transform='';
+    if(dir==='h' && Math.abs(dx)>90){ const b=document.querySelector(`.keys .key.${dx>0?'yes':'no'}`); if(b && b.getAttribute('aria-pressed')!=='true') b.click(); } };
+  c.addEventListener('pointerup',end); c.addEventListener('pointercancel',end); c.addEventListener('pointerleave',end);
+}
+
+/* ---------- events ---------- */
+let ev_target=null;
+document.addEventListener('click',e=>{
+  ev_target=e.target;
+  const ctl=e.target.closest('[data-ctl]'); if(ctl) return control(ctl.dataset.ctl);
+  const el=e.target.closest('[data-act]'); if(!el) return;
+  if(el.tagName==='A') e.preventDefault();
+  act(el.dataset.act, el);
+});
+document.addEventListener('submit',e=>{
+  e.preventDefault();
+  if(e.target.id==='cap') return addIdea();
+  if(e.target.id==='addpref'){ const v=document.getElementById('pv').value.trim(); if(!v) return; cur().prefs[document.getElementById('pk').value].push(v); render(); document.getElementById('pv')?.focus(); }
+});
+document.addEventListener('keydown',e=>{
+  if(e.target.id==='cap-t' && e.key==='Enter' && !e.shiftKey){ e.preventDefault(); addIdea(); }
+  if(e.key==='Escape' && S.sheet){ S.sheet=null; render(); }
+});
+document.addEventListener('input',e=>{
+  if(e.target.id==='cap-t'){ e.target.style.height='auto'; e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'; }
+  if(e.target.id==='flt'){ S.filter=e.target.value; const pos=e.target.selectionStart; render(); const f=document.getElementById('flt'); f.focus(); f.setSelectionRange(pos,pos); }
+});
+function addIdea(){
+  const t=document.getElementById('cap-t').value.trim(); if(!t) return document.getElementById('cap-t').focus();
+  const b=parseFloat((document.getElementById('cap-b')?.value||'').replace(',','.'))||null, n=document.getElementById('cap-n')?.value.trim()||null;
+  const m=guessMode(t);
+  const i = m==='hunt'
+    ? {id:++uid,mode:'hunt',kind:'vial',text:t,title:t.length>34?t.slice(0,32)+'…':t,refill:true,unit:null,list:'wanted',product:t,productNote:'As you wrote it.',status:'queued',history:[],offers:[],
+       nextOffers:[O({shop:'Bol',price:21.99}),O({shop:'Coolblue',price:23.5}),O({shop:'Amazon.com.be',price:19.99,checked:false,stock:'unknown'})]}
+    : {id:++uid,mode:'explore',...freshExplore(t),notes:n,budget:b,title:t.length>34?t.slice(0,32)+'…':t,list:'wanted',status:'queued'};
+  S.ideas.unshift(i); S.showMore=false;
+  if(S.res==='on'){ i.status=m==='hunt'?'hunting':'researching'; run(i); }
+  toast(`Added as ${m==='hunt'?'a Hunt (one exact product)':'an Explore'}. You can switch it.`);
+  render();
+}
+function control(c){
+  const [k,v]=c.split(':');
+  if(k==='res'){ S.res=v; }
+  if(k==='theme'){ if(v==='auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme=v; }
+  if(k==='finish'){ S.ideas.filter(i=>['researching','hunting','queued','retrying'].includes(i.status)).forEach(finish); }
+  if(k==='hstate'){ const i=cur(); if(i){ clearInterval(timers[i.id]);
+      if(v==='ready'){ if(i.mode==='hunt' && !i.offers.length){ i.offers=i.nextOffers||feliOffers(); i.nextOffers=null; } i.status='ready'; }
+      else i.status=v; } }
+  if(k==='reset'){ Object.values(timers).forEach(clearInterval); reset(); }
+  render();
+}
+render();
+</script>
+</body>
+</html>
