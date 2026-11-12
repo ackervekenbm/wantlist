@@ -22,7 +22,7 @@ import {
   offer,
   QUERY_SCHEMA,
   QUERY_SYSTEM,
-  VERIFY_SCHEMA,
+  verifySchema,
   VERIFY_SYSTEM,
   type CandidateInputRow,
 } from './prompts'
@@ -64,6 +64,7 @@ export class PipelineEngine implements ResearchEngine {
       normalizePlan,
     )
     progress(`step 1: ${plan.searchQueries.length} query(ies)`)
+    const preferences = { summary: plan.summary, mustHaves: plan.criteria, avoid: [], likes: [] }
 
     step('searching shops and reviews')
     const results = await this.searchAll(plan.searchQueries, progress)
@@ -74,7 +75,7 @@ export class PipelineEngine implements ResearchEngine {
     const pass1 = await router.generate(
       {
         systemInstruction: CANDIDATE_SYSTEM,
-        contents: buildCandidateUser(request, plan.summary, plan.criteria, results),
+        contents: buildCandidateUser(request, preferences, results, []),
         schema: CANDIDATE_SCHEMA,
         temperature: 0.3,
       },
@@ -106,16 +107,16 @@ export class PipelineEngine implements ResearchEngine {
         systemInstruction: VERIFY_SYSTEM,
         contents: buildVerifyUser({
           idea: request,
-          summary: plan.summary,
-          criteria: plan.criteria,
+          preferences,
+          shown: [],
           candidates: pass1.candidates,
           pages,
           fetchErrors,
         }),
-        schema: VERIFY_SCHEMA,
+        schema: verifySchema(false),
         temperature: 0.3,
       },
-      (raw) => normalizePass2(raw, pass1.candidates),
+      (raw) => normalizePass2(raw, pass1.candidates, 0).picks,
     )
     if (picks.length === 0) picks = this.fallbackFromPass1(pass1.candidates)
 
@@ -125,7 +126,7 @@ export class PipelineEngine implements ResearchEngine {
     const sourceUrls = pages.map((p) => p.url)
 
     return {
-      brief: { title: '', preferences: { summary: plan.summary, mustHaves: plan.criteria, avoid: [], likes: [] } },
+      brief: { title: '', preferences },
       picks: rankPicks(picks.map((p) => ({ ...p, sourceUrls }))),
     }
   }

@@ -1,4 +1,14 @@
-import type { FinalPick, Pass1Result, PickSupplier, ResearchCandidate, ResearchRequest } from '../../types'
+import type {
+  FinalPick,
+  HistoryPick,
+  Pass1Result,
+  PickSupplier,
+  Preferences,
+  ResearchCandidate,
+  ResearchHistory,
+  ResearchRequest,
+} from '../../types'
+import { PREF_ITEM_CHARS, PREF_ITEMS_MAX, PREF_SUMMARY_CHARS, TITLE_MAX } from '../../types/limits'
 import { ResearchError } from './errors'
 import { isHttpUrl, mergePicksByProduct, mergeSuppliers, normalizeUrl, primaryFields, rankPicks } from './offers'
 import { parsePriceEur, type ProductData } from './product'
@@ -29,6 +39,73 @@ const BUDGET_RULE = `- When a budget is given, it is a ceiling: prefer products 
 - User notes are hard requirements unless they say otherwise.`
 
 // ---------------------------------------------------------------------------
+// Preferences and earlier picks, as every step sees them
+// ---------------------------------------------------------------------------
+
+/** How many earlier picks a prompt shows; code-level exclusion still uses all of them. */
+const SHOWN_MAX = 40
+
+function capList(raw: unknown): string[] {
+  return (Array.isArray(raw) ? raw : [])
+    .map((s) => String(s ?? '').trim().slice(0, PREF_ITEM_CHARS))
+    .filter(Boolean)
+    .slice(0, PREF_ITEMS_MAX)
+}
+
+/** Coerces untrusted preferences (model output or a request body) to the limits. Never throws. */
+export function capPreferences(raw: unknown): Preferences {
+  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  return {
+    summary: String(obj.summary ?? '').trim().slice(0, PREF_SUMMARY_CHARS),
+    mustHaves: capList(obj.mustHaves),
+    avoid: capList(obj.avoid),
+    likes: capList(obj.likes),
+  }
+}
+
+/** The learned preferences with every owner item kept word-for-word, owner items first. */
+export function keepOwnerItems(learned: Preferences, owner: Preferences): Preferences {
+  const merge = (own: string[], got: string[]) => [...own, ...got.filter((s) => !own.includes(s))]
+  return capPreferences({
+    summary: learned.summary,
+    mustHaves: merge(owner.mustHaves, learned.mustHaves),
+    avoid: merge(owner.avoid, learned.avoid),
+    likes: merge(owner.likes, learned.likes),
+  })
+}
+
+export function describePreferences(p: Preferences): string {
+  return [
+    p.summary ? `What it is: ${p.summary}` : null,
+    p.mustHaves.length ? `Must have: ${p.mustHaves.join('; ')}` : null,
+    p.avoid.length ? `Avoid: ${p.avoid.join('; ')}` : null,
+    p.likes.length ? `Liked so far: ${p.likes.join('; ')}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+/** The newest picks a prompt lists; `repeatOf` numbers refer to this list. */
+export function shownForPrompt(picks: HistoryPick[]): HistoryPick[] {
+  return [...picks].sort((a, b) => b.round - a.round).slice(0, SHOWN_MAX)
+}
+
+export function describeShown(shown: HistoryPick[]): string {
+  return shown.map((p, i) => `${i + 1}. ${p.title}${p.shop ? ` | ${p.shop}` : ''}`).join('\n')
+}
+
+function cleanQueries(raw: unknown, what: string): string[] {
+  const queries = (Array.isArray(raw) ? raw : [])
+    .map((q) => String(q).trim())
+    .filter(Boolean)
+    .slice(0, 4)
+  if (queries.length === 0) {
+    throw new ResearchError(`${what} has no search queries`, { kind: 'invalid' })
+  }
+  return queries
+}
+
+// ---------------------------------------------------------------------------
 // Step 1 - research plan (no browsing: the app does the searching)
 // ---------------------------------------------------------------------------
 
@@ -47,11 +124,17 @@ Requirements:
   ("best ... for ...", "... reddit"), and a specialist or brand-store query.
 - Keep queries specific enough to return product pages, not category homepages.
 - When a budget is given, steer queries toward that price range; fold the
-  user's notes into the queries and the criteria.`
+  user's notes into the queries and the criteria.
+- Give it a title: a short, specific English name for what is being looked
+  for (e.g. "Quiet fan for indoor cycling"), at most 60 characters.`
 
 export const QUERY_SCHEMA = {
   type: 'object',
   properties: {
+    title: {
+      type: 'string',
+      description: 'Short, specific name for what is being looked for, ≤ 60 chars, English',
+    },
     summary: {
       type: 'string',
       description: 'One sentence on what the user is really after',
@@ -67,10 +150,11 @@ export const QUERY_SCHEMA = {
       description: '2-4 real search queries',
     },
   },
-  required: ['summary', 'criteria', 'searchQueries'],
+  required: ['title', 'summary', 'criteria', 'searchQueries'],
 } as const
 
 export interface ResearchPlan {
+  title: string
   summary: string
   criteria: string[]
   searchQueries: string[]
@@ -82,17 +166,105 @@ export function buildQueryUser(idea: IdeaInput): string {
 
 export function normalizePlan(raw: unknown): ResearchPlan {
   const obj = raw as Partial<ResearchPlan>
-  const queries = (Array.isArray(obj.searchQueries) ? obj.searchQueries : [])
-    .map((q) => String(q).trim())
-    .filter(Boolean)
-    .slice(0, 4)
-  if (queries.length === 0) {
-    throw new ResearchError('plan has no search queries', { kind: 'invalid' })
-  }
+  const queries = cleanQueries(obj.searchQueries, 'plan')
   return {
+    title: String(obj.title ?? '').trim().slice(0, TITLE_MAX),
     summary: String(obj.summary ?? '').trim(),
     criteria: Array.isArray(obj.criteria) ? obj.criteria.map(String).filter(Boolean) : [],
     searchQueries: queries,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 1b - learn from the owner's reactions (replaces the plan in later rounds)
+// ---------------------------------------------------------------------------
+
+export const LEARN_SYSTEM = `You are the learn step of a shopping-research bot that has NO internet access itself.
+The owner already saw earlier rounds of picks and reacted to some of them
+(no / maybe / yes, sometimes with a reason). Update what they want, then
+produce web-search queries for a NEW round that finds what is still missing.
+
+Preferences:
+- Keep criteria that still hold; drop or reword only what the reactions contradict.
+- Turn every reason into a concrete, searchable "avoid" (or "mustHaves") item that
+  names the trait, not the product. Example: "looks like grandma's" becomes
+  "no floral or quilted granny styles"; "too loud" becomes "quiet, under 40 dB".
+  Never just echo the reason.
+- A "no" without a reason: infer the trait only when it is obvious, else skip it.
+- Turn "yes" and "maybe" picks into "likes" as traits (style, material, size,
+  feature), never product names, brands or shops.
+- Items marked as set by the owner must stay word-for-word in their list.
+- "summary": one sentence on what the owner is really after now.
+- Title: keep the current title unless the reactions justify a sharper one;
+  short, specific, English, at most 60 characters.
+
+Queries:
+- 1 to 4 real search queries, in English, that a search engine can answer.
+- Aim them at what is missing: the must-haves and likes, steered away from the
+  avoid items. Phrase them so they do not resurface the rejected products
+  (no rejected product names or model numbers).
+- Country Belgium, prices EUR. Cover the whole market, not only big marketplaces.
+- Keep queries specific enough to return product pages, not category homepages.
+${BUDGET_RULE}`
+
+export const LEARN_SCHEMA = {
+  type: 'object',
+  properties: {
+    title: {
+      type: 'string',
+      description: 'Short, specific name for what is being looked for, ≤ 60 chars, English',
+    },
+    preferences: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string', description: 'One sentence on what the owner is really after' },
+        mustHaves: { type: 'array', items: { type: 'string' }, description: 'Hard requirements' },
+        avoid: { type: 'array', items: { type: 'string' }, description: 'Concrete traits to avoid' },
+        likes: { type: 'array', items: { type: 'string' }, description: 'Liked traits, never product names' },
+      },
+      required: ['summary', 'mustHaves', 'avoid', 'likes'],
+    },
+    searchQueries: {
+      type: 'array',
+      items: { type: 'string' },
+      description: '1-4 real search queries',
+    },
+  },
+  required: ['title', 'preferences', 'searchQueries'],
+} as const
+
+function describeHistoryPick(p: HistoryPick): string {
+  const price = p.price !== null ? ` | EUR ${p.price}` : ''
+  const reaction = p.reaction
+    ? ` · reaction: ${p.reaction}${p.reason ? ` — "${p.reason}"` : ''}`
+    : ' · no reaction'
+  return `round ${p.round} · ${p.title}${p.shop ? ` | ${p.shop}` : ''}${price}${reaction}`
+}
+
+export function buildLearnUser(idea: IdeaInput, title: string | null, history: ResearchHistory): string {
+  const prefs = history.preferences
+  const heading = history.preferencesEdited
+    ? 'Current preferences (set by the owner — keep every item word-for-word):'
+    : 'Current preferences:'
+  const lines = shownForPrompt(history.picks).map(describeHistoryPick).join('\n')
+  return `${describeIdea(idea)}
+Current title: ${title || 'n/a'}
+
+${heading}
+${(prefs && describePreferences(prefs)) || 'n/a'}
+
+Earlier picks and the owner's reactions (newest first):
+${lines || 'n/a'}
+
+Return the updated title, preferences and search queries JSON per schema.`
+}
+
+export function normalizeLearn(raw: unknown): { title: string; preferences: Preferences; searchQueries: string[] } {
+  const obj = (raw ?? {}) as Record<string, unknown>
+  return {
+    title: String(obj.title ?? '').trim().slice(0, TITLE_MAX),
+    preferences: capPreferences(obj.preferences),
+    searchQueries: cleanQueries(obj.searchQueries, 'learn step'),
   }
 }
 
@@ -149,24 +321,30 @@ export interface CandidateInputRow {
 
 export function buildCandidateUser(
   idea: IdeaInput,
-  summary: string,
-  criteria: string[],
+  preferences: Preferences,
   results: CandidateInputRow[],
+  shown: HistoryPick[],
 ): string {
   const lines = results
     .map((r, i) => `${i + 1}. ${r.title} | ${r.url} | ${r.snippet}`)
     .join('\n')
+  const already = shown.length
+    ? `\nAlready shown — never pick these again, at any shop:\n${describeShown(shown)}\n`
+    : ''
   return `${describeIdea(idea)}
-Summary: ${summary || 'n/a'}
-Criteria: ${criteria.join('; ') || 'n/a'}
-
+${describePreferences(preferences)}
+${already}
 Search results:
 ${lines}
 
 Return 3-5 candidate JSON per schema. URLs must come verbatim from the list above.`
 }
 
-export function normalizePass1(raw: unknown, allowedUrls?: Set<string>): Pass1Result {
+export function normalizePass1(
+  raw: unknown,
+  allowedUrls?: Set<string>,
+  exclude?: (c: ResearchCandidate) => boolean,
+): Pass1Result {
   const obj = raw as Partial<Pass1Result>
   const allowedNorm = allowedUrls ? new Set([...allowedUrls].map(normalizeUrl)) : undefined
   const candidates = Array.isArray(obj.candidates) ? obj.candidates : []
@@ -183,7 +361,8 @@ export function normalizePass1(raw: unknown, allowedUrls?: Set<string>): Pass1Re
         c.title &&
         c.shop &&
         isHttpUrl(c.url) &&
-        (!allowedNorm || allowedNorm.has(normalizeUrl(c.url))),
+        (!allowedNorm || allowedNorm.has(normalizeUrl(c.url))) &&
+        !exclude?.(c),
     )
   return {
     summary: '',
@@ -227,42 +406,53 @@ Ground rules:
 - Mention delivery/stock only if the page evidence states it.
 ${BUDGET_RULE}`
 
-export const VERIFY_SCHEMA = {
-  type: 'object',
-  properties: {
-    picks: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          rank: { type: 'integer' },
-          title: { type: 'string' },
-          why: { type: 'string', description: 'One line, <=180 chars' },
-          caveat: { type: 'string', description: 'One honest trade-off, <=120 chars, or empty' },
-          suppliers: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                shop: { type: 'string' },
-                url: { type: 'string' },
-                price: { type: 'string', description: 'bare EUR number/range, or empty' },
+export function verifySchema(withRepeat: boolean) {
+  return {
+    type: 'object',
+    properties: {
+      picks: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            ...(withRepeat
+              ? {
+                  repeatOf: {
+                    type: 'integer',
+                    description: 'number of the already-shown product this is the same model as, or 0',
+                  },
+                }
+              : {}),
+            rank: { type: 'integer' },
+            title: { type: 'string' },
+            why: { type: 'string', description: 'One line, <=180 chars' },
+            caveat: { type: 'string', description: 'One honest trade-off, <=120 chars, or empty' },
+            suppliers: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  shop: { type: 'string' },
+                  url: { type: 'string' },
+                  price: { type: 'string', description: 'bare EUR number/range, or empty' },
+                },
+                required: ['shop', 'url', 'price'],
               },
-              required: ['shop', 'url', 'price'],
             },
           },
+          required: withRepeat ? ['title', 'why', 'suppliers', 'repeatOf'] : ['title', 'why', 'suppliers'],
         },
-        required: ['title', 'why', 'suppliers'],
       },
     },
-  },
-  required: ['picks'],
-} as const
+    required: ['picks'],
+  } as const
+}
 
 export interface Pass2Context {
   idea: IdeaInput
-  summary: string
-  criteria: string[]
+  preferences: Preferences
+  /** The capped list from shownForPrompt; repeatOf numbers refer to it. */
+  shown: HistoryPick[]
   candidates: ResearchCandidate[]
   pages: Array<{ url: string; title: string; text: string; product: ProductData | null }>
   fetchErrors: string[]
@@ -297,10 +487,19 @@ export function buildVerifyUser(ctx: Pass2Context): string {
     ? `\nPages that could not be fetched:\n${ctx.fetchErrors.join('\n')}\n`
     : ''
 
-  return `${describeIdea(ctx.idea)}
-Discovery summary: ${ctx.summary || 'n/a'}
-Criteria: ${ctx.criteria.join('; ') || 'n/a'}
+  const shown = ctx.shown.length
+    ? `
+Already shown to the owner in earlier rounds:
+${describeShown(ctx.shown)}
 
+Rule: these must not come back. For every pick, set "repeatOf" to the number of
+the already-shown product it is the same model as (any shop, any colour or
+storage variant counts as the same model), or 0 when it is genuinely new.
+`
+    : ''
+  return `${describeIdea(ctx.idea)}
+${describePreferences(ctx.preferences)}
+${shown}
 Candidates:
 ${cand}
 ${errors}
@@ -310,13 +509,23 @@ ${pages || '(no pages were fetched - fall back on candidate evidence, keep only 
 Return final JSON picks per schema (rank 1..n, ascending).`
 }
 
-export function normalizePass2(raw: unknown, allowed: ResearchCandidate[]): FinalPick[] {
+export function normalizePass2(
+  raw: unknown,
+  allowed: ResearchCandidate[],
+  shownCount: number,
+): { picks: FinalPick[]; repeats: number } {
   const obj = raw as { picks?: Array<Record<string, unknown>> }
   const list = Array.isArray(obj.picks) ? obj.picks : []
   const allowedNormalized = new Map(allowed.map((c) => [normalizeUrl(c.url), c]))
   const result: FinalPick[] = []
+  let repeats = 0
 
   for (const p of list) {
+    const repeatOf = p.repeatOf
+    if (Number.isInteger(repeatOf) && (repeatOf as number) >= 1 && (repeatOf as number) <= shownCount) {
+      repeats++
+      continue
+    }
     let title = String(p.title ?? '').trim()
     const why = String(p.why ?? '').trim()
     const caveat = String(p.caveat ?? '').trim() || null
@@ -358,7 +567,7 @@ export function normalizePass2(raw: unknown, allowed: ResearchCandidate[]): Fina
     })
   }
 
-  return rankPicks(mergePicksByProduct(result)).slice(0, 5)
+  return { picks: rankPicks(mergePicksByProduct(result)).slice(0, 5), repeats }
 }
 
 /** An offer as the model or search saw it; the pipeline checks it on the shop page later. */
