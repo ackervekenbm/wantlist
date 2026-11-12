@@ -307,6 +307,17 @@ describe('App', () => {
     expect(screen.getAllByRole('button', { name: /^Archive / })).toHaveLength(1)
   })
 
+  it('drops the filter text when switching tabs', async () => {
+    fakeApi([
+      ...Array.from({ length: 9 }, (_, i) => idea({ id: i + 1, text: `idea ${i}` })),
+      idea({ id: 10, text: 'old lamp', list: 'archived' }),
+    ])
+    const user = await renderApp('#/lists/wanted')
+    await user.type(screen.getByLabelText('Filter ideas'), 'zzz')
+    await user.click(screen.getByRole('button', { name: /^Archived\s*1$/ }))
+    expect(screen.getByRole('button', { name: 'Remove old lamp' })).toBeInTheDocument()
+  })
+
   it('shows a skeleton, not an empty list, until the ideas load', async () => {
     fakeApi([])
     history.replaceState(null, '', '#/lists/wanted')
