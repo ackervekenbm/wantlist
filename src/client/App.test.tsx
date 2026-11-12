@@ -261,7 +261,7 @@ describe('App', () => {
     await renderApp('#/idea/1')
     const h1 = screen.getByRole('heading', {
       level: 1,
-      name: /^Quiet trainer fan/,
+      name: 'Quiet trainer fan',
     })
     expect(location.hash).toBe('#/idea/1')
     expect(h1).toHaveFocus()
