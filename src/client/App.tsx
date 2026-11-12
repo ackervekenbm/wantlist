@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react'
-import type { Idea, IdeaList, ServerStatus } from '../types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { Idea, IdeaList } from '../types'
 import { IdeaCard } from './components/IdeaCard'
 import { IdeaForm } from './components/IdeaForm'
+import { Shell } from './components/Shell'
+import { TopBar } from './components/TopBar'
 import { useIdeas } from './hooks/useIdeas'
-import { clockTime } from './lib/format'
+import { useRoute, type Route } from './lib/route'
+import { applyTheme, readTheme, writeTheme, type Theme } from './lib/theme'
 
 const TABS: Array<{ list: IdeaList; label: string }> = [
   { list: 'wanted', label: 'Wanted' },
@@ -16,6 +19,8 @@ const FILTER_FROM = 8
 
 export function App() {
   const state = useIdeas()
+  const [route, navigate] = useRoute()
+  const [theme, setTheme] = useState<Theme>(readTheme)
   const [tab, setTab] = useState<IdeaList>('wanted')
   const [filter, setFilter] = useState('')
 
@@ -28,30 +33,31 @@ export function App() {
   const inTab = state.ideas.filter((i) => i.list === tab)
   const visible = filter.trim() ? inTab.filter((i) => matches(i, filter)) : inTab
 
-  return (
+  const openIdea = route.name === 'idea' ? state.ideas.find((i) => i.id === route.id) : undefined
+  const missingIdea = route.name === 'idea' && state.loaded && !openIdea
+  useEffect(() => {
+    if (missingIdea) navigate({ name: 'home' }, { replace: true })
+  }, [missingIdea, navigate])
+
+  useRouteFocus(route, state.loaded)
+
+  const currentId = state.status?.current?.ideaId
+  const current = state.ideas.find((i) => i.id === currentId)
+
+  const left = (
     <div className="app">
-      <header className="topbar">
-        <div className="wordmark" aria-label="wantlist">
-          <span className="wordmark-mark" aria-hidden="true">
-            w
-          </span>
-          <span className="wordmark-text" aria-hidden="true">
-            wantlist
-          </span>
-        </div>
-        <WorkerChip status={state.status} />
-      </header>
+      <TopBar
+        status={state.status}
+        currentTitle={current ? (current.title ?? current.text) : null}
+        theme={theme}
+        onTheme={(t) => {
+          writeTheme(t)
+          applyTheme(t)
+          setTheme(t)
+        }}
+      />
 
       <main className="content">
-        {state.error && (
-          <div className="banner banner-bad" role="alert">
-            <span>{state.error}</span>
-            <button type="button" className="banner-close" onClick={state.dismissError}>
-              dismiss
-            </button>
-          </div>
-        )}
-
         {state.status && !state.status.researchEnabled && (
           <div className="banner banner-warn" role="status">
             Research is switched off: set {state.status.missingKeys.join(' and ')} on the server. Ideas you add now
@@ -99,11 +105,7 @@ export function App() {
         )}
 
         {!state.loaded ? (
-          <div className="skeleton" aria-label="loading">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="skeleton-card" />
-            ))}
-          </div>
+          <Skeleton />
         ) : visible.length === 0 ? (
           <EmptyState list={tab} filtered={inTab.length > 0} />
         ) : (
@@ -124,43 +126,88 @@ export function App() {
         )}
       </main>
 
-      {state.removed && (
-        <div className="toast" role="status">
-          <span>Removed “{truncate(state.removed.text, 40)}”</span>
-          <button type="button" className="btn-text toast-undo" onClick={state.undoRemove}>
-            undo
-          </button>
-        </div>
-      )}
-
       <footer className="foot">
         <span>every idea, researched for later.</span>
       </footer>
     </div>
   )
+
+  // shortcut: placeholder screens until the idea and lists screens land (Tasks 3–4).
+  const right =
+    route.name === 'lists' ? (
+      <div className="screen">
+        <h1 tabIndex={-1}>Lists</h1>
+      </div>
+    ) : !state.loaded ? (
+      <div className="screen" aria-busy="true">
+        <Skeleton />
+      </div>
+    ) : openIdea ? (
+      <div className="screen">
+        <h1 tabIndex={-1}>{openIdea.title ?? openIdea.text}</h1>
+      </div>
+    ) : null
+
+  return (
+    <Shell
+      route={route}
+      left={left}
+      right={right}
+      banner={
+        state.error && (
+          <div className="banner banner-bad" role="alert">
+            <span>{state.error}</span>
+            <button type="button" className="banner-close" onClick={state.dismissError}>
+              dismiss
+            </button>
+          </div>
+        )
+      }
+      toast={
+        state.removed && (
+          <div className="toast" role="status">
+            <span>Removed “{truncate(state.removed.text, 40)}”</span>
+            <button type="button" className="btn-text toast-undo" onClick={state.undoRemove}>
+              undo
+            </button>
+          </div>
+        )
+      }
+    />
+  )
 }
 
-function WorkerChip({ status }: { status: ServerStatus | null }) {
-  if (!status) return null
-  if (!status.researchEnabled) return <span className="chip chip-off">research off</span>
-  if (status.running) {
-    return (
-      <span className="chip chip-live">
-        <span className="pulse" aria-hidden="true" /> researching now
-      </span>
-    )
-  }
-  const benched = status.models.filter((m) => m.benchedUntil)
-  if (status.models.length > 0 && benched.length === status.models.length) {
-    const next = benched.map((m) => m.benchedUntil as string).sort()[0]
-    return (
-      <span className="chip chip-warn" title={benched.map((m) => `${m.id}: ${m.reason}`).join('\n')}>
-        out of free quota until {clockTime(next)}
-      </span>
-    )
-  }
-  if (status.queuedCount > 0) return <span className="chip">{status.queuedCount} in queue</span>
-  return <span className="chip chip-idle">idle</span>
+/**
+ * Opening an idea or the lists focuses that screen's h1 and scrolls to the
+ * top; going back home returns focus to the idea's row, when there is one.
+ */
+function useRouteFocus(route: Route, loaded: boolean) {
+  const previous = useRef(route)
+  useEffect(() => {
+    const prev = previous.current
+    previous.current = route
+    if (route.name === 'home') {
+      if (prev.name === 'idea') document.querySelector<HTMLElement>(`[data-idea-id="${prev.id}"]`)?.focus()
+      return
+    }
+    const h1 = document.querySelector<HTMLElement>('.pane-right h1')
+    if (!h1) return
+    h1.focus({ preventScroll: true })
+    // Below 900 px the document scrolls, from 900 px the pane; resetting both is right in either layout.
+    document.documentElement.scrollTop = 0
+    const pane = h1.closest<HTMLElement>('.pane')
+    if (pane) pane.scrollTop = 0
+  }, [route, loaded])
+}
+
+function Skeleton() {
+  return (
+    <div className="skeleton" aria-label="loading">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="skeleton-card" />
+      ))}
+    </div>
+  )
 }
 
 function EmptyState({ list, filtered }: { list: IdeaList; filtered: boolean }) {

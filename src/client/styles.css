@@ -1,179 +1,166 @@
-/* Design tokens. New styles use these, never hardcoded colors. Dark is the
-   default; light follows the system setting. */
-:root {
-  color-scheme: dark;
-  --bg: #0e1116;
-  --bg-soft: #131823;
-  --card: #161c26;
-  --card-soft: #1b2330;
-  --line: #242e3c;
-  --line-soft: #1c2430;
-  --text: #eae8e2;
-  --muted: #97a1b0;
-  --faint: #5c6572;
-
-  --accent: #e6b450;
-  --accent-ink: #1a1406;
-  --accent-soft: rgba(230, 180, 80, 0.12);
-  --accent-line: rgba(230, 180, 80, 0.4);
-  --good: #5fbf8a;
-  --good-soft: rgba(95, 191, 138, 0.12);
-  --bad: #e0735f;
-  --bad-soft: rgba(224, 115, 95, 0.12);
-  --bad-line: rgba(224, 115, 95, 0.4);
-  --glow: rgba(230, 180, 80, 0.07);
-  --media-bg: #ffffff;
-
-  --radius: 14px;
-  --radius-sm: 9px;
-  --shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.7);
-  --font: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+/* Quote Slip design tokens, verbatim from docs/design/quote-slip/mockup.html
+   (the font family adds the name @fontsource-variable registers). New styles
+   use these, never hardcoded colours. Light by default, dark from the system
+   setting, and `data-theme` on <html> forces either. */
+:root{
+  --bg:#ECE6DB; --surface:#FBF8F3; --surface-2:#F3EEE5; --sunk:#E9E2D6;
+  --ink:#201C17; --ink-2:#5B5247; --ink-3:#73685B;
+  --rule:#DCD3C5; --rule-strong:#BDB09E; --key-edge:#CBBFAD;
+  --accent:#2C5B4B; --accent-ink:#FBF8F3; --accent-soft:#DCE7DF;
+  --brass:#9C6A14; --brass-soft:#F2E6CC;
+  --no:#A2402B; --no-soft:#F4E0D8; --maybe:#7F6210; --maybe-soft:#F1E7C9; --yes:#2B6A45; --yes-soft:#DBEADD;
+  --warn:#9A4A12; --warn-soft:#F6E4D2;
+  --slip:#FFFDF8; --slip-shadow:rgba(70,48,20,.22);
+  --photo-a:#E5DCCD; --photo-b:#D8CCB9;
+  --focus:#2C5B4B;
+  --sans:"Bricolage Grotesque Variable","Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --mono:var(--sans); /* figures: same face, tabular numerals */
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12100D; --surface:#1E1B17; --surface-2:#26221D; --sunk:#171511;
+  --ink:#F1EBE1; --ink-2:#BFB5A7; --ink-3:#A09484;
+  --rule:#36312A; --rule-strong:#4F473D; --key-edge:#070605;
+  --accent:#8DC4A9; --accent-ink:#0F1E17; --accent-soft:#1F3129;
+  --brass:#D9A85A; --brass-soft:#352A17;
+  --no:#E89079; --no-soft:#3B231C; --maybe:#E0BE62; --maybe-soft:#352C13; --yes:#88C79D; --yes-soft:#1C3124;
+  --warn:#EFA46A; --warn-soft:#3A2717;
+  --slip:#29251F; --slip-shadow:rgba(0,0,0,.55);
+  --photo-a:#2E2923; --photo-b:#38322A; --focus:#8DC4A9; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#12100D; --surface:#1E1B17; --surface-2:#26221D; --sunk:#171511;
+  --ink:#F1EBE1; --ink-2:#BFB5A7; --ink-3:#A09484;
+  --rule:#36312A; --rule-strong:#4F473D; --key-edge:#070605;
+  --accent:#8DC4A9; --accent-ink:#0F1E17; --accent-soft:#1F3129;
+  --brass:#D9A85A; --brass-soft:#352A17;
+  --no:#E89079; --no-soft:#3B231C; --maybe:#E0BE62; --maybe-soft:#352C13; --yes:#88C79D; --yes-soft:#1C3124;
+  --warn:#EFA46A; --warn-soft:#3A2717;
+  --slip:#29251F; --slip-shadow:rgba(0,0,0,.55);
+  --photo-a:#2E2923; --photo-b:#38322A; --focus:#8DC4A9; color-scheme:dark;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --bg: #f6f4ef;
-    --bg-soft: #efece5;
-    --card: #ffffff;
-    --card-soft: #f8f6f1;
-    --line: #e2ddd2;
-    --line-soft: #ece8df;
-    --text: #1d1f23;
-    --muted: #5f6672;
-    --faint: #98a0ab;
-
-    --accent: #b07a10;
-    --accent-ink: #ffffff;
-    --accent-soft: rgba(176, 122, 16, 0.1);
-    --accent-line: rgba(176, 122, 16, 0.35);
-    --good: #2e8a57;
-    --good-soft: rgba(46, 138, 87, 0.1);
-    --bad: #c0452f;
-    --bad-soft: rgba(192, 69, 47, 0.08);
-    --bad-line: rgba(192, 69, 47, 0.35);
-    --glow: rgba(176, 122, 16, 0.06);
-    --shadow: 0 14px 30px -22px rgba(60, 50, 30, 0.35);
-  }
+/* Old token names, mapped onto the new ones so the pre-redesign components
+   (IdeaCard and friends) keep working until Task 7 removes them. */
+:root{
+  --bg-soft:var(--surface-2); --card:var(--surface); --card-soft:var(--surface-2);
+  --line:var(--rule); --line-soft:var(--rule);
+  --text:var(--ink); --muted:var(--ink-2); --faint:var(--ink-3);
+  --accent-line:color-mix(in srgb,var(--accent) 40%,transparent);
+  --good:var(--yes); --good-soft:var(--yes-soft);
+  --bad:var(--no); --bad-soft:var(--no-soft); --bad-line:color-mix(in srgb,var(--no) 40%,transparent);
+  --media-bg:#ffffff;
+  --radius:16px; --radius-sm:10px; --shadow:0 1px 0 var(--key-edge);
+  --font:var(--sans);
 }
 
-* {
-  box-sizing: border-box;
-}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--sans);font-optical-sizing:auto;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:8px}
+.mono,.f,.price,.big{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono)}
+.sr,.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-}
+/* ---------- shell: one pane below 900 px, two from 900 px ---------- */
 
-body {
-  background:
-    radial-gradient(1200px 500px at 50% -12%, var(--glow), transparent 60%),
-    var(--bg);
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 15px;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
+.shell{min-height:100vh;min-height:100dvh}
+.pane-right{min-width:0}
+.pane-empty{min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;color:var(--ink-2)}
+.pane-empty p{margin:0;font-size:15px}
+.screen{max-width:640px;margin:0 auto;padding:12px 16px 32px}
+.screen h1{font-size:26px;line-height:1.12;letter-spacing:-.025em;margin:8px 0 6px;font-weight:650}
+.screen h1:focus{outline:none}
+@media (max-width:899.98px){
+  .shell[data-route="home"] .pane-right,
+  .shell:not([data-route="home"]) .pane-left{display:none}
 }
+@media (min-width:900px){
+  .shell{display:grid;grid-template-columns:400px minmax(0,1fr)}
+  .pane{height:100vh;height:100dvh;overflow:auto}
+  .pane-left{border-right:1px solid var(--rule)}
+  .pane-empty{min-height:100%}
+}
+.shell>.banner{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:30;width:min(560px,calc(100vw - 32px));background:var(--surface);box-shadow:0 10px 24px -8px var(--slip-shadow)}
 
-a {
-  color: inherit;
-}
+/* ---------- base components (mockup) ---------- */
 
-button {
-  font: inherit;
-}
+/* top bar */
+.top{display:flex;align-items:center;gap:8px;padding:10px 0 6px;min-height:60px}
+.mark{font-weight:700;font-size:21px;letter-spacing:-.03em;display:flex;align-items:center;gap:6px;flex:none}
+.mark svg{flex:none}
+.top .iconbtn{margin-left:auto}
+.chip{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:18px;background:var(--surface);border:1px solid var(--rule);font-size:13px;color:var(--ink-2)}
+.chip span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip b{color:var(--ink);font-weight:600}
+.chip-blank{visibility:hidden}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
+.dot.live{animation:pulse 1.6s ease-in-out infinite}
+.dot.warn{background:var(--warn)} .dot.off{background:var(--ink-3)}
+.iconbtn{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;border:1px solid var(--rule);background:var(--surface);box-shadow:0 2px 0 var(--key-edge);color:var(--ink)}
+.iconbtn:active{transform:translateY(2px);box-shadow:none}
 
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
+/* keycap buttons */
+.btn{min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--rule-strong);background:var(--surface);color:var(--ink);box-shadow:0 2px 0 var(--key-edge);font-weight:600;font-size:15px;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;text-decoration:none;transition:transform .08s,box-shadow .08s}
+.btn:active:not(:disabled){transform:translateY(2px);box-shadow:0 0 0 var(--key-edge)}
+.btn.primary,.btn-primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);box-shadow:0 2px 0 color-mix(in srgb,var(--accent) 55%,#000)}
+.btn.quiet{border-color:transparent;background:transparent;box-shadow:none;color:var(--ink-2);padding:0 8px;font-weight:500}
+.btn.small{min-height:44px;font-size:14px;padding:0 12px}
+.btn:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
+.btn.wide{width:100%}
+.linkish{background:none;border:0;padding:0 4px;min-height:44px;color:var(--ink-2);font-size:13px;font-weight:500;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--rule-strong)}
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
+/* section header with rule, card */
+.sec-h{display:flex;align-items:baseline;gap:8px;margin:0 2px 8px;font:650 11.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2)}
+.sec-h .n{color:var(--ink-3)}
+.sec-h .rule{flex:1;border-bottom:1px solid var(--rule);transform:translateY(-3px)}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:16px;box-shadow:0 1px 0 var(--key-edge)}
+
+/* signature: dotted leader */
+.lead{display:flex;align-items:baseline;gap:6px;min-width:0}
+.lead .l{flex:1;min-width:14px;border-bottom:2px dotted var(--rule-strong);transform:translateY(-4px)}
+.lead .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lead .f{flex:none;white-space:nowrap}
+
+/* mode glyph */
+.glyph{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:9px;background:var(--surface-2);color:var(--ink-2)}
+.glyph svg{width:20px;height:20px;display:block}
+.glyph.hunt{color:var(--brass);background:var(--brass-soft)}
+.glyph.explore{color:var(--accent);background:var(--accent-soft)}
+
+/* signature: the quote slip, perforated top and bottom */
+.slipwrap{margin:16px 16px 0;filter:drop-shadow(0 1px 0 var(--key-edge)) drop-shadow(0 10px 14px var(--slip-shadow))}
+.slip{background:var(--slip);padding:20px 18px 18px;
+  -webkit-mask:radial-gradient(circle 4px at 7px 0,#0000 98%,#000) 0 0/14px 51% repeat-x,radial-gradient(circle 4px at 7px 100%,#0000 98%,#000) 0 100%/14px 51% repeat-x;
+          mask:radial-gradient(circle 4px at 7px 0,#0000 98%,#000) 0 0/14px 51% repeat-x,radial-gradient(circle 4px at 7px 100%,#0000 98%,#000) 0 100%/14px 51% repeat-x}
+
+/* bottom sheet */
+.scrim{position:fixed;inset:0;background:rgba(20,14,8,.42);display:flex;align-items:flex-end;justify-content:center;z-index:20;animation:fade .2s}
+.sheet{width:100%;max-width:560px;background:var(--surface);border-radius:22px 22px 0 0;padding:8px 16px 20px;box-shadow:0 -10px 30px -10px rgba(0,0,0,.3);animation:up .22s ease;max-height:90%;overflow:auto}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--rule-strong);margin:2px auto 12px}
+.sheet h2{margin:0 0 4px;font-size:20px;letter-spacing:-.02em}
+.sheet p{margin:0 0 12px;color:var(--ink-2);font-size:14px}
+.sheet .acts{display:flex;gap:8px;margin-top:16px}
+.sheet .acts .btn{flex:1}
+@keyframes fade{from{opacity:0}} @keyframes up{from{transform:translateY(30px);opacity:.4}}
+
+/* toast */
+.toast{position:fixed;left:12px;right:12px;bottom:14px;z-index:30;display:flex;align-items:center;gap:8px;max-width:440px;margin:0 auto;padding:6px 6px 6px 14px;border-radius:14px;background:var(--ink);color:var(--bg);font-size:14px;box-shadow:0 10px 24px -8px rgba(0,0,0,.4);animation:up .2s}
+.toast span{flex:1}
+.toast button{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--bg) 30%,transparent);background:transparent;color:var(--bg);font-weight:600}
+
+/* ---------- old page (until Task 3 replaces it) ---------- */
 
 .app {
-  max-width: 760px;
-  margin: 0 auto;
   padding: 0 16px 72px;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-/* ---------- top bar ---------- */
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 22px 0 8px;
-}
-
-.wordmark {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  user-select: none;
-}
-
-.wordmark-mark {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 15px;
-  transform: translateY(3px);
-}
-
-.wordmark-text {
-  font-weight: 700;
-  letter-spacing: 0.4em;
-  font-size: 17px;
-}
-
-.chip {
-  font-size: 12px;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 4px 11px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--bg-soft);
-  white-space: nowrap;
-}
-
-.chip-live,
-.chip-warn {
-  color: var(--accent);
-  border-color: var(--accent-line);
-}
-
-.chip-off {
-  color: var(--bad);
-  border-color: var(--bad-line);
-}
-
-.chip-idle {
-  color: var(--faint);
-}
 
 /* ---------- content ---------- */
 
@@ -201,9 +188,9 @@ button {
 }
 
 .banner-warn {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-  color: var(--accent);
+  background: var(--warn-soft);
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  color: var(--ink);
   display: block;
 }
 
@@ -317,43 +304,6 @@ button {
   margin: 0;
   font-size: 13px;
   color: var(--bad);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--card-soft);
-  color: var(--text);
-  padding: 8px 14px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  transition:
-    transform 0.08s ease,
-    filter 0.15s ease;
-}
-
-.btn:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-
-.btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
 }
 
 .btn-secondary {
@@ -1028,35 +978,6 @@ button {
   to {
     background-position: -200% 0;
   }
-}
-
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: 20px;
-  transform: translateX(-50%);
-  max-width: calc(100vw - 32px);
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 16px;
-  background: var(--text);
-  color: var(--bg);
-  border-radius: 999px;
-  font-size: 14px;
-  box-shadow: var(--shadow);
-}
-
-.toast-undo {
-  color: var(--accent);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.toast-undo:hover:not(:disabled) {
-  color: var(--accent);
-  text-decoration: underline;
 }
 
 .foot {
