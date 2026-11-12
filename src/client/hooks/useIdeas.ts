@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Idea, IdeaPatch, NewIdea, ServerStatus } from '../../types'
+import type { Idea, IdeaPatch, NewIdea, Pick, PickPatch, ServerStatus } from '../../types'
 import * as api from '../api'
 
 /** Poll this often while research is queued or running... */
@@ -22,6 +22,10 @@ export interface IdeasActions {
   add(idea: NewIdea): Promise<void>
   patch(id: number, patch: IdeaPatch): Promise<void>
   rerun(id: number): Promise<void>
+  /** Reacts to a pick: shown at once, rolled back if the server refuses. */
+  react(pickId: number, patch: PickPatch): Promise<void>
+  /** Researches another round from the reactions and preferences. */
+  refine(id: number): Promise<void>
   /** Hides the idea now and deletes it once the undo window has passed. */
   remove(id: number): void
   undoRemove(): void
@@ -39,11 +43,20 @@ export function useIdeas(): IdeasState & IdeasActions {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [removed, setRemoved] = useState<Idea | null>(null)
+  const ideasRef = useRef<Idea[]>([])
+  useEffect(() => {
+    ideasRef.current = ideas
+  }, [ideas])
+  const writeSeq = useRef(0)
+  const pickSeq = useRef(new Map<number, number>())
   const pendingDelete = useRef<{ id: number; timer: ReturnType<typeof setTimeout> } | null>(null)
 
   const refresh = useCallback(async (quiet = false) => {
+    const seq = writeSeq.current
     try {
       const [nextIdeas, nextStatus] = await Promise.all([api.listIdeas(), api.getStatus()])
+      // A write started meanwhile: this answer predates it.
+      if (seq !== writeSeq.current) return
       const hidden = pendingDelete.current?.id
       setIdeas(hidden ? nextIdeas.filter((i) => i.id !== hidden) : nextIdeas)
       setStatus(nextStatus)
@@ -110,18 +123,47 @@ export function useIdeas(): IdeasState & IdeasActions {
     removed,
     add: async (idea) => {
       // The capture box shows its own error, so this one stays quiet.
+      writeSeq.current++
       const created = await api.addIdea(idea)
       setIdeas((list) => [created, ...list])
       void refresh(true)
     },
     patch: (id, patch) =>
       run(async () => {
+        writeSeq.current++
         replace(await api.patchIdea(id, patch))
       }),
     rerun: (id) =>
       run(async () => {
+        writeSeq.current++
         replace(await api.rerunIdea(id))
         void refresh(true)
+      }),
+    refine: (id) =>
+      run(async () => {
+        writeSeq.current++
+        replace(await api.refineIdea(id))
+        void refresh(true)
+      }),
+    react: (pickId, patch) =>
+      run(async () => {
+        writeSeq.current++
+        const seq = (pickSeq.current.get(pickId) ?? 0) + 1
+        pickSeq.current.set(pickId, seq)
+        const before = ideasRef.current.flatMap((i) => i.picks).find((p) => p.id === pickId)
+        const apply = (reaction: Pick['reaction'], reason: Pick['reason']) =>
+          setIdeas((list) =>
+            list.map((i) => ({ ...i, picks: i.picks.map((p) => (p.id === pickId ? { ...p, reaction, reason } : p)) })),
+          )
+        const reaction = patch.reaction !== undefined ? patch.reaction : before?.reaction ?? null
+        apply(reaction, reaction === null ? null : patch.reason !== undefined ? patch.reason : before?.reason ?? null)
+        try {
+          const updated = await api.patchPick(pickId, patch)
+          if (pickSeq.current.get(pickId) === seq) replace(updated)
+        } catch (err) {
+          if (pickSeq.current.get(pickId) === seq && before) apply(before.reaction, before.reason)
+          throw err
+        }
       }),
     remove: (id) => {
       flushDelete()
