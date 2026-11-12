@@ -12,6 +12,7 @@
   --warn:#9A4A12; --warn-soft:#F6E4D2;
   --slip:#FFFDF8; --slip-shadow:rgba(70,48,20,.22);
   --photo-a:#E5DCCD; --photo-b:#D8CCB9;
+  --scrim:rgba(20,14,8,.42);
   --focus:#2C5B4B;
   --sans:"Bricolage Grotesque Variable","Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --mono:var(--sans); /* figures: same face, tabular numerals */
@@ -27,6 +28,7 @@
   --warn:#EFA46A; --warn-soft:#3A2717;
   --slip:#29251F; --slip-shadow:rgba(0,0,0,.55);
   --photo-a:#2E2923; --photo-b:#38322A; --focus:#8DC4A9; color-scheme:dark;
+  --scrim:rgba(0,0,0,.6);
 }}
 :root[data-theme="dark"]{
   --bg:#12100D; --surface:#1E1B17; --surface-2:#26221D; --sunk:#171511;
@@ -38,6 +40,7 @@
   --warn:#EFA46A; --warn-soft:#3A2717;
   --slip:#29251F; --slip-shadow:rgba(0,0,0,.55);
   --photo-a:#2E2923; --photo-b:#38322A; --focus:#8DC4A9; color-scheme:dark;
+  --scrim:rgba(0,0,0,.6);
 }
 
 /* Old token names, mapped onto the new ones so the pre-redesign components
@@ -139,17 +142,16 @@ button{cursor:pointer}
           mask:radial-gradient(circle 4px at 7px 0,#0000 98%,#000) 0 0/14px 51% repeat-x,radial-gradient(circle 4px at 7px 100%,#0000 98%,#000) 0 100%/14px 51% repeat-x}
 
 /* bottom sheet */
-.sheet{margin:auto auto 0;width:100%;max-width:560px;max-height:90dvh;padding:0;border:0;background:var(--surface);color:var(--ink);border-radius:22px 22px 0 0;box-shadow:0 -10px 30px -10px rgba(0,0,0,.3);overflow:auto}
+.sheet{margin:auto auto 0;width:100%;max-width:560px;max-height:90dvh;padding:0;border:0;background:var(--surface);color:var(--ink);border-radius:22px 22px 0 0;box-shadow:0 -10px 30px -10px var(--scrim);overflow:auto}
 .sheet[open]{animation:up .22s ease}
-.sheet::backdrop{background:rgba(20,14,8,.42);animation:fade .2s}
+.sheet::backdrop{background:var(--scrim);animation:fade .2s}
 .sheet-in{padding:8px 16px 20px}
 @media (min-width:900px){.sheet{margin:auto;max-width:480px;border-radius:22px}.grab{display:none}}
 .grab{width:40px;height:4px;border-radius:2px;background:var(--rule-strong);margin:2px auto 12px}
-.sheet h2{margin:0 0 4px;font-size:20px;letter-spacing:-.02em}
+.sheet h2{margin:0 0 4px;font-size:20px;letter-spacing:-.02em;overflow-wrap:anywhere}
 .sheet p{margin:0 0 12px;color:var(--ink-2);font-size:14px}
 .sheet .acts{display:flex;gap:8px;margin-top:16px}
 .sheet .acts .btn{flex:1}
-.sheet h2{overflow-wrap:anywhere}
 .menu{list-style:none;margin:8px -16px -8px;padding:0}
 .menu button{display:flex;align-items:center;width:100%;min-height:52px;padding:0 16px;border:0;border-top:1px solid var(--rule);background:none;text-align:left;font-size:16px;font-weight:500}
 .menu button:hover{background:var(--surface-2)}
@@ -213,9 +215,9 @@ button{cursor:pointer}
 .bar .more{margin-left:auto;box-shadow:none;border-color:transparent;background:transparent;color:var(--ink-2)}
 .head{padding-top:2px}
 .kicker{font:650 11.5px/1 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);display:flex;gap:8px;align-items:center;margin:0}
-.head h1{overflow-wrap:anywhere}
-.rename{vertical-align:middle;font-size:13px;letter-spacing:0}
-.title-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.title-row{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px}
+.title-row h1{overflow-wrap:anywhere;min-width:0}
+.title-form{flex:1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 6px}
 .title-input{flex:1 1 14rem;min-width:0;height:48px;font-size:20px;padding:0 10px;border-radius:10px;border:1px solid var(--rule-strong);background:var(--surface);font-weight:650;letter-spacing:-.02em}
 .title-acts{display:flex;gap:4px}
 .yours{font-size:13.5px;color:var(--ink-2);margin:0}

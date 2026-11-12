@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react'
 import type { Idea, ServerStatus } from '../../types'
+import { RETRY_MAX_ATTEMPTS } from '../../types/limits'
 import { clockTime } from '../lib/format'
 import { quotaResetAt } from '../lib/triage'
 
@@ -77,9 +78,9 @@ export function StatusCard({ idea, status, onRerun, onLoosen, onReword }: Props)
     return (
       <Card dot="warn" title={`Retrying around ${clockTime(idea.nextAttemptAt)}`}>
         <p>{idea.error ?? 'Hit a snag.'}</p>
-        {/* 5 mirrors the worker's maxAttempts (src/server/worker.ts). */}
+        {/* attempts counts failures, so the retry is the next one. */}
         <p>
-          Attempt {idea.attempts} of 5.{idea.picks.length > 0 && ' Your previous picks stay until new ones arrive.'}
+          Attempt {idea.attempts + 1} of {RETRY_MAX_ATTEMPTS} next.{idea.picks.length > 0 && ' Your previous picks stay until new ones arrive.'}
         </p>
         <div className="acts">
           <button type="button" className="btn small" onClick={onRerun}>

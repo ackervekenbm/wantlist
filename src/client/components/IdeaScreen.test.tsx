@@ -27,7 +27,7 @@ describe('IdeaScreen header', () => {
   it('shows the kicker, the title in the h1 and what you wrote', async () => {
     await open([idea({ title: 'Quiet trainer fan', round: 2, notes: 'white', budget: 200 })])
     expect(pane().getByText('Explore · round 2')).toBeInTheDocument()
-    expect(pane().getByRole('heading', { level: 1, name: /^Quiet trainer fan/ })).toHaveFocus()
+    expect(pane().getByRole('heading', { level: 1, name: 'Quiet trainer fan' })).toHaveFocus()
     expect(pane().getByText(/^You wrote/)).toHaveTextContent('You wrote A fan for my indoor bike setup · white · max € 200')
   })
 })
@@ -52,6 +52,8 @@ describe('StatusCard', () => {
     ])
     const card = pane().getByRole('region', { name: /^Retrying around/ })
     expect(card).toHaveTextContent('The model was busy')
+    // attempts counts failures: two failed, the retry is the third.
+    expect(card).toHaveTextContent('Attempt 3 of 5 next.')
     await user.click(within(card).getByRole('button', { name: 'Try now' }))
     expect(api.writes()).toEqual([{ method: 'POST', path: '/api/ideas/1/rerun', body: undefined }])
   })
@@ -126,6 +128,7 @@ describe('Idea menu', () => {
       'Bought something else',
       'Archive',
       'Remove',
+      'Cancel',
     ])
     await user.click(m.getByRole('button', { name: 'Research again' }))
     m = await menu(user)
@@ -136,6 +139,14 @@ describe('Idea menu', () => {
         { method: 'PATCH', path: '/api/ideas/1', body: { list: 'bought', boughtPickId: null } },
       ]),
     )
+  })
+
+  it('Cancel closes the menu and focus returns to its button', async () => {
+    const { api, user } = await open([idea()])
+    await user.click((await menu(user)).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Idea actions' })).toHaveFocus()
+    expect(api.writes()).toEqual([])
   })
 
   it('archives and goes home', async () => {
@@ -188,7 +199,7 @@ describe('Bought and archived ideas', () => {
     expect(pane().queryByRole('button', { name: 'No way' })).not.toBeInTheDocument()
     expect(pane().queryByRole('button', { name: /^Refine/ })).not.toBeInTheDocument()
     const m = await menu(user)
-    expect(m.getAllByRole('button').map((b) => b.textContent)).toEqual(['Want again', 'Remove'])
+    expect(m.getAllByRole('button').map((b) => b.textContent)).toEqual(['Want again', 'Remove', 'Cancel'])
     await user.click(m.getByRole('button', { name: 'Want again' }))
     await waitFor(() => expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/ideas/1', body: { list: 'wanted' } }]))
   })
@@ -197,7 +208,7 @@ describe('Bought and archived ideas', () => {
     const { user } = await open([idea({ list: 'archived' })])
     expect(pane().queryByRole('button', { name: 'No way' })).not.toBeInTheDocument()
     const m = await menu(user)
-    expect(m.getAllByRole('button').map((b) => b.textContent)).toEqual(['Want again', 'Remove'])
+    expect(m.getAllByRole('button').map((b) => b.textContent)).toEqual(['Want again', 'Remove', 'Cancel'])
   })
 })
 
@@ -216,7 +227,7 @@ describe('Ported from IdeaCard', () => {
     await user.clear(input)
     await user.type(input, '  Desk fan {Enter}')
     expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/ideas/1', body: { title: 'Desk fan' } }])
-    expect(await pane().findByRole('heading', { level: 1, name: /^Desk fan/ })).toBeInTheDocument()
+    expect(await pane().findByRole('heading', { level: 1, name: 'Desk fan' })).toBeInTheDocument()
     expect(pane().getByRole('button', { name: 'rename' })).toHaveFocus()
 
     await user.click(pane().getByRole('button', { name: 'rename' }))

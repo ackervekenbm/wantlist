@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Idea, ServerStatus } from '../../types'
 import type { IdeasActions } from '../hooks/useIdeas'
 import { formatEur } from '../lib/format'
+import { latestPicks } from '../lib/triage'
 import { BackLink } from './BackLink'
 import { ExploreIcon, ExternalIcon, MoreIcon } from './icons'
 import { IdeaForm } from './IdeaForm'
@@ -60,9 +61,7 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
         <p className="kicker">
           <ExploreIcon width={18} height={18} /> Explore · {idea.round > 0 ? `round ${idea.round}` : 'first round'}
         </p>
-        <h1 tabIndex={-1}>
-          <IdeaTitle idea={idea} onRename={(title) => patch({ title })} />
-        </h1>
+        <IdeaTitle idea={idea} onRename={(title) => patch({ title })} />
         <p className="yours">
           You wrote <q>{idea.text}</q>
           {idea.notes && ` · ${idea.notes}`}
@@ -114,7 +113,7 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
 
       {wanted && !pending && idea.picks.length > 0 && (
         <RefineBar
-          reactions={idea.picks.filter((p) => p.round === idea.picks[0].round && p.reaction).length}
+          reactions={latestPicks(idea).filter((p) => p.reaction).length}
           anyReaction={idea.picks.some((p) => p.reaction)}
           preferencesEdited={idea.preferencesEdited}
           onRefine={() => actions.refine(id)}
@@ -141,6 +140,7 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
             },
             true,
           )}
+          {item('Cancel', () => {})}
         </ul>
       </Sheet>
 

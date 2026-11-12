@@ -10,6 +10,7 @@ import {
 } from './db'
 import { ResearchError } from './research/errors'
 import { buildHistory } from './history'
+import { RETRY_MAX_ATTEMPTS } from '../types/limits'
 
 export interface RetryPolicy {
   /** First retry delay; doubles per failed attempt. */
@@ -23,7 +24,7 @@ export interface RetryPolicy {
 export const DEFAULT_RETRY: RetryPolicy = {
   baseMs: 15 * 60 * 1000,
   maxMs: 6 * 60 * 60 * 1000,
-  maxAttempts: 5,
+  maxAttempts: RETRY_MAX_ATTEMPTS,
 }
 
 export interface WorkerOptions {

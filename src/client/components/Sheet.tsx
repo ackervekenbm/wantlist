@@ -23,7 +23,9 @@ export function Sheet({ open, onClose, title, children }: Props) {
     dialog.showModal()
     return () => {
       dialog.close()
-      back?.focus()
+      // The opener may be gone (an action re-rendered or left the screen); the h1 is the next best place.
+      if (back?.isConnected) back.focus()
+      else document.querySelector<HTMLElement>('.pane-right h1')?.focus()
     }
   }, [open])
 

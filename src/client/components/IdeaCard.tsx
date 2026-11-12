@@ -57,9 +57,7 @@ export function IdeaCard({ idea, step, onPatch, onRerun, onReact, onRefine, onRe
   return (
     <article className={`idea idea-${idea.list}`} aria-label={shownTitle(idea)}>
       <header className="idea-head">
-        <h3 className="idea-text">
-          <IdeaTitle idea={idea} onRename={(title) => onPatch({ title })} />
-        </h3>
+        <IdeaTitle idea={idea} onRename={(title) => onPatch({ title })} />
         <div className="idea-meta">
           {idea.list === 'wanted' && idea.status !== 'done' && (
             <StatusBadge status={idea.status} retrying={!!idea.nextAttemptAt} />

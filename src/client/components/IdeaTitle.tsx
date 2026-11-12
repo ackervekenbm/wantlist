@@ -12,7 +12,7 @@ export function shownTitle(idea: Idea): string {
   return idea.round > 0 ? (idea.title ?? idea.text) : idea.text
 }
 
-/** The title with renaming, for inside the screen's h1. Clearing it hands naming back to the model. */
+/** The screen's h1 with a rename button beside it. Clearing it hands naming back to the model. */
 export function IdeaTitle({ idea, onRename }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -48,41 +48,39 @@ export function IdeaTitle({ idea, onRename }: Props) {
     }
   }
 
-  if (editing) {
-    return (
-      <form className="title-form" onSubmit={save}>
-        <label htmlFor={inputId} className="sr">
-          Title
-        </label>
-        <input
-          id={inputId}
-          className="title-input"
-          maxLength={TITLE_MAX}
-          value={draft}
-          autoFocus
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') close()
-          }}
-        />
-        <span className="title-acts">
-          <button type="button" className="btn small quiet" onClick={close} disabled={saving}>
-            Cancel
-          </button>
-          <button type="submit" className="btn small primary" disabled={saving}>
-            Save
-          </button>
-        </span>
-      </form>
-    )
-  }
-
   return (
-    <>
-      {title}
-      {idea.round > 0 && (
-        <>
-          {' '}
+    <div className="title-row">
+      {/* The route focuses this h1, so it stays while renaming, hidden behind the form. */}
+      <h1 tabIndex={-1} className={editing ? 'sr' : undefined}>
+        {title}
+      </h1>
+      {editing ? (
+        <form className="title-form" onSubmit={save}>
+          <label htmlFor={inputId} className="sr">
+            Title
+          </label>
+          <input
+            id={inputId}
+            className="title-input"
+            maxLength={TITLE_MAX}
+            value={draft}
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') close()
+            }}
+          />
+          <span className="title-acts">
+            <button type="button" className="btn small quiet" onClick={close} disabled={saving}>
+              Cancel
+            </button>
+            <button type="submit" className="btn small primary" disabled={saving}>
+              Save
+            </button>
+          </span>
+        </form>
+      ) : (
+        idea.round > 0 && (
           <button
             ref={renameRef}
             type="button"
@@ -94,8 +92,8 @@ export function IdeaTitle({ idea, onRename }: Props) {
           >
             rename
           </button>
-        </>
+        )
       )}
-    </>
+    </div>
   )
 }
