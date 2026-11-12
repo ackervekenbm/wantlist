@@ -121,3 +121,30 @@ export const MoreIcon = (p: IconProps) => (
     <circle cx="19" cy="12" r="1" fill="currentColor" />
   </Icon>
 )
+
+/** Reaction glyphs on the keycaps. */
+export const NoIcon = (p: IconProps) => (
+  <Icon strokeWidth={2.4} {...p}>
+    <path d="M6 6l12 12M18 6L6 18" />
+  </Icon>
+)
+
+export const MaybeIcon = (p: IconProps) => (
+  <Icon strokeWidth={2.4} {...p}>
+    <path d="M4 13c2.5-3 5-3 8 0s5.5 3 8 0" />
+  </Icon>
+)
+
+export const YesIcon = (p: IconProps) => (
+  <Icon fill="currentColor" stroke="none" {...p}>
+    <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />
+  </Icon>
+)
+
+/** The quiet stand-in for a missing product photo: a parcel. */
+export const ParcelIcon = (p: IconProps) => (
+  <Icon viewBox="0 0 80 80" {...p}>
+    <path d="M14 28l26-12 26 12v26L40 66 14 54z" />
+    <path d="M14 28l26 12 26-12M40 40v26M27 22l26 12" />
+  </Icon>
+)

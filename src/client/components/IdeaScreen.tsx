@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Idea, ServerStatus } from '../../types'
+import type { Idea, Pick as PickT, ServerStatus } from '../../types'
 import type { IdeasActions } from '../hooks/useIdeas'
 import { formatEur } from '../lib/format'
 import { latestPicks } from '../lib/triage'
@@ -7,7 +7,9 @@ import { BackLink } from './BackLink'
 import { ExploreIcon, ExternalIcon, MoreIcon } from './icons'
 import { IdeaForm } from './IdeaForm'
 import { IdeaTitle, shownTitle } from './IdeaTitle'
-import { PickList } from './PickList'
+import { EarlierRounds } from './EarlierRounds'
+import { Keepers } from './Keepers'
+import { PickDeck } from './PickDeck'
 import { PreferencesPanel } from './PreferencesPanel'
 import { RefineBar } from './RefineBar'
 import { Sheet } from './Sheet'
@@ -30,6 +32,9 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
   const pending = busy || idea.status === 'queued'
   const wanted = idea.list === 'wanted'
   const close = () => setSheet(null)
+  const latest = latestPicks(idea)
+  const earlier = idea.picks.filter((p) => p.round !== latest[0]?.round)
+  const bought = (pick: PickT) => fire(patch({ list: 'bought', boughtPickId: pick.id }))
   const patch = (p: Parameters<typeof actions.patch>[1]) => actions.patch(id, p)
   const rerun = () => fire(actions.rerun(id))
   /** Closes the menu, then runs the action. */
@@ -96,6 +101,8 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
         )
       )}
 
+      <PickDeck key={`${id}-${latest[0]?.round}`} idea={idea} onReact={actions.react} onBought={bought} />
+
       {idea.preferences && (
         <PreferencesPanel
           preferences={idea.preferences}
@@ -105,15 +112,17 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
         />
       )}
 
-      <PickList
-        idea={idea}
-        onReact={actions.react}
-        onBought={(pick) => fire(patch({ list: 'bought', boughtPickId: pick.id }))}
+      <Keepers
+        picks={earlier.filter((p) => p.reaction === 'yes')}
+        onReact={wanted ? actions.react : undefined}
+        onBought={wanted ? bought : undefined}
       />
+      <EarlierRounds picks={earlier} onReact={wanted ? actions.react : undefined} />
 
       {wanted && !pending && idea.picks.length > 0 && (
         <RefineBar
-          reactions={latestPicks(idea).filter((p) => p.reaction).length}
+          reactions={latest.filter((p) => p.reaction).length}
+          round={latest[0].round}
           anyReaction={idea.picks.some((p) => p.reaction)}
           preferencesEdited={idea.preferencesEdited}
           onRefine={() => actions.refine(id)}
