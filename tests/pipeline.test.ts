@@ -102,7 +102,10 @@ describe('PipelineEngine', () => {
       text: 'a fan for my bike trainer',
       onProgress: (s) => steps.push(s),
     })
-    expect(result.brief).toEqual({ summary: 'a fan', criteria: ['quiet'] })
+    expect(result.brief).toEqual({
+      title: '',
+      preferences: { summary: 'a fan', mustHaves: ['quiet'], avoid: [], likes: [] },
+    })
     expect(result.picks.map((p) => [p.rank, p.title, p.price, p.caveat])).toEqual([
       [1, 'Wahoo KICKR Headwind', 229, 'Pricey for a fan'],
       [2, 'Lasko fan', 59, null],

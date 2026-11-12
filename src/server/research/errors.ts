@@ -74,3 +74,6 @@ export function retryAfterHeaderMs(res: Response): number | null {
   const seconds = Number.parseFloat(header)
   return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds * 1000) : null
 }
+
+/** Thrown when a refine round finds nothing beyond what the owner already saw. */
+export const NOTHING_NEW = 'Nothing new found. Loosen a criterion or reword the idea.'

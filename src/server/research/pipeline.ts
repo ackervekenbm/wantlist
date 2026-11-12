@@ -125,7 +125,7 @@ export class PipelineEngine implements ResearchEngine {
     const sourceUrls = pages.map((p) => p.url)
 
     return {
-      brief: { summary: plan.summary, criteria: plan.criteria },
+      brief: { title: '', preferences: { summary: plan.summary, mustHaves: plan.criteria, avoid: [], likes: [] } },
       picks: rankPicks(picks.map((p) => ({ ...p, sourceUrls }))),
     }
   }

@@ -82,12 +82,12 @@ export function IdeaCard({ idea, step, onPatch, onRerun, onRemove }: Props) {
 
           <ResearchState idea={idea} step={step} />
 
-          {idea.summary && (
+          {idea.preferences?.summary && (
             <div className="brief">
-              <p className="brief-summary">{idea.summary}</p>
-              {idea.criteria.length > 0 && (
+              <p className="brief-summary">{idea.preferences.summary}</p>
+              {idea.preferences.mustHaves.length > 0 && (
                 <ul className="brief-criteria" aria-label="What matters">
-                  {idea.criteria.map((c) => (
+                  {idea.preferences.mustHaves.map((c) => (
                     <li key={c}>{c}</li>
                   ))}
                 </ul>
