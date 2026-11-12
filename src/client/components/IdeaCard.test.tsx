@@ -5,10 +5,12 @@ import { App } from '../App'
 import { BUSY_POLL_MS } from '../hooks/useIdeas'
 import { fakeApi, idea, pick, status } from '../test/fakeApi'
 
+/** The old IdeaCards live on the lists route until the idea screen replaces them. */
 async function renderApp() {
+  history.replaceState(null, '', '#/lists/wanted')
   const user = userEvent.setup()
   render(<App />)
-  await screen.findByRole('navigation', { name: 'Lists' })
+  await screen.findByRole('form', { name: 'Add an idea' })
   await waitFor(() => expect(screen.queryByLabelText('loading')).not.toBeInTheDocument())
   return user
 }

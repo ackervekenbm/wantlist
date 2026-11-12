@@ -153,13 +153,55 @@ button{cursor:pointer}
 .toast span{flex:1}
 .toast button{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--bg) 30%,transparent);background:transparent;color:var(--bg);font-weight:600}
 
-/* ---------- old page (until Task 3 replaces it) ---------- */
+/* ---------- home (left pane) ---------- */
 
-.app {
-  padding: 0 16px 72px;
-  display: flex;
-  flex-direction: column;
-}
+.app{padding:0 16px 8px}
+.capture{margin:4px 0 0;background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:6px 6px 4px 14px;box-shadow:0 1px 0 var(--key-edge)}
+.cap-row{display:flex;gap:8px;align-items:flex-end}
+.cap-row textarea{flex:1;min-height:44px;max-height:120px;resize:none;border:0;background:transparent;padding:11px 0 9px;line-height:1.35;outline:none}
+.cap-row textarea::placeholder{color:var(--ink-3)}
+.cap-row .btn{margin-bottom:2px}
+.capture:focus-within{border-color:var(--rule-strong)}
+.capture .form-error{padding:0 6px 6px 0}
+.cap-more{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cap-extra{display:grid;grid-template-columns:112px 1fr;gap:8px;padding:2px 6px 8px 0}
+.field{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--ink-2)}
+.field input{height:40px;min-width:0;border:1px solid var(--rule);background:var(--surface-2);border-radius:10px;padding:0 10px;font-size:15px;color:var(--ink)}
+.field input::placeholder{color:var(--ink-3)}
+.field input[aria-invalid="true"]{border-color:var(--no)}
+.hint{font-size:12px;color:var(--ink-3)}
+.notice{margin:12px 0 0;padding:12px 14px;border-radius:14px;background:var(--warn-soft);color:var(--ink);font-size:13.5px;display:flex;gap:10px;align-items:flex-start}
+.notice b{color:var(--warn)}
+.sec{margin:18px 0 0}
+.rows{overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:10px 14px;background:none;border:0;text-align:left;border-top:1px solid var(--rule)}
+.rows>.row:first-child,.rows>.mini:first-child{border-top:0}
+.row:hover,.mini:hover{background:var(--surface-2)}
+.row[aria-current="true"],.mini[aria-current="true"]{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)}
+.row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.row-title{font-weight:600;font-size:15px}
+.row-sub{font-size:13px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-sub .act{color:var(--accent);font-weight:600}
+.row-sub .bad{color:var(--warn);font-weight:600}
+.row-sub.lead{overflow:visible}
+.t1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chev{color:var(--ink-3);flex:none;width:16px;height:16px}
+.mini{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 14px;border:0;border-top:1px solid var(--rule);width:100%;background:none;text-align:left;font-size:14px}
+.mini .lead{flex:1}
+.mini .f{font-size:13px;color:var(--ink-2)}
+.empty{padding:22px 16px;text-align:center;color:var(--ink-2);font-size:14px}
+.welcome{margin-top:18px;padding:20px 18px}
+.welcome p{margin:0;color:var(--ink-2);font-size:14px}
+.welcome .welcome-title{margin:0 0 4px;color:var(--ink);font-size:17px;font-weight:650}
+.listlinks{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:18px 0 24px}
+.listlinks button{min-height:52px;border-radius:12px;border:1px solid var(--rule);background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:12px;color:var(--ink-2)}
+.listlinks button:hover{background:var(--surface-2)}
+.listlinks b{font:600 16px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+.back{display:inline-flex;align-items:center;gap:2px;min-height:44px;padding-right:10px;color:var(--ink-2);font-weight:500;text-decoration:none}
+@media (min-width:900px){.back{display:none}}
+
+/* ---------- old page (until Tasks 4 and 5 replace it) ---------- */
+
 
 
 /* ---------- content ---------- */
@@ -207,14 +249,6 @@ button{cursor:pointer}
 
 /* ---------- forms ---------- */
 
-.capture {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 14px;
-  box-shadow: var(--shadow);
-}
-
 .form {
   display: flex;
   flex-direction: column;
@@ -261,16 +295,6 @@ button{cursor:pointer}
   resize: vertical;
   min-height: 52px;
   font-size: 16px;
-}
-
-.form-capture .input-text {
-  border-color: transparent;
-  background: transparent;
-  padding: 4px 2px;
-}
-
-.form-capture .input-text:focus {
-  box-shadow: none;
 }
 
 .form-details {
@@ -938,10 +962,6 @@ button{cursor:pointer}
 
 /* ---------- empty, skeleton, toast, footer ---------- */
 
-.empty {
-  text-align: center;
-  padding: 40px 12px;
-}
 
 .empty-glyph {
   font-size: 28px;
@@ -978,13 +998,6 @@ button{cursor:pointer}
   to {
     background-position: -200% 0;
   }
-}
-
-.foot {
-  padding: 36px 0 0;
-  text-align: center;
-  color: var(--faint);
-  font-size: 12px;
 }
 
 /* ---------- small screens ---------- */

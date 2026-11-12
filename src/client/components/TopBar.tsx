@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { ServerStatus } from '../../types'
 import { clockTime } from '../lib/format'
 import { nextTheme, type Theme } from '../lib/theme'
+import { quotaResetAt } from '../lib/triage'
 import { LogoMark, MoonIcon, SunIcon, SystemThemeIcon } from './icons'
 
 interface TopBarProps {
@@ -64,15 +65,14 @@ function ResearcherChip({ status, currentTitle }: { status: ServerStatus | null;
       </>,
     )
   }
-  const benched = status.models.filter((m) => m.benchedUntil)
-  if (status.models.length > 0 && benched.length === status.models.length) {
-    const reset = benched.map((m) => m.benchedUntil as string).sort()[0]
+  const reset = quotaResetAt(status)
+  if (reset) {
     return chip(
       'warn',
       <>
         <b>Out of quota</b> until {clockTime(reset)}
       </>,
-      benched.map((m) => `${m.id}: ${m.reason}`).join('\n'),
+      status.models.map((m) => `${m.id}: ${m.reason}`).join('\n'),
     )
   }
   if (status.queuedCount > 0) return chip('', <b>{status.queuedCount} queued</b>)

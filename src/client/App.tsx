@@ -1,37 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Idea, IdeaList } from '../types'
-import { IdeaCard } from './components/IdeaCard'
-import { IdeaForm } from './components/IdeaForm'
+import { useEffect, useRef, useState } from 'react'
+import { HomeScreen } from './components/HomeScreen'
+import { shownTitle } from './components/IdeaTitle'
+import { OldIdea, OldLists } from './components/OldLists'
 import { Shell } from './components/Shell'
 import { TopBar } from './components/TopBar'
 import { useIdeas } from './hooks/useIdeas'
 import { useRoute, type Route } from './lib/route'
 import { applyTheme, readTheme, writeTheme, type Theme } from './lib/theme'
 
-const TABS: Array<{ list: IdeaList; label: string }> = [
-  { list: 'wanted', label: 'Wanted' },
-  { list: 'bought', label: 'Bought' },
-  { list: 'archived', label: 'Archived' },
-]
-
-/** Above this many ideas in a list, a filter box appears. */
-const FILTER_FROM = 8
-
 export function App() {
   const state = useIdeas()
   const [route, navigate] = useRoute()
   const [theme, setTheme] = useState<Theme>(readTheme)
-  const [tab, setTab] = useState<IdeaList>('wanted')
-  const [filter, setFilter] = useState('')
-
-  const counts = useMemo(() => {
-    const c: Record<IdeaList, number> = { wanted: 0, bought: 0, archived: 0 }
-    for (const i of state.ideas) c[i.list] += 1
-    return c
-  }, [state.ideas])
-
-  const inTab = state.ideas.filter((i) => i.list === tab)
-  const visible = filter.trim() ? inTab.filter((i) => matches(i, filter)) : inTab
 
   const openIdea = route.name === 'idea' ? state.ideas.find((i) => i.id === route.id) : undefined
   const missingIdea = route.name === 'idea' && state.loaded && !openIdea
@@ -48,7 +28,7 @@ export function App() {
     <div className="app">
       <TopBar
         status={state.status}
-        currentTitle={current ? (current.title ?? current.text) : null}
+        currentTitle={current ? shownTitle(current) : null}
         theme={theme}
         onTheme={(t) => {
           writeTheme(t)
@@ -57,95 +37,30 @@ export function App() {
         }}
       />
 
-      <main className="content">
-        {state.status && !state.status.researchEnabled && (
-          <div className="banner banner-warn" role="status">
-            Research is switched off: set {state.status.missingKeys.join(' and ')} on the server. Ideas you add now
-            wait in the queue until it is on.
-          </div>
-        )}
-
-        <section className="capture" aria-label="Add an idea">
-          <IdeaForm
-            compact
-            submitLabel="Add to wantlist"
-            placeholder="e.g. A good fan to add to my indoor biking setup"
-            onSubmit={async (idea) => {
-              await state.add(idea)
-              setTab('wanted')
-              setFilter('')
-            }}
-          />
-        </section>
-
-        <nav className="tabs" aria-label="Lists">
-          {TABS.map(({ list, label }) => (
-            <button
-              key={list}
-              type="button"
-              className={list === tab ? 'tab tab-active' : 'tab'}
-              aria-pressed={list === tab}
-              onClick={() => setTab(list)}
-            >
-              {label}
-              <span className="tab-count">{counts[list]}</span>
-            </button>
-          ))}
-        </nav>
-
-        {inTab.length > FILTER_FROM && (
-          <input
-            type="search"
-            className="input filter"
-            placeholder={`Filter ${inTab.length} ideas`}
-            aria-label="Filter ideas"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-        )}
-
-        {!state.loaded ? (
-          <Skeleton />
-        ) : visible.length === 0 ? (
-          <EmptyState list={tab} filtered={inTab.length > 0} />
-        ) : (
-          <section className="ideas" aria-label={`${tab} ideas`}>
-            {visible.map((idea) => (
-              <IdeaCard
-                key={idea.id}
-                idea={idea}
-                step={state.status?.current?.ideaId === idea.id ? state.status.current.step : null}
-                onPatch={(patch) => state.patch(idea.id, patch)}
-                onRerun={() => state.rerun(idea.id)}
-                onReact={state.react}
-                onRefine={() => state.refine(idea.id)}
-                onRemove={() => state.remove(idea.id)}
-              />
-            ))}
-          </section>
-        )}
-      </main>
-
-      <footer className="foot">
-        <span>every idea, researched for later.</span>
-      </footer>
+      {state.loaded ? (
+        <HomeScreen
+          ideas={state.ideas}
+          status={state.status}
+          selectedId={route.name === 'idea' ? route.id : null}
+          onOpen={(id) => navigate({ name: 'idea', id })}
+          onLists={(tab) => navigate({ name: 'lists', tab })}
+          onAdd={state.add}
+        />
+      ) : (
+        <Skeleton />
+      )}
     </div>
   )
 
-  // shortcut: placeholder screens until the idea and lists screens land (Tasks 3–4).
   const right =
     route.name === 'lists' ? (
-      <div className="screen">
-        <h1 tabIndex={-1}>Lists</h1>
-      </div>
+      <OldLists state={state} tab={route.tab} onTab={(tab) => navigate({ name: 'lists', tab }, { replace: true })} />
     ) : !state.loaded ? (
       <div className="screen" aria-busy="true">
         <Skeleton />
       </div>
     ) : openIdea ? (
-      <div className="screen">
-        <h1 tabIndex={-1}>{openIdea.title ?? openIdea.text}</h1>
-      </div>
+      <OldIdea key={openIdea.id} idea={openIdea} state={state} />
     ) : null
 
   return (
@@ -207,45 +122,6 @@ function Skeleton() {
         <div key={i} className="skeleton-card" />
       ))}
     </div>
-  )
-}
-
-function EmptyState({ list, filtered }: { list: IdeaList; filtered: boolean }) {
-  if (filtered) return <p className="empty-sub">Nothing matches that filter.</p>
-  if (list === 'bought') {
-    return (
-      <div className="empty">
-        <p className="empty-title">Nothing bought yet.</p>
-        <p className="empty-sub">When you buy one of the picks, press “I bought this” and it lands here.</p>
-      </div>
-    )
-  }
-  if (list === 'archived') {
-    return (
-      <div className="empty">
-        <p className="empty-title">Nothing archived.</p>
-        <p className="empty-sub">Ideas you no longer want go here, out of the way but not forgotten.</p>
-      </div>
-    )
-  }
-  return (
-    <div className="empty">
-      <div className="empty-glyph" aria-hidden="true">
-        ✥
-      </div>
-      <p className="empty-title">Nothing on the list.</p>
-      <p className="empty-sub">
-        Type something you've been meaning to buy. The app researches it in the background (Belgian shops, prices
-        in euro) and comes back with a few picks, checked prices and links.
-      </p>
-    </div>
-  )
-}
-
-function matches(idea: Idea, query: string): boolean {
-  const q = query.trim().toLowerCase()
-  return [idea.title, idea.text, idea.notes, idea.preferences?.summary, ...idea.picks.map((p) => p.title)].some((s) =>
-    s?.toLowerCase().includes(q),
   )
 }
 

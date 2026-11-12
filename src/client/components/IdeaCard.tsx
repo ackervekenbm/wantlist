@@ -22,10 +22,12 @@ interface Props {
   onReact: (pickId: number, patch: PickPatch) => Promise<void>
   onRefine: () => Promise<void>
   onRemove: () => void
+  /** Ignore a remembered collapse (the idea has a screen of its own). */
+  forceOpen?: boolean
 }
 
-export function IdeaCard({ idea, step, onPatch, onRerun, onReact, onRefine, onRemove }: Props) {
-  const [collapsed, setCollapsed] = useState(() => readCollapsed().has(idea.id))
+export function IdeaCard({ idea, step, onPatch, onRerun, onReact, onRefine, onRemove, forceOpen }: Props) {
+  const [collapsed, setCollapsed] = useState(() => !forceOpen && readCollapsed().has(idea.id))
   const [editing, setEditing] = useState(false)
   const bodyId = useId()
   const busy = idea.status === 'researching'
