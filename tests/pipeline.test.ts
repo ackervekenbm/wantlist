@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Page } from '../src/server/research/http'
 import type { ProductData } from '../src/server/research/product'
-import { ResearchError } from '../src/server/research/errors'
+import { NOTHING_NEW, ResearchError } from '../src/server/research/errors'
 import { ModelRouter, type GenerateArgs, type LlmProvider } from '../src/server/research/llm'
 import { PipelineEngine } from '../src/server/research/pipeline'
 import { SerperProvider, type SearchProvider, type SearchResult } from '../src/server/research/search'
+import type { HistoryPick, ResearchHistory } from '../src/types'
 
 vi.mock('../src/server/research/http', () => ({ fetchPage: vi.fn() }))
 
@@ -30,10 +31,25 @@ function pages(byUrl: Record<string, Partial<Page>>) {
 class StepModel implements LlmProvider {
   readonly id = 'fake'
   verifyPrompt = ''
+  learnPrompt = ''
   prompts: string[] = []
-  constructor(private readonly answers: { plan?: unknown; candidates?: unknown; verify?: unknown }) {}
+  systems: string[] = []
+  constructor(
+    private readonly answers: { plan?: unknown; learn?: unknown; candidates?: unknown; verify?: unknown },
+  ) {}
   async generate(args: GenerateArgs): Promise<unknown> {
     this.prompts.push(args.contents)
+    this.systems.push(args.systemInstruction)
+    if (args.systemInstruction.includes('learn step')) {
+      this.learnPrompt = args.contents
+      return (
+        this.answers.learn ?? {
+          title: 'Quiet cycling fan',
+          preferences: { summary: 'a quiet fan', mustHaves: ['quiet'], avoid: ['loud fans'], likes: [] },
+          searchQueries: ['quiet indoor cycling fan'],
+        }
+      )
+    }
     if (args.systemInstruction.includes('planning step')) {
       return this.answers.plan ?? { summary: 'a fan', criteria: ['quiet'], searchQueries: ['indoor cycling fan'] }
     }
@@ -263,6 +279,217 @@ describe('PipelineEngine', () => {
     const provider = search((q) => (q === 'broken' ? new ResearchError('bad query', { kind: 'invalid' }) : HITS))
     const { picks } = await engine(new StepModel({ plan }), provider).research({ ideaId: 1, text: 'fan' })
     expect(picks).toHaveLength(2)
+  })
+})
+
+function shown(over: Partial<HistoryPick>): HistoryPick {
+  return { round: 1, title: 'Old fan', shop: 'Shop', price: null, why: null, reaction: null, reason: null, urls: [], ...over }
+}
+
+function history(picks: HistoryPick[], over: Partial<ResearchHistory> = {}): ResearchHistory {
+  return {
+    mode: 'learn',
+    preferences: { summary: 'a fan', mustHaves: ['quiet'], avoid: [], likes: [] },
+    preferencesEdited: false,
+    picks,
+    ...over,
+  }
+}
+
+async function rejection(p: Promise<unknown>): Promise<ResearchError> {
+  return (await p.catch((e: unknown) => e)) as ResearchError
+}
+
+describe('PipelineEngine refine rounds', () => {
+  const HEADWIND = 'https://bikeshop.be/headwind'
+  const LASKO = 'https://www.bol.com/be/nl/p/lasko/123'
+
+  it('round 1 plans and returns a title with preferences', async () => {
+    const plan = { title: 'Indoor cycling fan', summary: 'a fan', criteria: ['quiet', 'strong'], searchQueries: ['fan'] }
+    const { brief } = await engine(new StepModel({ plan }), search(() => HITS)).research({ ideaId: 1, text: 'fan' })
+    expect(brief.title).toBe('Indoor cycling fan')
+    expect(brief.preferences.mustHaves).toEqual(['quiet', 'strong'])
+  })
+
+  it('keeps the current title when the model gives none', async () => {
+    const { brief } = await engine(new StepModel({}), search(() => HITS)).research({ ideaId: 1, text: 'fan', title: 'Mine' })
+    expect(brief.title).toBe('Mine')
+  })
+
+  it('a refine learns instead of planning, and shows reasons to the model', async () => {
+    const model = new StepModel({})
+    const steps: string[] = []
+    const { brief } = await engine(model, search(() => HITS)).research({
+      ideaId: 1,
+      text: 'fan',
+      history: history([shown({ title: 'Loud fan', reaction: 'no', reason: 'too loud', urls: ['https://x.be/loud'] })]),
+      onProgress: (s) => steps.push(s),
+    })
+    expect(model.systems.some((s) => s.includes('planning step'))).toBe(false)
+    expect(model.learnPrompt).toContain('too loud')
+    expect(steps).toContain('learning from your reactions')
+    expect(brief).toMatchObject({ title: 'Quiet cycling fan', preferences: { avoid: ['loud fans'] } })
+  })
+
+  it('keeps owner-edited preference items through the learn step', async () => {
+    const owner = { summary: 'owner words', mustHaves: ['white'], avoid: ['plastic'], likes: [] }
+    const { brief } = await engine(new StepModel({}), search(() => HITS)).research({
+      ideaId: 1,
+      text: 'fan',
+      history: history([shown({ reaction: 'no' })], { preferences: owner, preferencesEdited: true }),
+    })
+    expect(brief.preferences).toEqual({
+      summary: 'owner words',
+      mustHaves: ['white', 'quiet'],
+      avoid: ['plastic', 'loud fans'],
+      likes: [],
+    })
+  })
+
+  it("never repeats an earlier product: by supplier URL, by title, and by the verifier's repeatOf", async () => {
+    // Supplier URL: the history pick was bought elsewhere but also offered at the Headwind hit.
+    const bySupplier = new StepModel({})
+    const r1 = await engine(bySupplier, search(() => HITS)).research({
+      ideaId: 1,
+      text: 'fan',
+      history: history([shown({ title: 'Something', urls: ['https://elsewhere.be/x', `${HEADWIND}?utm_source=x`] })]),
+    })
+    expect(r1.picks.map((p) => p.url)).toEqual([LASKO])
+    expect(bySupplier.prompts.find((p) => p.includes('Candidates:'))).not.toContain(HEADWIND)
+
+    // Title: the same product at a new URL.
+    const r2 = await engine(new StepModel({}), search(() => HITS)).research({
+      ideaId: 1,
+      text: 'fan',
+      history: history([shown({ title: 'Lasko Fan.', urls: ['https://other.be/lasko'] })]),
+    })
+    expect(r2.picks.map((p) => p.title)).toEqual(['Wahoo KICKR Headwind'])
+
+    // repeatOf: the verifier recognises an earlier model under another name.
+    const verify = {
+      picks: [
+        { title: 'Wahoo Headwind fan', why: 'w', repeatOf: 1, suppliers: [{ shop: 'B', url: HEADWIND, price: '229' }] },
+        { title: 'Lasko fan', why: 'w', repeatOf: 0, suppliers: [{ shop: 'bol', url: LASKO, price: '59' }] },
+      ],
+    }
+    const model = new StepModel({ verify })
+    const r3 = await engine(model, search(() => HITS)).research({
+      ideaId: 1,
+      text: 'fan',
+      history: history([shown({ title: 'KICKR Headwind Smart', urls: ['https://other.be/hw'] })]),
+    })
+    expect(r3.picks.map((p) => p.title)).toEqual(['Lasko fan'])
+    expect(model.verifyPrompt).toContain('1. KICKR Headwind Smart')
+  })
+
+  it('stops before the candidate step when every search hit was shown before', async () => {
+    const model = new StepModel({})
+    const err = await rejection(
+      engine(model, search(() => HITS)).research({
+        ideaId: 1,
+        text: 'fan',
+        history: history([shown({ urls: [HEADWIND] }), shown({ urls: [LASKO] })]),
+      }),
+    )
+    expect(err).toMatchObject({ kind: 'no-results', message: NOTHING_NEW })
+    expect(model.systems.some((s) => s.includes('candidate-selection'))).toBe(false)
+  })
+
+  it('tries the next model, then stops with nothing new, when candidates only repeat by title', async () => {
+    const second = new StepModel({})
+    const err = await rejection(
+      engine(new StepModel({}), search(() => HITS), [second]).research({
+        ideaId: 1,
+        text: 'fan',
+        history: history([
+          shown({ title: 'Wahoo KICKR Headwind', urls: ['https://a.be/1'] }),
+          shown({ title: 'Lasko fan', urls: ['https://a.be/2'] }),
+        ]),
+      }),
+    )
+    expect(second.systems.some((s) => s.includes('candidate-selection'))).toBe(true)
+    expect(err).toMatchObject({ kind: 'no-results', message: NOTHING_NEW })
+  })
+
+  it('a model with only repeats then a model with invented URLs is retryable, not nothing-new', async () => {
+    const liar = new StepModel({
+      candidates: { candidates: [{ title: 'Made up', shop: 'X', url: 'https://invented.example/p' }] },
+    })
+    const err = await rejection(
+      engine(new StepModel({}), search(() => HITS), [liar]).research({
+        ideaId: 1,
+        text: 'fan',
+        history: history([
+          shown({ title: 'Wahoo KICKR Headwind', urls: ['https://a.be/1'] }),
+          shown({ title: 'Lasko fan', urls: ['https://a.be/2'] }),
+        ]),
+      }),
+    )
+    expect(err.kind).toBe('invalid')
+  })
+
+  it('does not count shown hits toward the search cap', async () => {
+    const old = Array.from({ length: 24 }, (_, i) => ({ title: `Old ${i}`, url: `https://old.be/${i}`, snippet: '' }))
+    const learn = {
+      title: 't',
+      preferences: { summary: 's', mustHaves: [], avoid: [], likes: [] },
+      searchQueries: ['first', 'second'],
+    }
+    const provider = search((q) => (q === 'first' ? old : HITS))
+    const { picks } = await engine(new StepModel({ learn }), provider).research({
+      ideaId: 1,
+      text: 'fan',
+      history: history([shown({ urls: old.map((h) => h.url) })]),
+    })
+    expect(provider.queries).toEqual(['first', 'second'])
+    expect(picks.map((p) => p.title)).toEqual(['Wahoo KICKR Headwind', 'Lasko fan'])
+  })
+
+  it('falls back to the shortlist in a refine when the verifier returns nothing', async () => {
+    const { picks } = await engine(new StepModel({ verify: { picks: [] } }), search(() => HITS)).research({
+      ideaId: 1,
+      text: 'fan',
+      history: history([shown({ round: 2, urls: ['https://old.be/1'] })]),
+    })
+    expect(picks.map((p) => p.title)).toEqual(['Wahoo KICKR Headwind', 'Lasko fan'])
+  })
+
+  it('stops with nothing new when the verifier only names repeats', async () => {
+    const verify = {
+      picks: [{ title: 'Lasko fan', why: 'w', repeatOf: 1, suppliers: [{ shop: 'bol', url: LASKO, price: '59' }] }],
+    }
+    const err = await rejection(
+      engine(new StepModel({ verify }), search(() => HITS)).research({
+        ideaId: 1,
+        text: 'fan',
+        history: history([shown({ title: 'Lasko 123', urls: ['https://old.be/1'] })]),
+      }),
+    )
+    expect(err).toMatchObject({ kind: 'no-results', message: NOTHING_NEW })
+  })
+
+  it('a fresh start plans again but still excludes rejected products', async () => {
+    const model = new StepModel({})
+    const { picks } = await engine(model, search(() => HITS)).research({
+      ideaId: 1,
+      text: 'fan',
+      history: history([shown({ title: 'Lasko', reaction: 'no', urls: [LASKO] })], { mode: 'fresh' }),
+    })
+    expect(model.systems[0]).toContain('planning step')
+    expect(model.learnPrompt).toBe('')
+    expect(picks.flatMap((p) => p.suppliers.map((s) => s.url))).not.toContain(LASKO)
+  })
+
+  it('excludes a reacted pick from an older round', async () => {
+    const { picks } = await engine(new StepModel({}), search(() => HITS)).research({
+      ideaId: 1,
+      text: 'fan',
+      history: history([
+        shown({ round: 3, title: 'Newer', urls: ['https://new.be/1'] }),
+        shown({ round: 1, title: 'Headwind old', reaction: 'maybe', urls: [HEADWIND] }),
+      ]),
+    })
+    expect(picks.map((p) => p.url)).toEqual([LASKO])
   })
 })
 

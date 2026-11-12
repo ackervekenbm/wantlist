@@ -1,4 +1,4 @@
-import type { FinalPick, PickSupplier } from '../../types'
+import type { FinalPick, HistoryPick, PickSupplier } from '../../types'
 
 // Offer/URL helpers shared by the pipeline steps: product-level de-duplication,
 // offer ordering, and the URL normalization the allowlists compare with.
@@ -98,4 +98,25 @@ export function normalizeUrl(url: string): string {
   } catch {
     return url.split('#')[0].replace(/\/+$/, '')
   }
+}
+
+/** Products the owner already saw: every pick and supplier URL, and every title (normalized). */
+export interface Exclusion {
+  urls: Set<string>
+  titles: Set<string>
+}
+
+export function exclusionOf(picks: HistoryPick[]): Exclusion {
+  return {
+    urls: new Set(picks.flatMap((p) => p.urls.map(normalizeUrl))),
+    titles: new Set(picks.map((p) => normalizeProductTitle(p.title))),
+  }
+}
+
+export function isExcluded(
+  item: { title: string; url: string; suppliers?: { url: string }[] },
+  ex: Exclusion,
+): boolean {
+  const urls = [item.url, ...(item.suppliers ?? []).map((s) => s.url)]
+  return ex.titles.has(normalizeProductTitle(item.title)) || urls.some((u) => ex.urls.has(normalizeUrl(u)))
 }
