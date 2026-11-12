@@ -1,6 +1,5 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import type { Idea, IdeaPatch, Pick, PickPatch } from '../../types'
-import { readCollapsed, writeCollapsed } from '../lib/storage'
 import { clockTime, formatEur, hostOf, timeAgo } from '../lib/format'
 import { EarlierRounds } from './EarlierRounds'
 import { BagIcon, ExternalIcon } from './icons'
@@ -22,14 +21,10 @@ interface Props {
   onReact: (pickId: number, patch: PickPatch) => Promise<void>
   onRefine: () => Promise<void>
   onRemove: () => void
-  /** Ignore a remembered collapse (the idea has a screen of its own). */
-  forceOpen?: boolean
 }
 
-export function IdeaCard({ idea, step, onPatch, onRerun, onReact, onRefine, onRemove, forceOpen }: Props) {
-  const [collapsed, setCollapsed] = useState(() => !forceOpen && readCollapsed().has(idea.id))
+export function IdeaCard({ idea, step, onPatch, onRerun, onReact, onRefine, onRemove }: Props) {
   const [editing, setEditing] = useState(false)
-  const bodyId = useId()
   const busy = idea.status === 'researching'
   const pending = busy || idea.status === 'queued'
   const wanted = idea.list === 'wanted'
@@ -38,7 +33,6 @@ export function IdeaCard({ idea, step, onPatch, onRerun, onReact, onRefine, onRe
   const current = idea.picks.filter((p) => p.round === latest)
   const earlier = idea.picks.filter((p) => p.round !== latest)
   const keepers = earlier.filter((p) => p.reaction === 'yes')
-  const top = current[0]
   const bought = (pick: Pick) => fire(onPatch({ list: 'bought', boughtPickId: pick.id }))
 
   const renderPick = (pick: Pick) => (
@@ -60,23 +54,12 @@ export function IdeaCard({ idea, step, onPatch, onRerun, onReact, onRefine, onRe
     />
   )
 
-  const toggle = () => {
-    setCollapsed((was) => {
-      writeCollapsed(idea.id, !was)
-      return !was
-    })
-  }
-
   return (
     <article className={`idea idea-${idea.list}`} aria-label={shownTitle(idea)}>
       <header className="idea-head">
-        <IdeaTitle
-          idea={idea}
-          collapsed={collapsed}
-          onToggle={toggle}
-          bodyId={bodyId}
-          onRename={(title) => onPatch({ title })}
-        />
+        <h3 className="idea-text">
+          <IdeaTitle idea={idea} onRename={(title) => onPatch({ title })} />
+        </h3>
         <div className="idea-meta">
           {idea.list === 'wanted' && idea.status !== 'done' && (
             <StatusBadge status={idea.status} retrying={!!idea.nextAttemptAt} />
@@ -88,114 +71,103 @@ export function IdeaCard({ idea, step, onPatch, onRerun, onReact, onRefine, onRe
         </div>
       </header>
 
-      {collapsed ? (
-        <p className="idea-collapsed" id={bodyId}>
-          {idea.bought
-            ? `Bought ${idea.bought.title}`
-            : top
-              ? `Top pick: ${top.title}${top.price !== null ? ` · ${formatEur(top.price)}` : ''}`
-              : 'No picks yet'}
-          {current.length > 1 && !idea.bought ? ` · ${current.length} picks` : ''}
-        </p>
-      ) : (
-        <div className="idea-body" id={bodyId}>
-          {idea.notes && !editing && <p className="idea-notes">{idea.notes}</p>}
+      <div className="idea-body">
+        {idea.notes && !editing && <p className="idea-notes">{idea.notes}</p>}
 
-          {idea.list === 'bought' && (
-            <p className="idea-bought">
-              <BagIcon />
-              {idea.bought ? (
-                <span>
-                  Bought <strong>{idea.bought.title}</strong>
-                  {idea.bought.shop ? ` at ${idea.bought.shop}` : ''}
-                  {idea.bought.price !== null ? ` for ${formatEur(idea.bought.price)}` : ''}
-                  {idea.bought.at ? `, ${timeAgo(idea.bought.at)}` : ''}.{' '}
-                  <a href={idea.bought.url} target="_blank" rel="noreferrer noopener">
-                    {hostOf(idea.bought.url)} <ExternalIcon />
-                  </a>
-                </span>
-              ) : (
-                <span>Bought something else.</span>
-              )}
-            </p>
-          )}
+        {idea.list === 'bought' && (
+          <p className="idea-bought">
+            <BagIcon />
+            {idea.bought ? (
+              <span>
+                Bought <strong>{idea.bought.title}</strong>
+                {idea.bought.shop ? ` at ${idea.bought.shop}` : ''}
+                {idea.bought.price !== null ? ` for ${formatEur(idea.bought.price)}` : ''}
+                {idea.bought.at ? `, ${timeAgo(idea.bought.at)}` : ''}.{' '}
+                <a href={idea.bought.url} target="_blank" rel="noreferrer noopener">
+                  {hostOf(idea.bought.url)} <ExternalIcon />
+                </a>
+              </span>
+            ) : (
+              <span>Bought something else.</span>
+            )}
+          </p>
+        )}
 
-          <ResearchState idea={idea} step={step} />
+        <ResearchState idea={idea} step={step} />
 
-          {idea.preferences && (
-            <PreferencesPanel
-              preferences={idea.preferences}
-              editable={!pending}
-              onSave={(preferences) => onPatch({ preferences })}
-            />
-          )}
+        {idea.preferences && (
+          <PreferencesPanel
+            preferences={idea.preferences}
+            editable={!pending}
+            onSave={(preferences) => onPatch({ preferences })}
+          />
+        )}
 
-          <Keepers picks={keepers} onBought={wanted ? bought : undefined} />
+        <Keepers picks={keepers} onBought={wanted ? bought : undefined} />
 
-          {current.length > 0 && (
-            <ol className="picks" aria-label={`Round ${latest} picks`}>
-              {current.map(renderPick)}
-            </ol>
-          )}
+        {current.length > 0 && (
+          <ol className="picks" aria-label={`Round ${latest} picks`}>
+            {current.map(renderPick)}
+          </ol>
+        )}
 
-          {wanted && !pending && idea.picks.length > 0 && (
-            <RefineBar
-              reactions={current.filter((p) => p.reaction).length}
-              anyReaction={idea.picks.some((p) => p.reaction)}
-              preferencesEdited={idea.preferencesEdited}
-              onRefine={onRefine}
-            />
-          )}
+        {wanted && !pending && idea.picks.length > 0 && (
+          <RefineBar
+            reactions={current.filter((p) => p.reaction).length}
+            anyReaction={idea.picks.some((p) => p.reaction)}
+            preferencesEdited={idea.preferencesEdited}
+            onRefine={onRefine}
+          />
+        )}
 
-          <EarlierRounds picks={earlier} renderPick={renderPick} />
+        <EarlierRounds picks={earlier} renderPick={renderPick} />
 
-          {editing ? (
-            <IdeaForm
-              initial={idea}
-              submitLabel="Save"
-              secondaryLabel={busy ? undefined : 'Save & research again'}
-              onCancel={() => setEditing(false)}
-              onSubmit={async (values, again) => {
-                await onPatch(values)
-                if (again) await onRerun()
-                setEditing(false)
-              }}
-            />
-          ) : (
-            <footer className="idea-actions">
-              {idea.list === 'wanted' ? (
-                <>
-                  <button type="button" className="btn-text" onClick={() => setEditing(true)}>
-                    edit
-                  </button>
-                  {!busy && (
-                    <button type="button" className="btn-text" onClick={() => fire(onRerun())}>
-                      research again
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn-text"
-                    onClick={() => fire(onPatch({ list: 'bought', boughtPickId: null }))}
-                  >
-                    bought something else
-                  </button>
-                  <button type="button" className="btn-text" onClick={() => fire(onPatch({ list: 'archived' }))}>
-                    don't want it anymore
-                  </button>
-                </>
-              ) : (
-                <button type="button" className="btn-text" onClick={() => fire(onPatch({ list: 'wanted' }))}>
-                  want it again
+        {editing ? (
+          <IdeaForm
+            initial={idea}
+            submitLabel="Save"
+            secondaryLabel={busy ? undefined : 'Save & research again'}
+            onCancel={() => setEditing(false)}
+            onSubmit={async (values, again) => {
+              await onPatch(values)
+              if (again) await onRerun()
+              setEditing(false)
+            }}
+          />
+        ) : (
+          <footer className="idea-actions">
+            {idea.list === 'wanted' ? (
+              <>
+                <button type="button" className="btn-text" onClick={() => setEditing(true)}>
+                  edit
                 </button>
-              )}
-              <button type="button" className="btn-text btn-danger" onClick={onRemove}>
-                remove
+                {!busy && (
+                  <button type="button" className="btn-text" onClick={() => fire(onRerun())}>
+                    research again
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-text"
+                  onClick={() => fire(onPatch({ list: 'bought', boughtPickId: null }))}
+                >
+                  bought something else
+                </button>
+                <button type="button" className="btn-text" onClick={() => fire(onPatch({ list: 'archived' }))}>
+                  don't want it anymore
+                </button>
+              </>
+            ) : (
+              <button type="button" className="btn-text" onClick={() => fire(onPatch({ list: 'wanted' }))}>
+                want it again
               </button>
-            </footer>
-          )}
-        </div>
-      )}
+            )}
+            <button type="button" className="btn-text btn-danger" onClick={onRemove}>
+              remove
+            </button>
+          </footer>
+        )}
+      </div>
     </article>
   )
 }

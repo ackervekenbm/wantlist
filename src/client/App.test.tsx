@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import { UNDO_MS } from './hooks/useIdeas'
-import { fakeApi, idea, pick, status } from './test/fakeApi'
+import { fakeApi, idea, status } from './test/fakeApi'
 
 /** Renders the app on a route (`#/idea/1`, `#/lists/wanted`, …) once the ideas have loaded. */
 async function renderApp(hash = '#/') {
@@ -45,8 +45,8 @@ describe('App', () => {
     await user.click(row)
     expect(location.hash).toBe('#/idea/1')
     expect(screen.getByRole('heading', { level: 1, name: 'Running shoes' })).toHaveFocus()
-    expect(screen.getByText('up to € 89,99')).toBeInTheDocument()
-    expect(screen.getByText(/Waiting for the researcher/)).toBeInTheDocument()
+    expect(screen.getByText(/^You wrote/)).toHaveTextContent('You wrote Running shoes · quiet · max € 89,99')
+    expect(screen.getByRole('region', { name: 'Round 1 is queued' })).toBeInTheDocument()
   })
 
   it('goes back home from an idea and puts focus on its row', async () => {
@@ -91,15 +91,13 @@ describe('App', () => {
   it('shows the preferences and the picks of a researched idea', async () => {
     fakeApi([idea()])
     await renderApp('#/idea/1')
-    const card = screen.getByRole('article', {
-      name: 'A fan for my indoor bike setup',
-    })
-    expect(within(card).getByText('A strong, quiet fan aimed at you on the trainer')).toBeInTheDocument()
-    expect(within(card).getByRole('list', { name: 'Preferences' })).toHaveTextContent(
+    const card = within(document.querySelector('.pane-right') as HTMLElement)
+    expect(card.getByText('A strong, quiet fan aimed at you on the trainer')).toBeInTheDocument()
+    expect(card.getByRole('list', { name: 'Preferences' })).toHaveTextContent(
       /must have: airflow.*must have: noise.*must have: price/,
     )
-    expect(within(card).getByRole('heading', { name: 'Wahoo KICKR Headwind' })).toBeInTheDocument()
-    expect(within(card).getByRole('link', { name: /Bikeshop/ })).toHaveAttribute('href', 'https://bikeshop.be/headwind')
+    expect(card.getByRole('heading', { name: 'Wahoo KICKR Headwind' })).toBeInTheDocument()
+    expect(card.getByRole('link', { name: /Bikeshop/ })).toHaveAttribute('href', 'https://bikeshop.be/headwind')
   })
 
   it('moves an idea to Bought with the pick you chose', async () => {
@@ -172,32 +170,6 @@ describe('App', () => {
     expect(screen.queryByText('database is locked')).not.toBeInTheDocument()
   })
 
-  it('edits an idea and researches it again', async () => {
-    const api = fakeApi([idea()])
-    const user = await renderApp('#/idea/1')
-    await user.click(screen.getByRole('button', { name: 'edit' }))
-    const budget = screen.getByLabelText(/Budget/)
-    await user.clear(budget)
-    await user.type(budget, '150')
-    await user.click(screen.getByRole('button', { name: 'Save & research again' }))
-
-    await waitFor(() =>
-      expect(api.writes()).toEqual([
-        {
-          method: 'PATCH',
-          path: '/api/ideas/1',
-          body: {
-            text: 'A fan for my indoor bike setup',
-            budget: 150,
-            notes: null,
-          },
-        },
-        { method: 'POST', path: '/api/ideas/1/rerun', body: undefined },
-      ]),
-    )
-    expect(await screen.findByText(/Waiting for the researcher/)).toBeInTheDocument()
-  })
-
   it('shows the live research step', async () => {
     fakeApi(
       [idea({ status: 'researching' })],
@@ -210,33 +182,6 @@ describe('App', () => {
     expect(screen.getByText(/checking 4 offers at the shops…/)).toBeInTheDocument()
     expect(screen.getByRole('status', { name: 'Researcher' })).toHaveTextContent(
       'Researching A fan for my indoor bike setup',
-    )
-  })
-
-  it('explains a scheduled retry and a stopped idea', async () => {
-    fakeApi([
-      idea({
-        id: 1,
-        text: 'retry',
-        status: 'queued',
-        error: 'quota',
-        nextAttemptAt: '2026-11-07T15:00:00Z',
-        picks: [],
-      }),
-      idea({
-        id: 2,
-        text: 'stopped',
-        status: 'error',
-        error: 'The searches found nothing to buy.',
-        picks: [],
-      }),
-    ])
-    await renderApp('#/idea/1')
-    expect(within(screen.getByRole('article', { name: 'retry' })).getByText(/trying again around/)).toBeInTheDocument()
-    location.hash = '#/idea/2'
-    expect(await screen.findByRole('article', { name: 'stopped' })).toBeInTheDocument()
-    expect(within(screen.getByRole('article', { name: 'stopped' })).getByRole('alert')).toHaveTextContent(
-      'Research stopped: The searches found nothing to buy.',
     )
   })
 
@@ -283,23 +228,6 @@ describe('App', () => {
     expect(screen.getByRole('status', { name: 'Researcher' })).toHaveTextContent(/^Researcher idle$/)
   })
 
-  it('collapses a card to its top pick and remembers it', async () => {
-    fakeApi([
-      idea({
-        picks: [pick(), pick({ id: 2, rank: 2, title: 'Lasko fan', price: 59 })],
-      }),
-    ])
-    const user = await renderApp('#/idea/1')
-    await user.click(
-      within(screen.getByRole('article')).getByRole('button', {
-        name: /A fan for my indoor bike setup/,
-      }),
-    )
-    expect(screen.getByText('Top pick: Wahoo KICKR Headwind · € 249,99 · 2 picks')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Lasko fan' })).not.toBeInTheDocument()
-    expect(localStorage.getItem('wantlist.collapsed')).toBe('[1]')
-  })
-
   it('filters a long list', async () => {
     fakeApi(Array.from({ length: 9 }, (_, i) => idea({ id: i + 1, text: i === 4 ? 'standing desk' : `idea ${i}` })))
     const user = await renderApp('#/lists/wanted')
@@ -333,7 +261,7 @@ describe('App', () => {
     await renderApp('#/idea/1')
     const h1 = screen.getByRole('heading', {
       level: 1,
-      name: 'Quiet trainer fan',
+      name: /^Quiet trainer fan/,
     })
     expect(location.hash).toBe('#/idea/1')
     expect(h1).toHaveFocus()

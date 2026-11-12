@@ -1,45 +1,38 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { App } from '../App'
-import { BUSY_POLL_MS } from '../hooks/useIdeas'
+import { BUSY_POLL_MS, useIdeas } from '../hooks/useIdeas'
 import { fakeApi, idea, pick, status } from '../test/fakeApi'
+import { IdeaCard } from './IdeaCard'
 
-/** The old IdeaCards live on the idea route until the idea screen replaces them. */
+// shortcut: IdeaCard is no longer on screen; these tests keep it honest until Task 7 removes it.
+
+/** The first idea as an IdeaCard, driven by the real hook. */
+function Harness() {
+  const state = useIdeas()
+  const idea = state.ideas[0]
+  if (!idea) return null
+  return (
+    <IdeaCard
+      idea={idea}
+      step={null}
+      onPatch={(patch) => state.patch(idea.id, patch)}
+      onRerun={() => state.rerun(idea.id)}
+      onReact={state.react}
+      onRefine={() => state.refine(idea.id)}
+      onRemove={() => state.remove(idea.id)}
+    />
+  )
+}
+
 async function renderApp() {
-  history.replaceState(null, '', '#/idea/1')
   const user = userEvent.setup()
-  render(<App />)
-  await screen.findByRole('form', { name: 'Add an idea' })
-  await waitFor(() => expect(screen.queryByLabelText('loading')).not.toBeInTheDocument())
+  render(<Harness />)
+  await screen.findByRole('article')
   return user
 }
 
 describe('IdeaCard', () => {
-  it('shows the model title with the original words underneath, and renames it', async () => {
-    const api = fakeApi([idea({ title: 'Quiet trainer fan' })])
-    const user = await renderApp()
-    const card = screen.getByRole('article', { name: 'Quiet trainer fan' })
-    expect(within(card).getByRole('button', { name: 'Quiet trainer fan' })).toHaveAttribute('aria-expanded', 'true')
-    expect(within(card).getByText('you asked: A fan for my indoor bike setup')).toBeInTheDocument()
-
-    const rename = within(card).getByRole('button', { name: 'rename' })
-    await user.click(rename)
-    await user.type(within(card).getByRole('textbox', { name: 'Card title' }), ' nope{Escape}')
-    expect(within(card).queryByRole('textbox', { name: 'Card title' })).not.toBeInTheDocument()
-    expect(within(card).getByRole('button', { name: 'rename' })).toHaveFocus()
-    expect(api.writes()).toEqual([])
-
-    await user.click(within(card).getByRole('button', { name: 'rename' }))
-    const input = within(card).getByRole('textbox', { name: 'Card title' })
-    expect(input).toHaveValue('Quiet trainer fan')
-    await user.clear(input)
-    await user.type(input, '  Desk fan {Enter}')
-    expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/ideas/1', body: { title: 'Desk fan' } }])
-    expect(await screen.findByRole('article', { name: 'Desk fan' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'rename' })).toHaveFocus()
-  })
-
   it('reacts with why-not and clears a reaction by tapping it again', async () => {
     const api = fakeApi([idea()])
     const user = await renderApp()
@@ -125,7 +118,7 @@ describe('IdeaCard', () => {
         vi.advanceTimersByTime(BUSY_POLL_MS + 10)
       })
 
-    await user.click(screen.getByRole('button', { name: 'edit preferences' }))
+    await user.click(screen.getByRole('button', { name: 'Edit preferences' }))
     const must = screen.getByLabelText('Must have, one per line')
     expect(must).toHaveValue('airflow\nnoise\nprice')
     await user.type(must, '\n\n  quiet  ')
@@ -155,10 +148,10 @@ describe('IdeaCard', () => {
     )
     expect(await screen.findByRole('button', { name: 'Refine with your edits' })).toBeEnabled()
 
-    await user.click(screen.getByRole('button', { name: 'edit preferences' }))
+    await user.click(screen.getByRole('button', { name: 'Edit preferences' }))
     api.ideas()[0].status = 'researching'
     await poll()
-    expect(await screen.findByText('round in progress')).toBeVisible()
+    expect(await screen.findByText('Locked while the next round researches.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 })

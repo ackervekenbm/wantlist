@@ -1,13 +1,9 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import type { Idea } from '../../types'
 import { TITLE_MAX } from '../../types/limits'
-import { ChevronIcon } from './icons'
 
 interface Props {
   idea: Idea
-  collapsed: boolean
-  onToggle: () => void
-  bodyId: string
   onRename: (title: string | null) => Promise<void>
 }
 
@@ -16,8 +12,8 @@ export function shownTitle(idea: Idea): string {
   return idea.round > 0 ? (idea.title ?? idea.text) : idea.text
 }
 
-/** The collapse toggle (title only), the original words, and renaming. */
-export function IdeaTitle({ idea, collapsed, onToggle, bodyId, onRename }: Props) {
+/** The title with renaming, for inside the screen's h1. Clearing it hands naming back to the model. */
+export function IdeaTitle({ idea, onRename }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -52,44 +48,45 @@ export function IdeaTitle({ idea, collapsed, onToggle, bodyId, onRename }: Props
     }
   }
 
-  return (
-    <div className="title">
-      {editing ? (
-        <form className="title-form" onSubmit={save}>
-          <label htmlFor={inputId} className="visually-hidden">
-            Card title
-          </label>
-          <input
-            id={inputId}
-            className="input title-input"
-            maxLength={TITLE_MAX}
-            value={draft}
-            autoFocus
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') close()
-            }}
-          />
-          <button type="submit" className="btn btn-primary" disabled={saving}>
+  if (editing) {
+    return (
+      <form className="title-form" onSubmit={save}>
+        <label htmlFor={inputId} className="sr">
+          Title
+        </label>
+        <input
+          id={inputId}
+          className="title-input"
+          maxLength={TITLE_MAX}
+          value={draft}
+          autoFocus
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') close()
+          }}
+        />
+        <span className="title-acts">
+          <button type="button" className="btn small quiet" onClick={close} disabled={saving}>
+            Cancel
+          </button>
+          <button type="submit" className="btn small primary" disabled={saving}>
             Save
           </button>
-          <button type="button" className="btn-text" onClick={close} disabled={saving}>
-            cancel
-          </button>
-        </form>
-      ) : (
-        <button type="button" className="idea-toggle" aria-expanded={!collapsed} aria-controls={bodyId} onClick={onToggle}>
-          <h3 className="idea-text">{title}</h3>
-          <ChevronIcon className={collapsed ? 'chevron' : 'chevron chevron-open'} />
-        </button>
-      )}
-      <div className="title-sub">
-        {title !== idea.text && <span className="title-asked">you asked: {idea.text}</span>}
-        {!editing && idea.round > 0 && (
+        </span>
+      </form>
+    )
+  }
+
+  return (
+    <>
+      {title}
+      {idea.round > 0 && (
+        <>
+          {' '}
           <button
             ref={renameRef}
             type="button"
-            className="btn-text"
+            className="linkish rename"
             onClick={() => {
               setDraft(title)
               setEditing(true)
@@ -97,8 +94,8 @@ export function IdeaTitle({ idea, collapsed, onToggle, bodyId, onRename }: Props
           >
             rename
           </button>
-        )}
-      </div>
-    </div>
+        </>
+      )}
+    </>
   )
 }
