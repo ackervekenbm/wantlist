@@ -60,27 +60,59 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   every `/api/*` route, JSON 404s/400s/500s, and the built client
   (`/assets/*` immutable, the shell `no-cache`, SPA fallback). Route tests drive
   it with supertest (`tests/app.test.ts`), no listening socket.
+  Reactions and rounds: `PATCH /api/picks/:id` (`reaction`, `reason`);
+  `PATCH /api/ideas/:id` also takes `title` (null hands naming back to the
+  model) and `preferences`; `POST /api/ideas/:id/refine` needs a reaction or an
+  edited preference (400 otherwise), `POST …/rerun` does not. Both answer 202,
+  and 409 while the idea is researching.
 - `src/server/db.ts` — better-sqlite3 (WAL) in `data/wantlist.db` (`DATA_DIR`).
-  Tables `ideas` and `picks`. Migrations are an append-only list counted by
+  Tables `ideas` and `picks`. A pick belongs to a `round` (1, 2, …) and carries
+  the owner's `reaction` (`no` / `maybe` / `yes`) and `reason`. An idea keeps
+  its `round` counter, `preferences` (`summary`, `mustHaves`, `avoid`, `likes`,
+  with `preferences_edited` once the owner touches them), a model-written
+  `title` (`title_by_owner` once renamed) and `fresh_since_round` (set when the
+  text is reworded). Migrations are an append-only list counted by
   `PRAGMA user_version`; each step must also tolerate databases from before
-  versioning. Idea lifecycle: `queued` → `researching` (`claimIdea`) →
-  `done` (`completeIdea`: picks + status in one transaction) or a failure
-  (`failIdea`): back to `queued` with `next_attempt_at` when it will be
-  retried, else `error`. Failures and re-runs **keep the previous picks** until
-  new ones replace them. All timestamps leave the API as ISO-8601 UTC.
+  versioning. Migration 5 adds all of this and turns the old flat
+  `summary` / `criteria` into `preferences`. Idea lifecycle: `queued` →
+  `researching` (`claimIdea`) → `done` (`completeIdea`: the new round's picks,
+  brief and status in one transaction) or a failure (`failIdea`): back to
+  `queued` with `next_attempt_at` when it will be retried, else `error`.
+  Picks are never deleted by a re-run: each round adds its own, so a failed
+  refresh loses nothing. `updateIdea` throws `BusyError` (409) for a reworded
+  text or a preferences edit while researching. `requeueIdea` (refine, research
+  again) puts the idea back on the wanted list. `reactToPick` saves or clears a
+  reaction (clearing drops the reason). All timestamps leave the API as
+  ISO-8601 UTC.
 - `src/server/worker.ts` — in-process worker with per-instance state. A pass
   researches up to `WORKER_QUEUE_CAP` (default 3) **due** ideas, one at a time.
   It sleeps until the earlier of the next scheduled retry or
-  `WORKER_INTERVAL_MS` (default 15 min); adding or re-running an idea calls
-  `kick()`, and a kick during a pass queues a follow-up pass. Retry policy
+  `WORKER_INTERVAL_MS` (default 15 min); adding, re-running or refining an idea
+  calls `kick()`, and a kick during a pass queues a follow-up pass. Retry policy
   (`retryAt`): only retryable `ModelError`s retry, 15 min doubling to 6 h, at
   most 5 attempts, never before a quota reset the router reports; when every
-  model is out of quota the pass stops early. `state().current` carries the
-  research step the pipeline reports, shown live on the card.
+  model is out of quota the pass stops early. Each pass hands the engine the
+  idea's `title` and its `history`. `state().current` carries the research step
+  the pipeline reports, shown live on the card.
+- `src/server/history.ts` — `buildHistory(idea)`, what a round learns from:
+  `null` before round 1. A reworded idea (`fresh_since_round`) that has no
+  preferences yet runs in `fresh` mode: only its `no` picks, for exclusion.
+  Otherwise `learn` mode: the preferences plus the picks since the last reword,
+  and every `no` pick.
 - `src/server/research/pipeline.ts` — `PipelineEngine` implements `ResearchEngine`
-  with a **no-grounding** flow: plan (queries) → Serper search → candidate
-  selection → read the top pages → verify → **offer check**. It returns the
-  brief (summary + criteria, stored on the idea) with the picks.
+  with a **no-grounding** flow. Round 1 plans (queries, title, preferences). A
+  later round first runs a **learn** step ("learning from your reactions"):
+  reactions and reasons become preferences and new queries, and the owner's
+  edited items are kept word-for-word (`keepOwnerItems`). Then: Serper search →
+  candidate selection → read the top pages → verify → **offer check**. It
+  returns the brief (title + preferences, stored on the idea) with the round's
+  picks.
+  Exclusion: every earlier product is left out. Search hits are dropped by URL
+  before they count toward the 24-row cap; candidates and picks by any supplier
+  URL or normalized title; the verifier's `repeatOf` flag catches the rest.
+  When only products the owner has already seen turn up, the round throws
+  `NOTHING_NEW` ("Nothing new found. Loosen a criterion or reword the idea.",
+  kind `no-results`, no retry).
   The offer check opens every surviving offer's page once (a per-run
   `PageCache`, so pages read for verification are reused; 6 in flight): dead
   offers are dropped, and price, stock, photo and rating are taken from the
@@ -112,9 +144,11 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   → bench for `retryDelay`. 3.x grounding-with-search is paid-only, 2.5-flash is
   retired for new users — see `docs/plan.md`.
 - `src/server/research/prompts.ts` — prompts, response schemas, user-message
-  builders and normalizers for the three model steps; `offers.ts` — URL
-  normalization, supplier ordering and product de-duplication; `json.ts` —
-  `parseJsonLoose` for fenced/prose-wrapped JSON.
+  builders and normalizers for the model steps (plan or learn, candidates,
+  verify). Reactions, preference rules and the newest 40 earlier picks (numbered
+  for `repeatOf`) are described here; `offers.ts` — URL normalization, supplier
+  ordering, product de-duplication and the exclusion sets (`exclusionOf` /
+  `isExcluded`); `json.ts` — `parseJsonLoose` for fenced/prose-wrapped JSON.
 - `src/server/research/openai.ts` — generic OpenAI-compatible chat-completions
   provider (JSON via `response_format` + schema-in-prompt); Groq and
   OpenRouter are thin configs over it.
@@ -140,9 +174,15 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   out of quota until… / research off), undo toast. `hooks/useIdeas.ts` owns
   all server state: polls every 5 s while research is queued or running, else
   every 60 s, and on tab focus; a removal is hidden at once and only DELETEd
-  after a 6 s undo window (flushed with `keepalive` on `pagehide`).
+  after a 6 s undo window (flushed with `keepalive` on `pagehide`). `react`
+  is optimistic and rolls back on failure; `refine` and `rerun` queue a round.
   `components/IdeaCard.tsx` (collapsible, collapse remembered in
-  localStorage via `lib/storage.ts`), `PickCard.tsx` (checked price ✓ vs "≈"
+  localStorage via `lib/storage.ts`) composes `IdeaTitle` (collapse toggle,
+  the idea's own words, rename), `PreferencesPanel` (must-have / avoid / liked,
+  one per line, editable), `ReactionBar` (No way opens a why-not; tapping the
+  active one clears it), `RefineBar` (needs a reaction or an edit), `Keepers`
+  (earlier "yes" picks) and `EarlierRounds` (older rounds, folded).
+  `PickCard.tsx` (checked price ✓ vs "≈"
   search price, stock, rating, caveat, other shops, "I bought this"),
   `IdeaForm.tsx` (shared by capture and edit; Enter submits, Shift+Enter is a
   new line; `parseBudget` mirrors the server's limits). Styles: CSS tokens in
@@ -152,11 +192,11 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   an in-memory API (`src/client/test/fakeApi.ts`).
 - **Lists vs research status.** `list` (wanted / bought / archived) is the
   user's side and independent of `status`; only `wanted` ideas are
-  researched (`dueIdeaIds`), and re-running moves an idea back to wanted.
-  `PATCH /api/ideas/:id` edits text / budget / notes / list; moving to
-  bought with `boughtPickId` stores a snapshot of that pick (picks are
-  replaced on re-research), `boughtPickId: null` = bought something else.
-  Budget and notes reach every prompt (`describeIdea` in `prompts.ts`).
+  researched (`dueIdeaIds`), and refining or re-running moves an idea back to
+  wanted. `PATCH /api/ideas/:id` edits text / budget / notes / list / title /
+  preferences; moving to bought with `boughtPickId` stores a snapshot of that
+  pick, `boughtPickId: null` = bought something else. Budget and notes reach
+  every prompt (`describeIdea` in `prompts.ts`).
 - `scripts/spike.ts` — run the research engine against a real key without the
   UI: `npm run spike "some idea"`.
 
