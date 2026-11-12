@@ -11,4 +11,6 @@ afterEach(() => {
   } catch {
     /* storage unavailable */
   }
+  history.replaceState(null, '', '/')
+  delete document.documentElement.dataset.theme
 })

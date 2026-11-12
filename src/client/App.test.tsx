@@ -161,7 +161,7 @@ describe('App', () => {
     )
     await renderApp()
     expect(screen.getByText(/checking 4 offers at the shops…/)).toBeInTheDocument()
-    expect(screen.getByText(/researching now/)).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Researcher' })).toHaveTextContent('Researching A fan for my indoor bike setup')
   })
 
   it('explains a scheduled retry and a stopped idea', async () => {
@@ -180,7 +180,7 @@ describe('App', () => {
     fakeApi([], status({ researchEnabled: false, missingKeys: ['SERPER_API_KEY'], models: [] }))
     await renderApp()
     expect(screen.getByText(/Research is switched off: set SERPER_API_KEY/)).toBeInTheDocument()
-    expect(screen.getByText('research off')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Researcher' })).toHaveTextContent('Research off')
   })
 
   it('says when every model is out of quota', async () => {
@@ -189,7 +189,7 @@ describe('App', () => {
       status({ models: [{ id: 'gemini:a', benchedUntil: '2026-11-08T08:00:00.000Z', reason: 'quota' }] }),
     )
     await renderApp()
-    expect(screen.getByText(/out of free quota until/)).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Researcher' })).toHaveTextContent(/Out of quota until/)
   })
 
   it('collapses a card to its top pick and remembers it', async () => {
@@ -206,5 +206,24 @@ describe('App', () => {
     const user = await renderApp()
     await user.type(screen.getByLabelText('Filter ideas'), 'desk')
     expect(screen.getAllByRole('article')).toHaveLength(1)
+  })
+
+  it('stays on an idea after a reload once the ideas load', async () => {
+    history.replaceState(null, '', '#/idea/1')
+    fakeApi([idea({ id: 1, title: 'Quiet trainer fan' })])
+    await renderApp()
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Quiet trainer fan' })
+    expect(location.hash).toBe('#/idea/1')
+    expect(h1).toHaveFocus()
+  })
+
+  it('sends an unknown idea back home once loaded, without a new history entry', async () => {
+    history.replaceState(null, '', '#/idea/999')
+    const entries = history.length
+    fakeApi([idea({ id: 1 })])
+    await renderApp()
+    await waitFor(() => expect(location.hash).toBe('#/'))
+    expect(history.length).toBe(entries)
+    expect(screen.getByText('Pick an idea on the left, or add one')).toBeInTheDocument()
   })
 })

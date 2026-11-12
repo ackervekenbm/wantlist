@@ -57,3 +57,32 @@ export const BagIcon = (p: IconProps) => (
     <path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2" />
   </Icon>
 )
+
+/** The quote-slip mark: a receipt with a torn foot. */
+export const LogoMark = ({ size = 22 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+    <path d="M5 2.5h14v19l-2.33-1.6-2.34 1.6L12 19.9l-2.33 1.6-2.34-1.6L5 21.5z" fill="var(--accent)" />
+    <path d="M8.5 8h7M8.5 11.5h7M8.5 15h4" stroke="var(--accent-ink)" strokeWidth={1.8} strokeLinecap="round" />
+  </svg>
+)
+
+export const SunIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6L19 19M5 19l1.4-1.4M17.6 6.4L19 5" />
+  </Icon>
+)
+
+export const MoonIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z" />
+  </Icon>
+)
+
+/** Half-filled circle: follow the system theme. */
+export const SystemThemeIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="8" />
+    <path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor" />
+  </Icon>
+)
