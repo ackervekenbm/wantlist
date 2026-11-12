@@ -19,6 +19,12 @@ describe('needOf', () => {
     expect(needOf(idea({ status: 'error', errorKind: null }))).toBe('stopped')
   })
 
+  it('leaves a done idea without picks alone', () => {
+    const empty = idea({ status: 'done', picks: [] })
+    expect(needOf(empty)).toBeNull()
+    expect(isWorking(empty)).toBe(false)
+  })
+
   it('only looks at the wanted list, and not at ideas still being researched', () => {
     expect(needOf(idea({ list: 'bought' }))).toBeNull()
     expect(needOf(idea({ list: 'archived', status: 'error' }))).toBeNull()

@@ -15,6 +15,8 @@ interface Props {
   onOpen: (id: number) => void
   onLists: (tab: IdeaList) => void
   onAdd: (idea: NewIdea) => Promise<void>
+  /** False until the first fetch answers: capture works, the sections wait. */
+  loaded?: boolean
 }
 
 const TILES: Array<{ list: IdeaList; label: string }> = [
@@ -23,12 +25,17 @@ const TILES: Array<{ list: IdeaList; label: string }> = [
   { list: 'archived', label: 'Archived' },
 ]
 
+const NEED_ORDER: Need[] = ['react', 'nothing-new', 'stopped']
+
 /** Capture, what needs you, what the researcher is on, and the list tiles. */
-export function HomeScreen({ ideas, status, selectedId, onOpen, onLists, onAdd }: Props) {
-  const needs = ideas.flatMap((i) => {
-    const need = needOf(i)
-    return need ? [{ idea: i, need }] : []
-  })
+export function HomeScreen({ ideas, status, selectedId, onOpen, onLists, onAdd, loaded = true }: Props) {
+  // React first, then nothing new, then stopped; sort is stable, so server order holds within a group.
+  const needs = ideas
+    .flatMap((i) => {
+      const need = needOf(i)
+      return need ? [{ idea: i, need }] : []
+    })
+    .sort((a, b) => NEED_ORDER.indexOf(a.need) - NEED_ORDER.indexOf(b.need))
   const working = ideas.filter(isWorking)
   const count = (list: IdeaList) => ideas.filter((i) => i.list === list).length
   const reset = status && quotaResetAt(status)
@@ -57,7 +64,9 @@ export function HomeScreen({ ideas, status, selectedId, onOpen, onLists, onAdd }
         )
       )}
 
-      {ideas.length === 0 ? (
+      {!loaded ? (
+        <Skeleton />
+      ) : ideas.length === 0 ? (
         <div className="card welcome">
           <p className="welcome-title">Nothing on the list.</p>
           <p>
@@ -99,9 +108,7 @@ export function HomeScreen({ ideas, status, selectedId, onOpen, onLists, onAdd }
                     <button key={idea.id} className="mini" {...rowProps(idea)}>
                       <span className={`dot ${live ? 'live' : retry ? 'warn' : 'off'}`} aria-hidden="true" />
                       <Leader
-                        fig={
-                          live ? (step ?? 'researching') : retry ? `retrying around ${clockTime(retry)}` : 'queued'
-                        }
+                        fig={live ? (step ?? 'researching') : retry ? `retrying around ${clockTime(retry)}` : 'queued'}
                       >
                         {shownTitle(idea)}
                       </Leader>
@@ -165,6 +172,16 @@ function Notice({ children }: { children: ReactNode }) {
     <div className="notice" role="status">
       <b aria-hidden="true">!</b>
       <div>{children}</div>
+    </div>
+  )
+}
+
+export function Skeleton() {
+  return (
+    <div className="skeleton" aria-label="loading">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="skeleton-card" />
+      ))}
     </div>
   )
 }
