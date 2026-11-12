@@ -86,3 +86,23 @@ export const SystemThemeIcon = (p: IconProps) => (
     <path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor" />
   </Icon>
 )
+
+export const ChevronRightIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M9 5l7 7-7 7" />
+  </Icon>
+)
+
+export const BackIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M15 5l-7 7 7 7" />
+  </Icon>
+)
+
+/** Explore mode: two picks fanned out. */
+export const ExploreIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.8} {...p}>
+    <rect x="3" y="6" width="10" height="13" rx="2" transform="rotate(-10 8 12)" />
+    <rect x="11" y="5" width="10" height="13" rx="2" transform="rotate(8 16 11)" fill="var(--surface)" />
+  </Icon>
+)
