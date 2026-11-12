@@ -78,7 +78,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   `researching` (`claimIdea`) → `done` (`completeIdea`: the new round's picks,
   brief and status in one transaction) or a failure (`failIdea`): back to
   `queued` with `next_attempt_at` when it will be retried, else `error`.
-  Picks are never deleted by a re-run: each round adds its own, so a failed
+  Migration 6 adds `error_kind` (`nothing-new` / `stopped`, set by `failIdea` only when it stops at `error`, cleared by `completeIdea` / `requeueIdea`). Picks are never deleted by a re-run: each round adds its own, so a failed
   refresh loses nothing. `updateIdea` throws `BusyError` (409) for a reworded
   text or a preferences edit while researching. `requeueIdea` (refine, research
   again) puts the idea back on the wanted list. `reactToPick` saves or clears a

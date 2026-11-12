@@ -40,6 +40,7 @@ export function idea(over: Partial<Idea> = {}): Idea {
     createdAt: '2026-11-05T10:00:00Z',
     researchedAt: '2026-11-06T10:00:00.000Z',
     error: null,
+    errorKind: null,
     attempts: 0,
     nextAttemptAt: null,
     title: null,
@@ -175,7 +176,7 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
       }
     }
     if (m?.[2] && method === 'POST') {
-      const updated: Idea = { ...found, status: 'queued', list: 'wanted', bought: null, error: null }
+      const updated: Idea = { ...found, status: 'queued', list: 'wanted', bought: null, error: null, errorKind: null }
       ideas = ideas.map((i) => (i.id === id ? updated : i))
       return json(updated, 202)
     }

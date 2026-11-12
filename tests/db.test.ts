@@ -113,7 +113,7 @@ describe('failures and retries', () => {
     completeIdea(db, id, researchResult())
     requeueIdea(db, id, NO_SIGNAL)
     claimIdea(db, id)
-    failIdea(db, id, 'quota', new Date('2026-11-07T13:00:00Z'))
+    failIdea(db, id, 'quota', new Date('2026-11-07T13:00:00Z'), null)
 
     const idea = getIdea(db, id)!
     expect(idea).toMatchObject({ status: 'queued', error: 'quota', attempts: 1 })
@@ -130,7 +130,7 @@ describe('failures and retries', () => {
     const { db } = tempDb()
     const id = createIdea(db, 'jacket')
     claimIdea(db, id)
-    failIdea(db, id, 'bad request', null)
+    failIdea(db, id, 'bad request', null, 'stopped')
     expect(getIdea(db, id)).toMatchObject({ status: 'error', error: 'bad request', attempts: 1 })
     expect(dueIdeaIds(db, 10, now)).toEqual([])
     expect(countQueued(db)).toBe(0)
@@ -140,10 +140,30 @@ describe('failures and retries', () => {
     const { db } = tempDb()
     const id = createIdea(db, 'jacket')
     claimIdea(db, id)
-    failIdea(db, id, 'quota', new Date(0))
+    failIdea(db, id, 'quota', new Date(0), null)
     claimIdea(db, id)
     completeIdea(db, id, researchResult())
     expect(getIdea(db, id)).toMatchObject({ status: 'done', error: null, attempts: 0, nextAttemptAt: null })
+  })
+
+  it('records the failure kind and clears it on success and re-run', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'jacket')
+    claimIdea(db, id)
+    failIdea(db, id, 'x', null, 'nothing-new')
+    expect(getIdea(db, id)).toMatchObject({ status: 'error', errorKind: 'nothing-new' })
+    requeueIdea(db, id, NO_SIGNAL)
+    expect(getIdea(db, id)?.errorKind).toBeNull()
+    claimIdea(db, id)
+    failIdea(db, id, 'x', null, 'stopped')
+    expect(getIdea(db, id)?.errorKind).toBe('stopped')
+    claimIdea(db, id)
+    completeIdea(db, id, researchResult())
+    expect(getIdea(db, id)?.errorKind).toBeNull()
+    // A retry stores no kind even when one is passed.
+    claimIdea(db, id)
+    failIdea(db, id, 'x', new Date(0), 'stopped')
+    expect(getIdea(db, id)).toMatchObject({ status: 'queued', errorKind: null })
   })
 
   it('manual re-run requeues now with a clean budget, but not mid-research', () => {
@@ -151,7 +171,7 @@ describe('failures and retries', () => {
     const id = createIdea(db, 'jacket')
     claimIdea(db, id)
     expect(requeueIdea(db, id, NO_SIGNAL)).toBe('busy')
-    failIdea(db, id, 'boom', null)
+    failIdea(db, id, 'boom', null, 'stopped')
     expect(requeueIdea(db, id, NO_SIGNAL)).toBe('queued')
     expect(getIdea(db, id)).toMatchObject({ status: 'queued', error: null, attempts: 0, nextAttemptAt: null })
     expect(dueIdeaIds(db, 10, now)).toEqual([id])
@@ -303,7 +323,7 @@ describe('rounds and reactions', () => {
   it('a failed round keeps every earlier round', () => {
     const { db, id } = twoRounds()
     claimIdea(db, id)
-    failIdea(db, id, 'boom', null)
+    failIdea(db, id, 'boom', null, 'stopped')
     expect(getIdea(db, id)!.picks.map((p) => p.round)).toEqual([2, 2, 1, 1])
     expect(getIdea(db, id)!.round).toBe(2)
   })
@@ -358,6 +378,26 @@ describe('migrations', () => {
     db.close()
   })
 
+  it('migration 6 backfills the failure kind of existing error rows', () => {
+    const dir = tempDir()
+    const old = new Database(path.join(dir, 'wantlist.db'))
+    old.exec(`
+      CREATE TABLE ideas (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', created_at TEXT NOT NULL DEFAULT (datetime('now')), researched_at TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, summary TEXT, criteria TEXT, budget REAL, notes TEXT, list TEXT NOT NULL DEFAULT 'wanted', bought TEXT, round INTEGER NOT NULL DEFAULT 0, preferences TEXT, preferences_edited INTEGER NOT NULL DEFAULT 0, title TEXT, title_by_owner INTEGER NOT NULL DEFAULT 0, fresh_since_round INTEGER);
+      CREATE TABLE picks (id INTEGER PRIMARY KEY AUTOINCREMENT, idea_id INTEGER NOT NULL REFERENCES ideas(id) ON DELETE CASCADE, rank INTEGER NOT NULL, round INTEGER NOT NULL DEFAULT 1, reaction TEXT, reason TEXT, title TEXT NOT NULL, shop TEXT, url TEXT NOT NULL, price TEXT, why TEXT, source_urls TEXT, fetched_at TEXT, suppliers TEXT, caveat TEXT, image TEXT, rating TEXT);
+      INSERT INTO ideas (text, status) VALUES ('fine', 'done');
+      INSERT INTO ideas (text, status, error) VALUES ('empty', 'error', 'No product survived verification. Try rewording the idea.');
+      INSERT INTO ideas (text, status, error) VALUES ('seen', 'error', 'Nothing new found. Loosen a criterion or reword the idea.');
+      INSERT INTO ideas (text, status, error) VALUES ('broken', 'error', 'Serper key refused');
+      PRAGMA user_version = 5;
+    `)
+    old.close()
+    const db = openDb(dir)
+    const kinds = Object.fromEntries(listIdeas(db).map((i) => [i.text, i.errorKind]))
+    expect(kinds).toEqual({ fine: null, empty: 'nothing-new', seen: 'nothing-new', broken: 'stopped' })
+    expect(db.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
+    db.close()
+  })
+
   it('upgrades a pre-versioning database in place', () => {
     const dir = tempDir()
     const old = new Database(path.join(dir, 'wantlist.db'))
@@ -370,7 +410,7 @@ describe('migrations', () => {
 
     const db = openDb(dir)
     expect(db.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
-    expect(listIdeas(db)[0]).toMatchObject({ text: 'legacy', attempts: 0, nextAttemptAt: null })
+    expect(listIdeas(db)[0]).toMatchObject({ text: 'legacy', attempts: 0, nextAttemptAt: null, errorKind: null })
     db.close()
     // Re-opening is a no-op.
     const again = openDb(dir)
