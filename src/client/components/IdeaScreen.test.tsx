@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Idea, ServerStatus } from '../../types'
 import { App } from '../App'
 import { BUSY_POLL_MS } from '../hooks/useIdeas'
-import { fakeApi, idea, status } from '../test/fakeApi'
+import { fakeApi, idea, pick, status } from '../test/fakeApi'
 
 /** The app on idea 1 (or `id`), once the ideas have loaded. */
 async function open(ideas: Idea[], serverStatus?: ServerStatus, id = 1) {
@@ -257,5 +257,63 @@ describe('Ported from IdeaCard', () => {
     expect(await screen.findByText('Locked while the next round researches.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(api.writes()).toEqual([])
+  })
+})
+
+describe('Refine dock, keepers and earlier rounds', () => {
+  it('is disabled with its reason as text until there is a reaction, then refines once', async () => {
+    const { api, user } = await open([idea()])
+    const refine = pane().getByRole('button', { name: 'Refine' })
+    expect(refine).toBeDisabled()
+    expect(pane().getByText('React to a pick to refine.')).toBeVisible()
+    expect(refine).toHaveAccessibleDescription('React to a pick to refine.')
+
+    await user.click(pane().getByRole('button', { name: 'Yes' }))
+    const ready = await pane().findByRole('button', { name: 'Refine with 1' })
+    expect(ready).toBeEnabled()
+    expect(pane().getByText('1 reaction will steer round 2.')).toBeInTheDocument()
+    await user.dblClick(ready)
+    expect(await pane().findByRole('region', { name: 'Round 2 is queued' })).toBeInTheDocument()
+    expect(api.writes().filter((w) => w.path === '/api/ideas/1/refine')).toEqual([
+      { method: 'POST', path: '/api/ideas/1/refine', body: undefined },
+    ])
+  })
+
+  it('lists keepers and earlier rounds as rows you can still react to', async () => {
+    const { api, user } = await open([
+      idea({
+        round: 2,
+        picks: [
+          pick({ id: 20, round: 2, rank: 1, title: 'Vornado 630' }),
+          pick({ id: 11, round: 1, rank: 1, title: 'Felt mule', price: 45, reaction: 'yes' }),
+          pick({ id: 12, round: 1, rank: 2, title: 'Lasko', reaction: 'no', reason: 'too loud' }),
+          pick({ id: 13, round: 1, rank: 3, title: 'Honeywell', reaction: 'maybe' }),
+        ],
+      }),
+    ])
+    const keepers = within(pane().getByRole('list', { name: 'Keepers' }))
+    expect(keepers.getByText('Felt mule')).toBeInTheDocument()
+    expect(keepers.getByText(/€\s45/)).toBeInTheDocument()
+    expect(keepers.getByRole('button', { name: 'I bought this' })).toBeInTheDocument()
+    // Only round-1 reactions: refine is offered, without a count.
+    expect(pane().getByRole('button', { name: 'Refine' })).toBeEnabled()
+
+    const round = pane().getByRole('button', { name: /^Round 1/ })
+    expect(round).toHaveAttribute('aria-expanded', 'false')
+    expect(pane().queryByText('Lasko')).not.toBeInTheDocument()
+    await user.click(round)
+    expect(round).toHaveAttribute('aria-expanded', 'true')
+    const rows = within(pane().getByRole('list', { name: 'Round 1 picks' }))
+    expect(rows.getByRole('textbox', { name: 'Why not Lasko?' })).toHaveValue('too loud')
+    expect(rows.getByRole('textbox', { name: 'Why not Lasko?' })).not.toHaveFocus()
+
+    await user.click(within(rows.getByRole('group', { name: 'Your reaction to Honeywell' })).getByRole('button', { name: 'Yes' }))
+    await user.click(within(keepers.getByRole('group', { name: 'Your reaction to Felt mule' })).getByRole('button', { name: 'Yes' }))
+    await waitFor(() =>
+      expect(api.writes()).toEqual([
+        { method: 'PATCH', path: '/api/picks/13', body: { reaction: 'yes' } },
+        { method: 'PATCH', path: '/api/picks/11', body: { reaction: null, reason: null } },
+      ]),
+    )
   })
 })

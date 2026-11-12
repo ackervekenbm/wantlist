@@ -97,7 +97,7 @@ describe('App', () => {
       /must have: airflow.*must have: noise.*must have: price/,
     )
     expect(card.getByRole('heading', { name: 'Wahoo KICKR Headwind' })).toBeInTheDocument()
-    expect(card.getByRole('link', { name: /Bikeshop/ })).toHaveAttribute('href', 'https://bikeshop.be/headwind')
+    expect(card.getByRole('link', { name: /Open shop/ })).toHaveAttribute('href', 'https://bikeshop.be/headwind')
   })
 
   it('moves an idea to Bought with the pick you chose', async () => {
