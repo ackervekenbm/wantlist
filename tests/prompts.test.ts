@@ -238,6 +238,23 @@ describe('refine-round prompts', () => {
     expect(user.split('\n').filter((l) => l.startsWith('round ')).length).toBe(40)
   })
 
+  it('buildLearnUser keeps an old reaction when unreacted picks fill the cap', () => {
+    const picks = [
+      ...Array.from({ length: 49 }, (_, i) => hp(i, { round: 5 })),
+      hp(99, { round: 1, title: 'Ancient Throw', reaction: 'no', reason: 'too\nshiny' }),
+    ]
+    const history: ResearchHistory = { mode: 'learn', preferences: prefs, preferencesEdited: false, picks }
+    const user = buildLearnUser({ text: 'a throw', budget: null, notes: null }, null, history)
+    expect(user).toContain('round 1 · Ancient Throw | Shop | EUR 40 · reaction: no — "too shiny"')
+    expect(user.split('\n').filter((l) => l.startsWith('round ')).length).toBe(40)
+  })
+
+  it('keepOwnerItems keeps the owner summary when set', () => {
+    const learned = { summary: 'learned', mustHaves: [], avoid: [], likes: [] }
+    expect(keepOwnerItems(learned, prefs).summary).toBe('a cosy throw')
+    expect(keepOwnerItems(learned, { ...prefs, summary: '' }).summary).toBe('learned')
+  })
+
   it('normalizeLearn throws an invalid ResearchError without queries', () => {
     try {
       normalizeLearn({ title: 't', preferences: prefs, searchQueries: [] })
