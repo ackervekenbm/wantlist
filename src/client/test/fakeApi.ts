@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import type { Idea, IdeaPatch, Pick, ServerStatus } from '../../types'
+import type { Idea, IdeaPatch, Pick, PickPatch, ServerStatus } from '../../types'
 
 /** A pick with sensible defaults; override what the test is about. */
 export function pick(over: Partial<Pick> = {}): Pick {
@@ -79,6 +79,8 @@ export function status(over: Partial<ServerStatus> = {}): ServerStatus {
 export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = status()) {
   let ideas = [...initial]
   let nextId = Math.max(0, ...initial.map((i) => i.id)) + 1
+  let failPickOnce = false
+  let heldList: Promise<void> | null = null
   const calls: Array<{ method: string; path: string; body: unknown }> = []
 
   const json = (body: unknown, code = 200) =>
@@ -88,12 +90,40 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
     const method = init.method ?? 'GET'
     const body: unknown = init.body ? JSON.parse(String(init.body)) : undefined
     calls.push({ method, path: input, body })
-    const m = /^\/api\/ideas\/(\d+)(\/rerun)?$/.exec(input)
+    const m = /^\/api\/ideas\/(\d+)(?:\/(rerun|refine))?$/.exec(input)
     const id = m ? Number(m[1]) : null
     const found = id !== null ? ideas.find((i) => i.id === id) : undefined
 
     if (input === '/api/status') return json(serverStatus)
-    if (input === '/api/ideas' && method === 'GET') return json(ideas)
+    if (input === '/api/ideas' && method === 'GET') {
+      const snapshot = ideas
+      const hold = heldList
+      heldList = null
+      if (hold) await hold
+      return json(snapshot)
+    }
+    const pm = /^\/api\/picks\/(\d+)$/.exec(input)
+    if (pm && method === 'PATCH') {
+      if (failPickOnce) {
+        failPickOnce = false
+        return json({ error: 'database is locked' }, 500)
+      }
+      const pickId = Number(pm[1])
+      const owner = ideas.find((i) => i.picks.some((x) => x.id === pickId))
+      if (!owner) return json({ error: 'not found' }, 404)
+      const p = body as PickPatch
+      const updated: Idea = {
+        ...owner,
+        picks: owner.picks.map((x) => {
+          if (x.id !== pickId) return x
+          const reaction = p.reaction !== undefined ? p.reaction : x.reaction
+          const reason = reaction === null ? null : p.reason !== undefined ? p.reason?.trim() || null : x.reason
+          return { ...x, reaction, reason }
+        }),
+      }
+      ideas = ideas.map((i) => (i.id === owner.id ? updated : i))
+      return json(updated)
+    }
     if (input === '/api/ideas' && method === 'POST') {
       const b = body as { text: string; budget?: number | null; notes?: string | null }
       if (b.text === 'fail') return json({ error: 'text is longer than 500 characters' }, 400)
@@ -126,6 +156,8 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
         ...(p.text !== undefined && { text: p.text }),
         ...(p.budget !== undefined && { budget: p.budget }),
         ...(p.notes !== undefined && { notes: p.notes }),
+        ...(p.title !== undefined && { title: p.title, titleByOwner: p.title !== null }),
+        ...(p.preferences !== undefined && { preferences: p.preferences, preferencesEdited: true }),
         ...(p.list !== undefined && {
           list: p.list,
           bought:
@@ -136,6 +168,11 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
       }
       ideas = ideas.map((i) => (i.id === id ? updated : i))
       return json(updated)
+    }
+    if (m?.[2] === 'refine' && method === 'POST') {
+      if (!found.picks.some((x) => x.reaction) && !found.preferencesEdited) {
+        return json({ error: 'react to a pick or edit the preferences first' }, 400)
+      }
     }
     if (m?.[2] && method === 'POST') {
       const updated: Idea = { ...found, status: 'queued', list: 'wanted', bought: null, error: null }
@@ -150,6 +187,16 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
     fetch,
     calls,
     ideas: () => ideas,
+    /** The next pick PATCH answers 500. */
+    failNextPickPatch: () => {
+      failPickOnce = true
+    },
+    /** The next GET /api/ideas answers only after the returned function is called. */
+    holdNextList: () => {
+      let release!: () => void
+      heldList = new Promise<void>((r) => (release = r))
+      return release
+    },
     /** Requests other than the polling GETs. */
     writes: () => calls.filter((c) => c.method !== 'GET'),
   }

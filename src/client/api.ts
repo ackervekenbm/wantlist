@@ -1,4 +1,4 @@
-import type { Idea, IdeaPatch, NewIdea, ServerStatus } from '../types'
+import type { Idea, IdeaPatch, NewIdea, PickPatch, ServerStatus } from '../types'
 
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
@@ -38,6 +38,14 @@ export function deleteIdea(id: number, opts: { keepalive?: boolean } = {}): Prom
 
 export function rerunIdea(id: number): Promise<Idea> {
   return req(`/api/ideas/${id}/rerun`, { method: 'POST' })
+}
+
+export function refineIdea(id: number): Promise<Idea> {
+  return req(`/api/ideas/${id}/refine`, { method: 'POST' })
+}
+
+export function patchPick(id: number, patch: PickPatch): Promise<Idea> {
+  return req(`/api/picks/${id}`, json('PATCH', patch))
 }
 
 export function getStatus(): Promise<ServerStatus> {
