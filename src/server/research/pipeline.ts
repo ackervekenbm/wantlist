@@ -1,27 +1,44 @@
 import type {
   FinalPick,
   PickSupplier,
+  Preferences,
   ResearchCandidate,
   ResearchEngine,
   ResearchRequest,
   ResearchResult,
 } from '../../types'
-import { ResearchError } from './errors'
+import { NOTHING_NEW, ResearchError } from './errors'
 import { fetchPage, type Page } from './http'
 import type { ModelRouter } from './llm'
-import { mergePicksByProduct, mergeSuppliers, normalizeUrl, primaryFields, rankPicks } from './offers'
+import {
+  exclusionOf,
+  isExcluded,
+  mergePicksByProduct,
+  mergeSuppliers,
+  normalizeUrl,
+  primaryFields,
+  rankPicks,
+  type Exclusion,
+} from './offers'
 import {
   buildCandidateUser,
   buildQueryUser,
+  buildLearnUser,
   buildVerifyUser,
   CANDIDATE_SCHEMA,
   CANDIDATE_SYSTEM,
+  capPreferences,
+  keepOwnerItems,
+  LEARN_SCHEMA,
+  LEARN_SYSTEM,
+  normalizeLearn,
   normalizePass1,
   normalizePass2,
   normalizePlan,
   offer,
   QUERY_SCHEMA,
   QUERY_SYSTEM,
+  shownForPrompt,
   verifySchema,
   VERIFY_SYSTEM,
   type CandidateInputRow,
@@ -52,41 +69,77 @@ export class PipelineEngine implements ResearchEngine {
     const step = request.onProgress ?? (() => {})
     const router = this.opts.router
 
-    step('working out what to look for')
-    progress('step 1: planning queries')
-    const plan = await router.generate(
-      {
-        systemInstruction: QUERY_SYSTEM,
-        contents: buildQueryUser(request),
-        schema: QUERY_SCHEMA,
-        temperature: 0.4,
-      },
-      normalizePlan,
-    )
+    const history = request.history ?? null
+    const ex = exclusionOf(history?.picks ?? [])
+    const shown = shownForPrompt(history?.picks ?? [])
+    const nothingNew = () => new ResearchError(NOTHING_NEW, { kind: 'no-results' })
+
+    let plan: { title: string; preferences: Preferences; searchQueries: string[] }
+    if (history?.mode === 'learn') {
+      step('learning from your reactions')
+      progress('step 1: learning from reactions')
+      const learned = await router.generate(
+        {
+          systemInstruction: LEARN_SYSTEM,
+          contents: buildLearnUser(request, request.title ?? null, history),
+          schema: LEARN_SCHEMA,
+          temperature: 0.4,
+        },
+        normalizeLearn,
+      )
+      const owner = history.preferencesEdited ? history.preferences : null
+      plan = owner ? { ...learned, preferences: keepOwnerItems(learned.preferences, owner) } : learned
+    } else {
+      step('working out what to look for')
+      progress('step 1: planning queries')
+      const p = await router.generate(
+        {
+          systemInstruction: QUERY_SYSTEM,
+          contents: buildQueryUser(request),
+          schema: QUERY_SCHEMA,
+          temperature: 0.4,
+        },
+        normalizePlan,
+      )
+      const preferences = capPreferences({ summary: p.summary, mustHaves: p.criteria, avoid: [], likes: [] })
+      plan = { title: p.title, preferences, searchQueries: p.searchQueries }
+    }
     progress(`step 1: ${plan.searchQueries.length} query(ies)`)
-    const preferences = { summary: plan.summary, mustHaves: plan.criteria, avoid: [], likes: [] }
+    const preferences = plan.preferences
 
     step('searching shops and reviews')
-    const results = await this.searchAll(plan.searchQueries, progress)
+    const { rows: results, excludedAny } = await this.searchAll(plan.searchQueries, progress, ex)
+    if (results.length === 0 && excludedAny) throw nothingNew()
     progress(`step 2: ${results.length} search hits`)
 
     step(`shortlisting from ${results.length} results`)
     const allowed = new Set(results.map((r) => normalizeUrl(r.url)))
-    const pass1 = await router.generate(
-      {
-        systemInstruction: CANDIDATE_SYSTEM,
-        contents: buildCandidateUser(request, preferences, results, []),
-        schema: CANDIDATE_SCHEMA,
-        temperature: 0.3,
-      },
-      (raw) => {
-        const parsed = normalizePass1(raw, allowed)
-        if (parsed.candidates.length === 0) {
-          throw new ResearchError('no candidate used a URL from the search results', { kind: 'invalid' })
-        }
-        return parsed
-      },
-    )
+    // Only the latest model's answer decides whether "invalid" really meant "nothing new".
+    let lastParseOnlyRepeats = false
+    const pass1 = await router
+      .generate(
+        {
+          systemInstruction: CANDIDATE_SYSTEM,
+          contents: buildCandidateUser(request, preferences, results, shown),
+          schema: CANDIDATE_SCHEMA,
+          temperature: 0.3,
+        },
+        (raw) => {
+          const parsed = normalizePass1(raw, allowed, (c) => isExcluded(c, ex))
+          lastParseOnlyRepeats = parsed.candidates.length === 0 && normalizePass1(raw, allowed).candidates.length > 0
+          if (lastParseOnlyRepeats) {
+            // Not no-results here: the router rethrows unknown kinds at once and would skip the chain.
+            throw new ResearchError('every candidate was shown before', { kind: 'invalid' })
+          }
+          if (parsed.candidates.length === 0) {
+            throw new ResearchError('no candidate used a URL from the search results', { kind: 'invalid' })
+          }
+          return parsed
+        },
+      )
+      .catch((err: unknown) => {
+        throw err instanceof ResearchError && err.kind === 'invalid' && lastParseOnlyRepeats ? nothingNew() : err
+      })
     progress(`step 2: ${pass1.candidates.length} candidates`)
 
     step(`reading ${pass1.candidates.length} product pages`)
@@ -102,23 +155,28 @@ export class PipelineEngine implements ResearchEngine {
 
     step('checking the evidence')
     progress('step 4: verifying')
-    let picks = await router.generate(
+    const verified = await router.generate(
       {
         systemInstruction: VERIFY_SYSTEM,
         contents: buildVerifyUser({
           idea: request,
           preferences,
-          shown: [],
+          shown,
           candidates: pass1.candidates,
           pages,
           fetchErrors,
         }),
-        schema: verifySchema(false),
+        schema: verifySchema(shown.length > 0),
         temperature: 0.3,
       },
-      (raw) => normalizePass2(raw, pass1.candidates, 0).picks,
+      (raw) => normalizePass2(raw, pass1.candidates, shown.length),
     )
-    if (picks.length === 0) picks = this.fallbackFromPass1(pass1.candidates)
+    let picks = verified.picks.filter((p) => !isExcluded(p, ex))
+    if (picks.length === 0) {
+      if (verified.repeats > 0 || verified.picks.length > 0) throw nothingNew()
+      // The verifier kept nothing at all: pass-1 candidates are already filtered, so they are new.
+      picks = this.fallbackFromPass1(pass1.candidates)
+    }
 
     step(`checking ${picks.reduce((n, p) => n + p.suppliers.length, 0)} offers at the shops`)
     progress('step 5: checking offers')
@@ -126,7 +184,7 @@ export class PipelineEngine implements ResearchEngine {
     const sourceUrls = pages.map((p) => p.url)
 
     return {
-      brief: { title: '', preferences },
+      brief: { title: plan.title || (request.title ?? ''), preferences },
       picks: rankPicks(picks.map((p) => ({ ...p, sourceUrls }))),
     }
   }
@@ -135,14 +193,17 @@ export class PipelineEngine implements ResearchEngine {
    * Runs every query, de-duplicating hits. One failed query is tolerated;
    * when every query fails, the most telling error is rethrown (a refused key
    * beats a flaky network), so the idea shows why instead of "no results".
+   * Hits the owner already saw are dropped before the row cap counts them.
    */
   private async searchAll(
     queries: string[],
     progress: (msg: string) => void,
-  ): Promise<CandidateInputRow[]> {
+    ex: Exclusion,
+  ): Promise<{ rows: CandidateInputRow[]; excludedAny: boolean }> {
     const rows: CandidateInputRow[] = []
     const seen = new Set<string>()
     const errors: ResearchError[] = []
+    let excludedAny = false
     for (const q of queries) {
       try {
         const hits = await this.withRetry(() => this.opts.search.search(q))
@@ -151,6 +212,11 @@ export class PipelineEngine implements ResearchEngine {
           const key = normalizeUrl(h.url)
           if (seen.has(key)) continue
           seen.add(key)
+          // By URL only: a hit's title is the page title, not a product name to compare.
+          if (ex.urls.has(key)) {
+            excludedAny = true
+            continue
+          }
           rows.push({ title: h.title, url: h.url, snippet: h.snippet })
         }
       } catch (err) {
@@ -162,7 +228,7 @@ export class PipelineEngine implements ResearchEngine {
       }
       if (rows.length >= MAX_SEARCH_ROWS) break
     }
-    if (rows.length > 0) return rows
+    if (rows.length > 0 || excludedAny) return { rows, excludedAny }
     if (errors.length > 0) throw errors.find((e) => e.kind === 'unavailable') ?? errors[errors.length - 1]
     throw new ResearchError('The searches found nothing to buy. Try describing the idea differently.', {
       kind: 'no-results',

@@ -47,7 +47,7 @@ async function main() {
     return
   }
 
-  console.log(`\nbrief: ${brief.preferences.summary}\ncriteria: ${brief.preferences.mustHaves.join('; ')}\n`)
+  console.log(`\ntitle: ${brief.title}\npreferences: ${JSON.stringify(brief.preferences, null, 2)}\n`)
   console.log(JSON.stringify(picks, null, 2))
   console.log(`\n${picks.length} pick(s) in ${seconds}s.`)
 }
