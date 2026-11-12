@@ -428,6 +428,24 @@ describe('PipelineEngine refine rounds', () => {
     expect(err.kind).toBe('invalid')
   })
 
+  it('a model with only repeats then a model failing with invalid JSON is retryable, not nothing-new', async () => {
+    const broken = new StepModel({})
+    broken.generate = async () => {
+      throw new ResearchError('bad json', { kind: 'invalid' })
+    }
+    const err = await rejection(
+      engine(new StepModel({}), search(() => HITS), [broken]).research({
+        ideaId: 1,
+        text: 'fan',
+        history: history([
+          shown({ title: 'Wahoo KICKR Headwind', urls: ['https://a.be/1'] }),
+          shown({ title: 'Lasko fan', urls: ['https://a.be/2'] }),
+        ]),
+      }),
+    )
+    expect(err).toMatchObject({ kind: 'invalid', message: 'bad json' })
+  })
+
   it('does not count shown hits toward the search cap', async () => {
     const old = Array.from({ length: 24 }, (_, i) => ({ title: `Old ${i}`, url: `https://old.be/${i}`, snippet: '' }))
     const learn = {
