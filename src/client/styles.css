@@ -747,12 +747,16 @@ button {
 
 .react-choices {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
 .react-btn {
-  min-width: 44px;
   min-height: 44px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--bg-soft);

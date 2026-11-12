@@ -26,8 +26,8 @@ fits, and one honest caveat. Runs on a Raspberry Pi at €0.
 - **Refine in rounds.** **Refine** researches another round from your reactions
   and preference edits (it needs one of them); **research again** runs another
   round without. Each round adds its own picks, with earlier rounds folded
-  away. A product you have already seen never comes back: a round that finds
-  nothing new says so and suggests loosening a criterion or rewording the idea.
+  away. Every product shown since the last reword, plus every one marked No way, is
+  left out: a round that finds nothing new says so and suggests loosening a criterion or rewording the idea.
 - **Card titles.** The model names each idea. Rename it any time; clear the
   name to hand it back to the model. The idea's own words stay underneath.
 - **Prices you can trust.** Every offer's page is opened. When the shop
@@ -73,7 +73,8 @@ fits, and one honest caveat. Runs on a Raspberry Pi at €0.
    queries, a title and your preferences. In a later round it first learns
    from your reactions and edits, then plans new queries.
 2. **Search**: Serper runs the queries against Google with Belgium as the
-   region. Products you have already seen are left out.
+   region. Every product shown since the last reword, plus every one marked No way, is
+   left out.
 3. **Shortlist**: a model picks 3–5 products from the real search results.
    It can only use URLs that came back from the search.
 4. **Verify**: the server reads the top product pages, including the shop's
