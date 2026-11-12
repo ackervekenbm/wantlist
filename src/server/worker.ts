@@ -9,6 +9,7 @@ import {
   nextScheduledAttempt,
 } from './db'
 import { ResearchError } from './research/errors'
+import { buildHistory } from './history'
 
 export interface RetryPolicy {
   /** First retry delay; doubles per failed attempt. */
@@ -142,6 +143,8 @@ export function createWorker(opts: WorkerOptions): Worker {
           text: idea.text,
           budget: idea.budget,
           notes: idea.notes,
+          title: idea.title,
+          history: buildHistory(idea),
           onProgress: (step) => {
             if (state.current?.ideaId === id) state.current = { ideaId: id, step }
           },
