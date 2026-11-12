@@ -114,8 +114,8 @@ export class PipelineEngine implements ResearchEngine {
 
     step(`shortlisting from ${results.length} results`)
     const allowed = new Set(results.map((r) => normalizeUrl(r.url)))
-    // Only the latest model's answer decides whether "invalid" really meant "nothing new".
-    let lastParseOnlyRepeats = false
+    // Only this exact error (from the latest model's parse) means "nothing new"; any other invalid stays retryable.
+    const onlyRepeats = new ResearchError('every candidate was shown before', { kind: 'invalid' })
     const pass1 = await router
       .generate(
         {
@@ -126,10 +126,9 @@ export class PipelineEngine implements ResearchEngine {
         },
         (raw) => {
           const parsed = normalizePass1(raw, allowed, (c) => isExcluded(c, ex))
-          lastParseOnlyRepeats = parsed.candidates.length === 0 && normalizePass1(raw, allowed).candidates.length > 0
-          if (lastParseOnlyRepeats) {
+          if (parsed.candidates.length === 0 && normalizePass1(raw, allowed).candidates.length > 0) {
             // Not no-results here: the router rethrows unknown kinds at once and would skip the chain.
-            throw new ResearchError('every candidate was shown before', { kind: 'invalid' })
+            throw onlyRepeats
           }
           if (parsed.candidates.length === 0) {
             throw new ResearchError('no candidate used a URL from the search results', { kind: 'invalid' })
@@ -138,7 +137,7 @@ export class PipelineEngine implements ResearchEngine {
         },
       )
       .catch((err: unknown) => {
-        throw err instanceof ResearchError && err.kind === 'invalid' && lastParseOnlyRepeats ? nothingNew() : err
+        throw err === onlyRepeats ? nothingNew() : err
       })
     progress(`step 2: ${pass1.candidates.length} candidates`)
 
