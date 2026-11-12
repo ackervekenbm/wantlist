@@ -58,6 +58,7 @@ describe('API', () => {
     expect(worker.kick).toHaveBeenCalledOnce()
     const list = await api.get('/api/ideas').expect(200)
     expect(list.body).toHaveLength(1)
+    expect(list.body[0]).toHaveProperty('errorKind', null)
   })
 
   it('validates new ideas', async () => {
@@ -120,7 +121,7 @@ describe('API', () => {
     const { db, api } = setup()
     const failed = createIdea(db, 'a')
     claimIdea(db, failed)
-    failIdea(db, failed, 'boom', null)
+    failIdea(db, failed, 'boom', null, 'stopped')
     await api.post(`/api/ideas/${failed}/rerun`).expect(202)
 
     const busy = createIdea(db, 'b')

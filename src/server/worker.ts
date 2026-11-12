@@ -150,7 +150,7 @@ export function createWorker(opts: WorkerOptions): Worker {
           },
         })
         if (result.picks.length === 0) {
-          failIdea(opts.db, id, 'No product survived verification. Try rewording the idea.', null)
+          failIdea(opts.db, id, 'No product survived verification. Try rewording the idea.', null, 'nothing-new')
           summary.failed += 1
         } else if (completeIdea(opts.db, id, result, now())) {
           summary.succeeded += 1
@@ -158,7 +158,8 @@ export function createWorker(opts: WorkerOptions): Worker {
       } catch (err) {
         const message = (err as Error).message
         const at = retryAt(err, idea.attempts + 1, now(), policy)
-        failIdea(opts.db, id, message, at)
+        const kind = at ? null : err instanceof ResearchError && err.kind === 'no-results' ? 'nothing-new' : 'stopped'
+        failIdea(opts.db, id, message, at, kind)
         log(`#${id} failed${at ? `, retrying at ${at.toISOString()}` : ''}: ${message}`)
         if (at) summary.retrying += 1
         else summary.failed += 1

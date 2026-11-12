@@ -15,7 +15,7 @@ function pick(round: number, title: string, reaction: Reaction | null, extra: Pa
 function idea(extra: Partial<Idea>): Idea {
   return {
     id: 1, text: 'fan', budget: null, notes: null, list: 'wanted', bought: null, status: 'done',
-    createdAt: '', researchedAt: null, error: null, attempts: 0, nextAttemptAt: null, title: null,
+    createdAt: '', researchedAt: null, error: null, errorKind: null, attempts: 0, nextAttemptAt: null, title: null,
     titleByOwner: false, round: 1, preferences: prefs, preferencesEdited: false, freshSinceRound: null,
     picks: [], ...extra,
   }

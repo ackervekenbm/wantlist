@@ -125,6 +125,29 @@ describe('worker', () => {
     expect(getIdea(db, id)).toMatchObject({ status: 'error', error: 'Gemini blocked (SAFETY)' })
   })
 
+  it('marks nothing-new for no-results and empty results, stopped for permanent errors, none while retrying', async () => {
+    const run = async (run: () => Promise<ResearchResult>, attempts = 0) => {
+      const { db } = tempDb()
+      const id = createIdea(db, 'fan')
+      for (let i = 0; i < attempts; i++) {
+        await makeWorker({ db, engine: engineOf(run) }).runOnce()
+        db.prepare('UPDATE ideas SET next_attempt_at = NULL WHERE id = ?').run(id)
+      }
+      await makeWorker({ db, engine: engineOf(run) }).runOnce()
+      return getIdea(db, id)!
+    }
+    expect(await run(async () => researchResult([]))).toMatchObject({ status: 'error', errorKind: 'nothing-new' })
+    expect(await run(async () => { throw fail('Nothing new found.', 'no-results') })).toMatchObject({ errorKind: 'nothing-new' })
+    expect(await run(async () => { throw fail('blocked', 'blocked') })).toMatchObject({ errorKind: 'stopped' })
+    expect(await run(async () => { throw new Error('bug') })).toMatchObject({ errorKind: 'stopped' })
+    expect(await run(async () => { throw fail('503', 'transient') })).toMatchObject({ status: 'queued', errorKind: null })
+    // Retry budget spent: the last transient failure stops for good.
+    expect(await run(async () => { throw fail('503', 'transient') }, DEFAULT_RETRY.maxAttempts - 1)).toMatchObject({
+      status: 'error',
+      errorKind: 'stopped',
+    })
+  })
+
   it('treats an empty result as a failure that needs rewording', async () => {
     const { db } = tempDb()
     const id = createIdea(db, 'fan')

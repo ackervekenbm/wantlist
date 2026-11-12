@@ -8,6 +8,7 @@ import type {
   IdeaList,
   IdeaPatch,
   IdeaStatus,
+  ErrorKind,
   NewIdea,
   Pick,
   PickPatch,
@@ -106,6 +107,12 @@ const MIGRATIONS: Array<(db: WlDb) => void> = [
       set.run(JSON.stringify(prefs), r.id)
     }
   },
+  (db) => {
+    addColumn(db, 'ideas', 'error_kind', 'TEXT')
+    db.exec(`UPDATE ideas SET error_kind = CASE
+      WHEN error LIKE 'No product survived%' OR error LIKE 'Nothing new found%' THEN 'nothing-new' ELSE 'stopped' END
+      WHERE status = 'error' AND error_kind IS NULL`)
+  },
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
@@ -150,6 +157,7 @@ interface IdeaRow {
   preferences: string | null
   preferencesEdited: number
   freshSinceRound: number | null
+  errorKind: ErrorKind | null
 }
 
 interface PickRow {
@@ -175,7 +183,7 @@ interface PickRow {
 const IDEA_COLUMNS = `id, text, budget, notes, list, bought, status, created_at AS createdAt, researched_at AS researchedAt,
   error, attempts, next_attempt_at AS nextAttemptAt,
   title, title_by_owner AS titleByOwner, round, preferences, preferences_edited AS preferencesEdited,
-  fresh_since_round AS freshSinceRound`
+  fresh_since_round AS freshSinceRound, error_kind AS errorKind`
 
 const PICK_COLUMNS = `id, idea_id AS ideaId, rank, round, reaction, reason, title, shop, url, price, why, caveat, image, rating,
   source_urls AS sourceUrls, fetched_at AS fetchedAt, suppliers`
@@ -342,7 +350,7 @@ export function completeIdea(db: WlDb, id: number, result: ResearchResult, now =
      VALUES (@ideaId, @rank, @round, @title, @shop, @url, @price, @why, @caveat, @image, @rating, @sourceUrls, @fetchedAt, @suppliers)`,
   )
   const done = db.prepare(
-    `UPDATE ideas SET status = 'done', error = NULL, attempts = 0, next_attempt_at = NULL,
+    `UPDATE ideas SET status = 'done', error = NULL, error_kind = NULL, attempts = 0, next_attempt_at = NULL,
        researched_at = ?, round = ?, preferences = ?, preferences_edited = 0,
        title = CASE WHEN title_by_owner = 1 OR ? = '' THEN title ELSE ? END
      WHERE id = ?`,
@@ -386,11 +394,12 @@ export function failIdea(
   id: number,
   message: string,
   retryAt: Date | null,
+  kind: ErrorKind | null,
 ): void {
   db.prepare(
-    `UPDATE ideas SET status = ?, error = ?, attempts = attempts + 1, next_attempt_at = ?
+    `UPDATE ideas SET status = ?, error = ?, error_kind = ?, attempts = attempts + 1, next_attempt_at = ?
      WHERE id = ?`,
-  ).run(retryAt ? 'queued' : 'error', message, retryAt?.toISOString() ?? null, id)
+  ).run(retryAt ? 'queued' : 'error', message, retryAt ? null : kind, retryAt?.toISOString() ?? null, id)
 }
 
 /**
@@ -411,7 +420,7 @@ export function requeueIdea(
     if (idea.status === 'researching') return 'busy'
     if (opts.requireSignal && !idea.preferencesEdited && !idea.picks.some((p) => p.reaction)) return 'nothing'
     db.prepare(
-      `UPDATE ideas SET status = 'queued', error = NULL, attempts = 0, next_attempt_at = NULL,
+      `UPDATE ideas SET status = 'queued', error = NULL, error_kind = NULL, attempts = 0, next_attempt_at = NULL,
          list = 'wanted', bought = NULL WHERE id = ?`,
     ).run(id)
     return 'queued'

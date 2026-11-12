@@ -7,6 +7,9 @@
  */
 export type IdeaStatus = 'queued' | 'researching' | 'done' | 'error'
 
+/** Why an idea stopped at `error`: no new product turned up, or something broke. */
+export type ErrorKind = 'nothing-new' | 'stopped'
+
 export type UrlStatus = 'live' | 'dead' | 'unknown'
 
 /**
@@ -127,6 +130,8 @@ export interface Idea {
    * scheduled; cleared by a success or a manual re-run.
    */
   error: string | null
+  /** Set with `error` only when `status === 'error'`; null otherwise. */
+  errorKind: ErrorKind | null
   /** Failed attempts since the last success or manual re-run. */
   attempts: number
   /** When a scheduled retry becomes due (ISO-8601), or null. */
