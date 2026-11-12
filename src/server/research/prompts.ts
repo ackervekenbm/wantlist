@@ -67,7 +67,7 @@ export function capPreferences(raw: unknown): Preferences {
 export function keepOwnerItems(learned: Preferences, owner: Preferences): Preferences {
   const merge = (own: string[], got: string[]) => [...own, ...got.filter((s) => !own.includes(s))]
   return capPreferences({
-    summary: learned.summary,
+    summary: owner.summary || learned.summary,
     mustHaves: merge(owner.mustHaves, learned.mustHaves),
     avoid: merge(owner.avoid, learned.avoid),
     likes: merge(owner.likes, learned.likes),
@@ -186,13 +186,15 @@ produce web-search queries for a NEW round that finds what is still missing.
 
 Preferences:
 - Keep criteria that still hold; drop or reword only what the reactions contradict.
-- Turn every reason into a concrete, searchable "avoid" (or "mustHaves") item that
-  names the trait, not the product. Example: "looks like grandma's" becomes
+- Turn every reason on a "no" pick (and the negative part of a "maybe" reason)
+  into a concrete, searchable "avoid" (or "mustHaves") item that names the
+  trait, not the product. Example: "looks like grandma's" becomes
   "no floral or quilted granny styles"; "too loud" becomes "quiet, under 40 dB".
   Never just echo the reason.
 - A "no" without a reason: infer the trait only when it is obvious, else skip it.
-- Turn "yes" and "maybe" picks into "likes" as traits (style, material, size,
-  feature), never product names, brands or shops.
+- Turn "yes" and "maybe" picks, and the positive part of their reasons, into
+  "likes" as traits (style, material, size, feature), never product names,
+  brands or shops. They do not become "mustHaves".
 - Items marked as set by the owner must stay word-for-word in their list.
 - "summary": one sentence on what the owner is really after now.
 - Title: keep the current title unless the reactions justify a sharper one;
@@ -236,7 +238,7 @@ export const LEARN_SCHEMA = {
 function describeHistoryPick(p: HistoryPick): string {
   const price = p.price !== null ? ` | EUR ${p.price}` : ''
   const reaction = p.reaction
-    ? ` · reaction: ${p.reaction}${p.reason ? ` — "${p.reason}"` : ''}`
+    ? ` · reaction: ${p.reaction}${p.reason ? ` — "${p.reason.replace(/\s+/g, ' ').trim()}"` : ''}`
     : ' · no reaction'
   return `round ${p.round} · ${p.title}${p.shop ? ` | ${p.shop}` : ''}${price}${reaction}`
 }
@@ -246,14 +248,17 @@ export function buildLearnUser(idea: IdeaInput, title: string | null, history: R
   const heading = history.preferencesEdited
     ? 'Current preferences (set by the owner — keep every item word-for-word):'
     : 'Current preferences:'
-  const lines = shownForPrompt(history.picks).map(describeHistoryPick).join('\n')
+  // Reacted picks first so an old reaction is never cut by the cap.
+  const byRound = [...history.picks].sort((a, b) => b.round - a.round)
+  const ordered = [...byRound.filter((p) => p.reaction), ...byRound.filter((p) => !p.reaction)]
+  const lines = ordered.slice(0, SHOWN_MAX).map(describeHistoryPick).join('\n')
   return `${describeIdea(idea)}
 Current title: ${title || 'n/a'}
 
 ${heading}
 ${(prefs && describePreferences(prefs)) || 'n/a'}
 
-Earlier picks and the owner's reactions (newest first):
+Earlier picks and the owner's reactions (reacted first, newest first):
 ${lines || 'n/a'}
 
 Return the updated title, preferences and search queries JSON per schema.`
@@ -290,6 +295,8 @@ Ground rules:
 - Each candidate: concrete product title, shop name, the exact result URL, a
   one-line "why this fits" grounded in the idea.
 - Prefer product pages over category/home/aggregator pages.
+- Respect every "Must have" and "Avoid" line; prefer products with the
+  "Liked so far" traits.
 ${BUDGET_RULE}`
 
 export const CANDIDATE_SCHEMA = {
@@ -391,8 +398,10 @@ Ground rules:
   and smaller retailers. Do not exclude marketplaces; do not fill the list
   with only one shop type either.
 - Keep only products supported by the page text or clearly confirmed by it.
+- Respect every "Must have" and "Avoid" line; prefer products with the
+  "Liked so far" traits.
 - Each pick: concrete product title, a one-line "why this fits" grounded in
-  the criteria + evidence, and a suppliers array. Each supplier: shop name,
+  the owner's preferences + evidence, and a suppliers array. Each supplier: shop name,
   the candidate's real URL for that shop, price in EUR if the page/snippet
   shows one (bare number or range).
 - "Shop data" lines come from the shop page's own product markup: trust them
