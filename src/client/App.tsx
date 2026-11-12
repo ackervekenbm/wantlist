@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { HomeScreen } from './components/HomeScreen'
+import { HomeScreen, Skeleton } from './components/HomeScreen'
 import { shownTitle } from './components/IdeaTitle'
 import { OldIdea, OldLists } from './components/OldLists'
 import { Shell } from './components/Shell'
@@ -37,18 +37,15 @@ export function App() {
         }}
       />
 
-      {state.loaded ? (
-        <HomeScreen
-          ideas={state.ideas}
-          status={state.status}
-          selectedId={route.name === 'idea' ? route.id : null}
-          onOpen={(id) => navigate({ name: 'idea', id })}
-          onLists={(tab) => navigate({ name: 'lists', tab })}
-          onAdd={state.add}
-        />
-      ) : (
-        <Skeleton />
-      )}
+      <HomeScreen
+        loaded={state.loaded}
+        ideas={state.ideas}
+        status={state.status}
+        selectedId={route.name === 'idea' ? route.id : null}
+        onOpen={(id) => navigate({ name: 'idea', id })}
+        onLists={(tab) => navigate({ name: 'lists', tab })}
+        onAdd={state.add}
+      />
     </div>
   )
 
@@ -113,16 +110,6 @@ function useRouteFocus(route: Route, loaded: boolean) {
     const pane = h1.closest<HTMLElement>('.pane')
     if (pane) pane.scrollTop = 0
   }, [route, loaded])
-}
-
-function Skeleton() {
-  return (
-    <div className="skeleton" aria-label="loading">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="skeleton-card" />
-      ))}
-    </div>
-  )
 }
 
 function truncate(s: string, n: number): string {

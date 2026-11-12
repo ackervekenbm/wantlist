@@ -30,6 +30,7 @@ export function IdeaForm({ initial, submitLabel, secondaryLabel, compact, placeh
   const [error, setError] = useState<string | null>(null)
   const ids = { text: useId(), budget: useId(), notes: useId() }
 
+  const hasDetails = !!budget.trim() || !!notes.trim()
   const parsedBudget = parseBudget(budget)
   const invalidBudget = parsedBudget === undefined
   const canSubmit = !!text.trim() && !invalidBudget && !busy
@@ -103,7 +104,7 @@ export function IdeaForm({ initial, submitLabel, secondaryLabel, compact, placeh
           {textarea}
           {submitButton}
         </div>
-        {showDetails && (
+        {(showDetails || hasDetails) && (
           <div className="cap-extra">
             <label className="field">
               Budget
@@ -128,14 +129,19 @@ export function IdeaForm({ initial, submitLabel, secondaryLabel, compact, placeh
         )}
         {errors}
         <div className="cap-more">
-          <button
-            type="button"
-            className="linkish"
-            aria-expanded={showDetails}
-            onClick={() => setShowDetails((v) => !v)}
-          >
-            {showDetails ? 'Hide budget & notes' : '+ Budget & notes'}
-          </button>
+          {/* Filled-in details still count, so they can't be hidden. */}
+          {hasDetails ? (
+            <span />
+          ) : (
+            <button
+              type="button"
+              className="linkish"
+              aria-expanded={showDetails}
+              onClick={() => setShowDetails((v) => !v)}
+            >
+              {showDetails ? 'Hide budget & notes' : '+ Budget & notes'}
+            </button>
+          )}
           <span className="hint">Enter adds</span>
         </div>
       </form>

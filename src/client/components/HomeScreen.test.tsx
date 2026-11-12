@@ -18,7 +18,7 @@ const IDEAS: Idea[] = [
   idea({ id: 9, list: 'archived', title: 'Archived thing' }),
 ]
 
-function renderHome(over: { ideas?: Idea[]; status?: ServerStatus | null; selectedId?: number | null } = {}) {
+function renderHome(over: { ideas?: Idea[]; status?: ServerStatus | null; selectedId?: number | null; loaded?: boolean } = {}) {
   const props = {
     ideas: IDEAS,
     status: status({ running: true, current: { ideaId: 4, step: 'reading 11 shop pages' } }),
@@ -52,6 +52,27 @@ describe('HomeScreen', () => {
     expect(row(5)).toHaveTextContent(/desk lamp.*queued/)
     expect(row(6)).toHaveTextContent(`rain jacket retrying around ${clockTime('2026-11-12T15:30:00')}`)
     expect(row(7)).toBeNull()
+  })
+
+  it('puts React first, then Nothing new, then Stopped, in server order within each', () => {
+    renderHome({
+      ideas: [
+        idea({ id: 11, status: 'error', errorKind: 'stopped', picks: [] }),
+        idea({ id: 12, status: 'error', errorKind: 'nothing-new', picks: [] }),
+        idea({ id: 13 }),
+        idea({ id: 14, status: 'error', errorKind: null, picks: [] }),
+        idea({ id: 15 }),
+      ],
+    })
+    const needs = screen.getByRole('region', { name: /Needs you/ })
+    expect(within(needs).getAllByRole('button').map((b) => b.dataset.ideaId)).toEqual(['13', '15', '12', '11', '14'])
+  })
+
+  it('keeps capture working before the first load, with the sections waiting', () => {
+    renderHome({ ideas: [], loaded: false })
+    expect(screen.getByLabelText('What do you want?')).toBeInTheDocument()
+    expect(screen.getByLabelText('loading')).toBeInTheDocument()
+    expect(screen.queryByText('Nothing on the list.')).not.toBeInTheDocument()
   })
 
   it('says so when nothing needs you', () => {

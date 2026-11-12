@@ -161,7 +161,7 @@ button{cursor:pointer}
 .cap-row textarea{flex:1;min-height:44px;max-height:120px;resize:none;border:0;background:transparent;padding:11px 0 9px;line-height:1.35;outline:none}
 .cap-row textarea::placeholder{color:var(--ink-3)}
 .cap-row .btn{margin-bottom:2px}
-.capture:focus-within{border-color:var(--rule-strong)}
+.capture:focus-within{border-color:var(--rule-strong);outline:2px solid var(--focus);outline-offset:2px}
 .capture .form-error{padding:0 6px 6px 0}
 .cap-more{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .cap-extra{display:grid;grid-template-columns:112px 1fr;gap:8px;padding:2px 6px 8px 0}
