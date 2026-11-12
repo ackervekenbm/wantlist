@@ -116,10 +116,10 @@ today). `boughtPickId` can point at a pick from any round.
   `reason`. `Idea.picks` holds every round, newest round first, rank order
   within a round. `summary`/`criteria` leave the type.
 - `PATCH /api/picks/:id` `{ reaction?: 'no'|'maybe'|'yes'|null, reason?:
-  string|null }`. Reason up to 300 characters.
-- `PATCH /api/ideas/:id` accepts `title` (1–60 characters, or `null` to hand
-  naming back to wantlist). A non-null title sets `title_by_owner`. 404 for an unknown pick. Any
+  string|null }`. Reason up to 300 characters. 404 for an unknown pick. Any
   round's picks can be reacted to. Reacting doesn't start anything.
+- `PATCH /api/ideas/:id` accepts `title` (1–60 characters, or `null` to hand
+  naming back to wantlist). A non-null title sets `title_by_owner`.
 - `PATCH /api/ideas/:id` also accepts `preferences` (same shape; each list
   ≤ 12 items of ≤ 120 characters, summary ≤ 300). It sets
   `preferences_edited`.
