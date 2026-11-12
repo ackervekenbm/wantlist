@@ -6,6 +6,7 @@ import { ChevronRightIcon, ExploreIcon } from './icons'
 import { IdeaForm } from './IdeaForm'
 import { shownTitle } from './IdeaTitle'
 import { Leader } from './Leader'
+import { TABS } from './ListsScreen'
 
 interface Props {
   ideas: Idea[]
@@ -18,12 +19,6 @@ interface Props {
   /** False until the first fetch answers: capture works, the sections wait. */
   loaded?: boolean
 }
-
-const TILES: Array<{ list: IdeaList; label: string }> = [
-  { list: 'wanted', label: 'Wanted' },
-  { list: 'bought', label: 'Bought' },
-  { list: 'archived', label: 'Archived' },
-]
 
 const NEED_ORDER: Need[] = ['react', 'nothing-new', 'stopped']
 
@@ -120,7 +115,7 @@ export function HomeScreen({ ideas, status, selectedId, onOpen, onLists, onAdd, 
           )}
 
           <nav className="listlinks" aria-label="Lists">
-            {TILES.map(({ list, label }) => (
+            {TABS.map(({ list, label }) => (
               <button key={list} type="button" onClick={() => onLists(list)}>
                 <b>{count(list)}</b> {label}
               </button>

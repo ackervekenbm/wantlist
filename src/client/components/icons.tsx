@@ -106,3 +106,10 @@ export const ExploreIcon = (p: IconProps) => (
     <rect x="11" y="5" width="10" height="13" rx="2" transform="rotate(8 16 11)" fill="var(--surface)" />
   </Icon>
 )
+
+export const SearchIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="M20 20l-3.5-3.5" />
+  </Icon>
+)

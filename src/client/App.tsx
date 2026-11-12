@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { HomeScreen, Skeleton } from './components/HomeScreen'
 import { shownTitle } from './components/IdeaTitle'
-import { OldIdea, OldLists } from './components/OldLists'
+import { ListsScreen } from './components/ListsScreen'
+import { OldIdea } from './components/OldIdea'
 import { Shell } from './components/Shell'
 import { TopBar } from './components/TopBar'
 import { useIdeas } from './hooks/useIdeas'
@@ -49,16 +50,23 @@ export function App() {
     </div>
   )
 
-  const right =
-    route.name === 'lists' ? (
-      <OldLists state={state} tab={route.tab} onTab={(tab) => navigate({ name: 'lists', tab }, { replace: true })} />
-    ) : !state.loaded ? (
-      <div className="screen" aria-busy="true">
-        <Skeleton />
-      </div>
-    ) : openIdea ? (
-      <OldIdea key={openIdea.id} idea={openIdea} state={state} />
-    ) : null
+  const right = !state.loaded ? (
+    <div className="screen" aria-busy="true">
+      <Skeleton />
+    </div>
+  ) : route.name === 'lists' ? (
+    <ListsScreen
+      ideas={state.ideas}
+      tab={route.tab}
+      onTab={(tab) => navigate({ name: 'lists', tab }, { replace: true })}
+      onOpen={(id) => navigate({ name: 'idea', id })}
+      // run() already put the failure in the banner
+      onPatch={(id, patch) => void state.patch(id, patch).catch(() => {})}
+      onRemove={state.remove}
+    />
+  ) : openIdea ? (
+    <OldIdea key={openIdea.id} idea={openIdea} state={state} />
+  ) : null
 
   return (
     <Shell
