@@ -63,5 +63,11 @@ export function finalPicks(): FinalPick[] {
 }
 
 export function researchResult(picks: FinalPick[] = finalPicks()): ResearchResult {
-  return { brief: { summary: 'A quiet fan for indoor cycling', criteria: ['quiet', 'strong airflow'] }, picks }
+  return {
+    brief: {
+      title: 'Quiet fan',
+      preferences: { summary: 'A quiet fan for indoor cycling', mustHaves: ['quiet', 'strong airflow'], avoid: [], likes: [] },
+    },
+    picks,
+  }
 }

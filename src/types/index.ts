@@ -46,10 +46,25 @@ export interface Rating {
   count: number | null
 }
 
+export type Reaction = 'no' | 'maybe' | 'yes'
+
+/** What the owner wants, learned from reactions or edited by hand. */
+export interface Preferences {
+  summary: string
+  mustHaves: string[]
+  avoid: string[]
+  likes: string[]
+}
+
 export interface Pick {
   id: number
   ideaId: number
   rank: number
+  /** Research round that produced this pick (1-based). */
+  round: number
+  reaction: Reaction | null
+  /** Why the owner reacted that way. */
+  reason: string | null
   title: string
   /** Mirror of suppliers[0], the best offer. */
   shop: string | null
@@ -70,8 +85,27 @@ export interface Pick {
 
 /** What the research understood the idea to be about. */
 export interface ResearchBrief {
-  summary: string
-  criteria: string[]
+  title: string
+  preferences: Preferences
+}
+
+export interface HistoryPick {
+  round: number
+  title: string
+  shop: string | null
+  price: number | null
+  why: string | null
+  reaction: Reaction | null
+  reason: string | null
+  /** The pick url plus every supplier url. */
+  urls: string[]
+}
+
+export interface ResearchHistory {
+  mode: 'learn' | 'fresh'
+  preferences: Preferences | null
+  preferencesEdited: boolean
+  picks: HistoryPick[]
 }
 
 export interface Idea {
@@ -97,9 +131,17 @@ export interface Idea {
   attempts: number
   /** When a scheduled retry becomes due (ISO-8601), or null. */
   nextAttemptAt: string | null
-  /** The research brief from the latest successful run. */
-  summary: string | null
-  criteria: string[]
+  /** Model-written card title; `titleByOwner` marks one the owner set. */
+  title: string | null
+  titleByOwner: boolean
+  /** Rounds researched so far. */
+  round: number
+  preferences: Preferences | null
+  /** The owner edited `preferences` since the last round. */
+  preferencesEdited: boolean
+  /** The idea was reworded after this round: earlier picks are not history. */
+  freshSinceRound: number | null
+  /** Ordered by round descending, then rank. */
   picks: Pick[]
 }
 
@@ -170,6 +212,8 @@ export interface ResearchRequest {
   text: string
   budget?: number | null
   notes?: string | null
+  title?: string | null
+  history?: ResearchHistory | null
   /** Called with a short human-readable step ("searching shops", ...). */
   onProgress?: (step: string) => void
 }
@@ -193,4 +237,13 @@ export interface IdeaPatch {
   list?: IdeaList
   /** With list 'bought': the pick you bought, or null when it was none of them. */
   boughtPickId?: number | null
+  /** A string sets an owner title; null returns to the model's. */
+  title?: string | null
+  preferences?: Preferences
+}
+
+/** Body of PATCH /api/picks/:id. */
+export interface PickPatch {
+  reaction?: Reaction | null
+  reason?: string | null
 }

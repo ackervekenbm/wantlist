@@ -5,6 +5,9 @@ import type { Idea, IdeaPatch, Pick, ServerStatus } from '../../types'
 export function pick(over: Partial<Pick> = {}): Pick {
   const base: Pick = {
     id: 1,
+    round: 1,
+    reaction: null,
+    reason: null,
     ideaId: 1,
     rank: 1,
     title: 'Wahoo KICKR Headwind',
@@ -39,8 +42,17 @@ export function idea(over: Partial<Idea> = {}): Idea {
     error: null,
     attempts: 0,
     nextAttemptAt: null,
-    summary: 'A strong, quiet fan aimed at you on the trainer',
-    criteria: ['airflow', 'noise', 'price'],
+    title: null,
+    titleByOwner: false,
+    round: 1,
+    preferences: {
+      summary: 'A strong, quiet fan aimed at you on the trainer',
+      mustHaves: ['airflow', 'noise', 'price'],
+      avoid: [],
+      likes: [],
+    },
+    preferencesEdited: false,
+    freshSinceRound: null,
     picks: [pick()],
     ...over,
   }
@@ -92,8 +104,9 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
         notes: b.notes ?? null,
         status: 'queued',
         researchedAt: null,
-        summary: null,
-        criteria: [],
+        round: 0,
+        preferences: null,
+        title: null,
         picks: [],
       })
       ideas = [created, ...ideas]

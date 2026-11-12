@@ -195,7 +195,7 @@ function EmptyState({ list, filtered }: { list: IdeaList; filtered: boolean }) {
 
 function matches(idea: Idea, query: string): boolean {
   const q = query.trim().toLowerCase()
-  return [idea.text, idea.notes, idea.summary, ...idea.picks.map((p) => p.title)].some((s) =>
+  return [idea.title, idea.text, idea.notes, idea.preferences?.summary, ...idea.picks.map((p) => p.title)].some((s) =>
     s?.toLowerCase().includes(q),
   )
 }

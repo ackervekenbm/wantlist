@@ -10,7 +10,9 @@ import type {
   IdeaStatus,
   NewIdea,
   Pick,
+  PickPatch,
   PickSupplier,
+  Preferences,
   Rating,
   ResearchResult,
 } from '../types'
@@ -82,6 +84,28 @@ const MIGRATIONS: Array<(db: WlDb) => void> = [
     addColumn(db, 'ideas', 'list', `TEXT NOT NULL DEFAULT 'wanted' CHECK (list IN ('wanted','bought','archived'))`)
     addColumn(db, 'ideas', 'bought', 'TEXT')
   },
+  // 5 - rounds, reactions, preferences and card titles
+  (db) => {
+    addColumn(db, 'picks', 'round', 'INTEGER NOT NULL DEFAULT 1')
+    addColumn(db, 'picks', 'reaction', `TEXT CHECK (reaction IN ('no','maybe','yes'))`)
+    addColumn(db, 'picks', 'reason', 'TEXT')
+    addColumn(db, 'ideas', 'round', 'INTEGER NOT NULL DEFAULT 0')
+    addColumn(db, 'ideas', 'preferences', 'TEXT')
+    addColumn(db, 'ideas', 'preferences_edited', 'INTEGER NOT NULL DEFAULT 0')
+    addColumn(db, 'ideas', 'title', 'TEXT')
+    addColumn(db, 'ideas', 'title_by_owner', 'INTEGER NOT NULL DEFAULT 0')
+    addColumn(db, 'ideas', 'fresh_since_round', 'INTEGER')
+    const withPicks = 'EXISTS (SELECT 1 FROM picks WHERE idea_id = ideas.id)'
+    db.exec(`UPDATE ideas SET round = 1 WHERE ${withPicks}`)
+    const rows = db
+      .prepare(`SELECT id, summary, criteria FROM ideas WHERE ${withPicks}`)
+      .all() as Array<{ id: number; summary: string | null; criteria: string | null }>
+    const set = db.prepare('UPDATE ideas SET preferences = ? WHERE id = ?')
+    for (const r of rows) {
+      const prefs: Preferences = { summary: r.summary ?? '', mustHaves: parseStrings(r.criteria), avoid: [], likes: [] }
+      set.run(JSON.stringify(prefs), r.id)
+    }
+  },
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
@@ -120,14 +144,21 @@ interface IdeaRow {
   error: string | null
   attempts: number
   nextAttemptAt: string | null
-  summary: string | null
-  criteria: string | null
+  title: string | null
+  titleByOwner: number
+  round: number
+  preferences: string | null
+  preferencesEdited: number
+  freshSinceRound: number | null
 }
 
 interface PickRow {
   id: number
   ideaId: number
   rank: number
+  round: number
+  reaction: Pick['reaction']
+  reason: string | null
   title: string
   shop: string | null
   url: string
@@ -142,15 +173,17 @@ interface PickRow {
 }
 
 const IDEA_COLUMNS = `id, text, budget, notes, list, bought, status, created_at AS createdAt, researched_at AS researchedAt,
-  error, attempts, next_attempt_at AS nextAttemptAt, summary, criteria`
+  error, attempts, next_attempt_at AS nextAttemptAt,
+  title, title_by_owner AS titleByOwner, round, preferences, preferences_edited AS preferencesEdited,
+  fresh_since_round AS freshSinceRound`
 
-const PICK_COLUMNS = `id, idea_id AS ideaId, rank, title, shop, url, price, why, caveat, image, rating,
+const PICK_COLUMNS = `id, idea_id AS ideaId, rank, round, reaction, reason, title, shop, url, price, why, caveat, image, rating,
   source_urls AS sourceUrls, fetched_at AS fetchedAt, suppliers`
 
 /** Newest first, with picks, in two queries. */
 export function listIdeas(db: WlDb): Idea[] {
   const ideas = db.prepare(`SELECT ${IDEA_COLUMNS} FROM ideas ORDER BY id DESC`).all() as IdeaRow[]
-  const picks = db.prepare(`SELECT ${PICK_COLUMNS} FROM picks ORDER BY idea_id, rank`).all() as PickRow[]
+  const picks = db.prepare(`SELECT ${PICK_COLUMNS} FROM picks ORDER BY idea_id, round DESC, rank`).all() as PickRow[]
   const byIdea = new Map<number, Pick[]>()
   for (const row of picks) {
     const list = byIdea.get(row.ideaId) ?? []
@@ -166,7 +199,7 @@ export function getIdea(db: WlDb, id: number): Idea | null {
     | undefined
   if (!row) return null
   const picks = db
-    .prepare(`SELECT ${PICK_COLUMNS} FROM picks WHERE idea_id = ? ORDER BY rank`)
+    .prepare(`SELECT ${PICK_COLUMNS} FROM picks WHERE idea_id = ? ORDER BY round DESC, rank`)
     .all(id) as PickRow[]
   return toIdea(row, picks.map(toPick))
 }
@@ -221,6 +254,9 @@ export function createIdea(db: WlDb, idea: string | NewIdea): number {
 
 export class PatchError extends Error {}
 
+/** The idea is being researched, so an edit that restarts or steers research must wait. */
+export class BusyError extends Error {}
+
 /**
  * Applies an edit (already validated for shape by the API). Moving to
  * 'bought' snapshots the chosen pick, which must belong to this idea
@@ -237,7 +273,26 @@ export function updateIdea(db: WlDb, id: number, patch: IdeaPatch, now = new Dat
       sets.push(`${column} = ?`)
       values.push(value)
     }
-    if (patch.text !== undefined) set('text', patch.text.trim())
+    const text = patch.text?.trim()
+    const reworded = text !== undefined && text !== idea.text.trim()
+    if (idea.status === 'researching' && (reworded || patch.preferences !== undefined)) {
+      throw new BusyError('this idea is being researched right now')
+    }
+    if (text !== undefined) set('text', text)
+    if (reworded) {
+      set('preferences', null)
+      set('preferences_edited', 0)
+      set('fresh_since_round', idea.round)
+    }
+    // After the text, so the owner's preferences win over the reset above.
+    if (patch.preferences !== undefined) {
+      sets.push('preferences = ?', 'preferences_edited = 1')
+      values.push(JSON.stringify(patch.preferences))
+    }
+    if (patch.title !== undefined) {
+      set('title', patch.title)
+      set('title_by_owner', patch.title === null ? 0 : 1)
+    }
     if (patch.budget !== undefined) set('budget', patch.budget)
     if (patch.notes !== undefined) set('notes', patch.notes?.trim() || null)
     if (patch.list !== undefined) {
@@ -277,28 +332,31 @@ export function claimIdea(db: WlDb, id: number): boolean {
 }
 
 /**
- * Stores fresh picks and the brief and marks the idea done, atomically. False
+ * Adds a round of picks (earlier rounds stay) and the brief, and marks the idea done, atomically. False
  * when the idea was deleted while it was being researched.
  */
 export function completeIdea(db: WlDb, id: number, result: ResearchResult, now = new Date()): boolean {
-  const exists = db.prepare('SELECT 1 FROM ideas WHERE id = ?')
-  const del = db.prepare('DELETE FROM picks WHERE idea_id = ?')
+  const roundOf = db.prepare('SELECT round FROM ideas WHERE id = ?')
   const ins = db.prepare(
-    `INSERT INTO picks (idea_id, rank, title, shop, url, price, why, caveat, image, rating, source_urls, fetched_at, suppliers)
-     VALUES (@ideaId, @rank, @title, @shop, @url, @price, @why, @caveat, @image, @rating, @sourceUrls, @fetchedAt, @suppliers)`,
+    `INSERT INTO picks (idea_id, rank, round, title, shop, url, price, why, caveat, image, rating, source_urls, fetched_at, suppliers)
+     VALUES (@ideaId, @rank, @round, @title, @shop, @url, @price, @why, @caveat, @image, @rating, @sourceUrls, @fetchedAt, @suppliers)`,
   )
   const done = db.prepare(
     `UPDATE ideas SET status = 'done', error = NULL, attempts = 0, next_attempt_at = NULL,
-       researched_at = ?, summary = ?, criteria = ? WHERE id = ?`,
+       researched_at = ?, round = ?, preferences = ?, preferences_edited = 0,
+       title = CASE WHEN title_by_owner = 1 OR ? = '' THEN title ELSE ? END
+     WHERE id = ?`,
   )
   const fetchedAt = now.toISOString()
   return db.transaction(() => {
-    if (!exists.get(id)) return false
-    del.run(id)
+    const row = roundOf.get(id) as { round: number } | undefined
+    if (!row) return false
+    const round = row.round + 1
     for (const p of result.picks) {
       ins.run({
         ideaId: id,
         rank: p.rank,
+        round,
         title: p.title,
         shop: p.shop,
         url: p.url,
@@ -312,7 +370,8 @@ export function completeIdea(db: WlDb, id: number, result: ResearchResult, now =
         suppliers: JSON.stringify(p.suppliers),
       })
     }
-    done.run(fetchedAt, result.brief.summary || null, JSON.stringify(result.brief.criteria), id)
+    const { title } = result.brief
+    done.run(fetchedAt, round, JSON.stringify(result.brief.preferences), title, title, id)
     return true
   })()
 }
@@ -335,21 +394,46 @@ export function failIdea(
 }
 
 /**
- * Manual re-run: back to the queue now, with a clean retry budget, and back
- * on the wanted list (researching it again means you want it). Current picks
- * stay visible until the new research replaces them. Ignored (false) while
- * the idea is being researched.
+ * Back to the queue now, with a clean retry budget, and back on the wanted
+ * list (researching it again means you want it). Current picks stay visible
+ * until the new round adds its own. 'busy' while researching; with
+ * `requireSignal`, 'nothing' when no pick has a reaction and the preferences
+ * were not edited (a refine has nothing to learn from). Null: unknown idea.
  */
-export function requeueIdea(db: WlDb, id: number): boolean {
-  return (
-    db
-      .prepare(
-        `UPDATE ideas SET status = 'queued', error = NULL, attempts = 0, next_attempt_at = NULL,
-           list = 'wanted', bought = NULL
-         WHERE id = ? AND status != 'researching'`,
-      )
-      .run(id).changes > 0
-  )
+export function requeueIdea(
+  db: WlDb,
+  id: number,
+  opts: { requireSignal: boolean },
+): 'queued' | 'busy' | 'nothing' | null {
+  return db.transaction(() => {
+    const idea = getIdea(db, id)
+    if (!idea) return null
+    if (idea.status === 'researching') return 'busy'
+    if (opts.requireSignal && !idea.preferencesEdited && !idea.picks.some((p) => p.reaction)) return 'nothing'
+    db.prepare(
+      `UPDATE ideas SET status = 'queued', error = NULL, attempts = 0, next_attempt_at = NULL,
+         list = 'wanted', bought = NULL WHERE id = ?`,
+    ).run(id)
+    return 'queued'
+  })()
+}
+
+/** Saves, changes or clears the owner's reaction to a pick. Null: unknown pick. */
+export function reactToPick(db: WlDb, pickId: number, patch: PickPatch): Idea | null {
+  return db.transaction(() => {
+    const row = db.prepare('SELECT idea_id AS ideaId FROM picks WHERE id = ?').get(pickId) as
+      | { ideaId: number }
+      | undefined
+    if (!row) return null
+    if (patch.reaction !== undefined) {
+      db.prepare('UPDATE picks SET reaction = ? WHERE id = ?').run(patch.reaction, pickId)
+      if (patch.reaction === null) db.prepare('UPDATE picks SET reason = NULL WHERE id = ?').run(pickId)
+    }
+    if (patch.reason !== undefined && patch.reaction !== null) {
+      db.prepare('UPDATE picks SET reason = ? WHERE id = ?').run(patch.reason?.trim() || null, pickId)
+    }
+    return getIdea(db, row.ideaId)
+  })()
 }
 
 /**
@@ -369,7 +453,9 @@ function toIdea(row: IdeaRow, picks: Pick[]): Idea {
     ...row,
     createdAt: toIso(row.createdAt) as string,
     researchedAt: toIso(row.researchedAt),
-    criteria: parseStrings(row.criteria),
+    titleByOwner: row.titleByOwner === 1,
+    preferences: parsePreferences(row.preferences),
+    preferencesEdited: row.preferencesEdited === 1,
     bought: parseBought(row.bought),
     picks,
   }
@@ -414,6 +500,23 @@ function parseBought(raw: string | null): BoughtPick | null {
       url: b.url,
       price: typeof b.price === 'number' ? b.price : null,
       at: typeof b.at === 'string' ? b.at : '',
+    }
+  } catch {
+    return null
+  }
+}
+
+function parsePreferences(raw: string | null): Preferences | null {
+  if (!raw) return null
+  try {
+    const p = JSON.parse(raw) as Partial<Preferences>
+    if (!p || typeof p !== 'object') return null
+    const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+    return {
+      summary: typeof p.summary === 'string' ? p.summary : '',
+      mustHaves: list(p.mustHaves),
+      avoid: list(p.avoid),
+      likes: list(p.likes),
     }
   } catch {
     return null

@@ -108,7 +108,7 @@ export function createApp(opts: AppOptions): express.Express {
     if (id === null) return
     const idea = getIdea(db, id)
     if (!idea) return notFound(res)
-    if (!requeueIdea(db, id)) {
+    if (requeueIdea(db, id, { requireSignal: false }) !== 'queued') {
       return res.status(409).json({ error: 'this idea is being researched right now' })
     }
     worker.kick()
