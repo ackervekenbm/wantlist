@@ -18,7 +18,7 @@ What the owner rejected along the way, so the build doesn't drift back: a dating
 
 ## Goals
 
-- **Same features, new look and structure.** Every current feature keeps working: capture (text, budget, notes, Enter adds), researcher status, research states (queued, researching with the live step, retrying, stopped, out of quota, research off, nothing new), the model title with rename, editing the idea, reactions with why-not, refine, what I've learned (view and edit, locked while researching), keepers, earlier rounds (still reactable), "I bought this" / "bought something else", archive, remove with undo, want it again, the Wanted / Bought / Archived lists with a filter above 8 ideas, and light and dark themes.
+- **Same features, new look and structure.** Every current feature keeps working: capture (text, budget, notes, Enter adds), researcher status, research states (queued, researching with the live step, retrying, stopped, out of quota, research off, nothing new), the model title with rename, editing the idea, reactions with why-not, refine, what I've learned (view and edit, locked while researching), keepers, earlier rounds (still reactable), "I bought this" / "bought something else", archive, remove with undo, want it again, the Wanted / Bought / Archived lists with a filter above 8 ideas, and light and dark themes (following the system, plus a toggle on the top bar that this phase adds and remembers per browser).
 - **Home** follows the mockup: capture, **Needs you** (picks to react to, nothing new found, stopped), **With the researcher** (queued, researching, retrying, with the live step on a dotted leader), then count tiles that open the lists. The Pantry section and tile are phase 2. Everything else that is wanted and resting is reached through the Wanted tile. In the common case (up to about 6 wanted ideas) home fits one 390×844 screen.
 - **The Explore idea screen** follows the mockup: header (kicker, model title, "You wrote …"), status card, round bar with numbered pips, **one pick card at a time**, the three keycap reactions (✕ No way, ~ Kind of, ♥ Yes) with "tap again to clear", the why-not card (quick chips plus your own words), horizontal swipe on the card as a mirror of the buttons, what I've learned, keepers, earlier rounds, and the sticky refine dock.
 - **PC browser (owner's choice: list and detail side by side).** From about 900 px wide: home on the left (fixed width, about 400 px), the open idea on the right. Nothing selected shows a short empty state on the right. Below 900 px: the phone layout, where opening an idea navigates to its own screen.
@@ -27,7 +27,7 @@ What the owner rejected along the way, so the build doesn't drift back: a dating
 ## Non-goals (this phase)
 
 - Hunt mode, the Explore ⇄ Hunt switch, Pantry, Running low, exact-match offers, "Will you buy this again?" (phase 2).
-- New research behaviour or API changes. The server is untouched unless a client need surfaces a missing field (none is known).
+- New research behaviour. The only server change is the failure kind below (builder-check call).
 - Notifications, offline / installable app.
 - A redesign of anything the mockup doesn't cover. Where it is silent, extend its system instead of inventing a new look.
 
@@ -59,6 +59,21 @@ What the owner rejected along the way, so the build doesn't drift back: a dating
 - Both in one project: one very large change, harder to review.
 
 ## Design
+
+### Decisions from the builder check (my calls; check them)
+
+1. **What Needs you holds.** An idea is listed there when it has picks you haven't reacted to, found nothing new, or stopped. A round that is fully reacted moves to the Wanted list, so home doesn't grow. There is no age cut-off; archive or remove clears an idea.
+2. **Nothing new vs stopped.** Today both arrive as `status: error`, told apart only by message text.
+   - Add `ideas.error_kind` (migration 6), set by `failIdea` from the failure kind, and expose it as `Idea.errorKind: 'nothing-new' | 'stopped' | null`. This is the only server change.
+   - The `no-results` kind, and the worker's "no product survived verification", show as **Nothing new found**. Every other failure shows as **Stopped**.
+3. **Loosen a criterion and Reword.** Neither destroys anything.
+   - *Loosen a criterion* opens What I've learned in edit mode, scrolled into view.
+   - *Reword* opens the edit-idea form; saving a new wording already starts fresh (`freshSinceRound`).
+   - The mockup's versions (wiping every avoid item, and pre-filling the capture box, which would create a duplicate idea) are not built.
+4. **Researching state.** One live line with the current step the server reports, plus "Usually a few minutes; you can leave". The mockup's fixed checklist of steps is dropped, because the server only sends the current step.
+5. **Editing what wantlist learned.** Keep today's tested model, restyled: one edit mode with the three lists as textareas, a draft that survives polls and a failed save, and Save or Cancel. The mockup's per-item ✕ and add row are not built.
+6. **Research again.** Kept: "Research again" goes in the idea's overflow menu, and "Save & research again" stays in the edit form. A retrying idea gets **Try now**, which is the same re-run.
+7. **When Refine is enabled.** Keep today's rule: a reaction on any round, or edited preferences, enables it. The count shown is the current round's reactions, and the label follows today's refine button.
 
 ### Navigation (my call)
 
