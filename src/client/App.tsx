@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { HomeScreen, Skeleton } from './components/HomeScreen'
+import { IdeaScreen } from './components/IdeaScreen'
 import { shownTitle } from './components/IdeaTitle'
 import { ListsScreen } from './components/ListsScreen'
-import { OldIdea } from './components/OldIdea'
 import { Shell } from './components/Shell'
 import { TopBar } from './components/TopBar'
 import { useIdeas } from './hooks/useIdeas'
@@ -66,7 +66,13 @@ export function App() {
       onRemove={state.remove}
     />
   ) : openIdea ? (
-    <OldIdea key={openIdea.id} idea={openIdea} state={state} />
+    <IdeaScreen
+      key={openIdea.id}
+      idea={openIdea}
+      status={state.status}
+      onBack={() => navigate({ name: 'home' })}
+      actions={state}
+    />
   ) : null
 
   return (
