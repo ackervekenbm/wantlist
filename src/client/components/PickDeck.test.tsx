@@ -66,12 +66,17 @@ describe('PickDeck moves', () => {
   it('a rollback inside the 250 ms cancels the advance', async () => {
     const { api } = await open([three()])
     api.failNextPickPatch()
-    // Stop the clock so a slow machine can't run out the 250 ms before the rollback lands.
-    vi.useFakeTimers({ shouldAdvanceTime: false })
+    // Freeze only setTimeout (the 250 ms advance), so a slow machine can't run it out before the
+    // rollback lands; the failed response still needs the rest of the event loop to arrive, and
+    // waitFor can't be used here because it waits on a setTimeout itself.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const yes = keys('Alpha').getByRole('button', { name: 'Yes' })
     fireEvent.click(yes)
     expect(yes).toHaveAttribute('aria-pressed', 'true')
-    for (let i = 0; i < 10; i += 1) await act(async () => {})
+    const until = performance.now() + 3000
+    while (yes.getAttribute('aria-pressed') !== 'false' && performance.now() < until) {
+      await act(() => new Promise<void>((r) => setImmediate(r)))
+    }
     expect(yes).toHaveAttribute('aria-pressed', 'false')
     await wait(500)
     expect(current()).toBe('Alpha')

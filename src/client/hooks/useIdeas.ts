@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Idea, IdeaPatch, NewIdea, Pick, PickPatch, ServerStatus } from '../../types'
 import * as api from '../api'
 
@@ -44,7 +44,8 @@ export function useIdeas(): IdeasState & IdeasActions {
   const [error, setError] = useState<string | null>(null)
   const [removed, setRemoved] = useState<Idea | null>(null)
   const ideasRef = useRef<Idea[]>([])
-  useEffect(() => {
+  // Layout effect: a tap right after new data must see that data, or a failed save has nothing to roll back to.
+  useLayoutEffect(() => {
     ideasRef.current = ideas
   }, [ideas])
   const writeSeq = useRef(0)
