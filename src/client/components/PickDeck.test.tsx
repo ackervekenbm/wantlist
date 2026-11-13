@@ -55,6 +55,14 @@ describe('PickDeck moves', () => {
     expect(deck().getByText('Pick 3 of 3')).toBeInTheDocument()
   })
 
+  it('moves on at once, without the 250 ms exit, under reduced motion', async () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce'), media: q }))
+    const { user } = await open([three()])
+    await user.click(keys('Alpha').getByRole('button', { name: 'Kind of' }))
+    expect(current()).toBe('Bravo')
+    expect(document.querySelector('.deck .pick')).not.toHaveClass('out-l')
+  })
+
   it('a rollback inside the 250 ms cancels the advance', async () => {
     const { api, user } = await open([three()])
     api.failNextPickPatch()
@@ -207,6 +215,16 @@ describe('Swipe', () => {
     const { api } = await open([three()])
     drag('touch', 120, 10, true)
     await waitFor(() => expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/picks/1', body: { reaction: 'yes' } }]))
+  })
+
+  it('a touch drag of 120 px left says No way and opens the why-not, staying on the card', async () => {
+    const { api } = await open([three()])
+    drag('touch', -120, 5)
+    await waitFor(() => expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/picks/1', body: { reaction: 'no' } }]))
+    expect(await screen.findByLabelText('Why not Alpha?')).toBeInTheDocument()
+    expect(keys('Alpha').getByRole('button', { name: 'No way' })).toHaveAttribute('aria-pressed', 'true')
+    await wait(300)
+    expect(current()).toBe('Alpha')
   })
 
   it('only the click right after a drag is swallowed', async () => {

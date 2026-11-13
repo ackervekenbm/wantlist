@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { Availability, Pick } from '../../types'
-import { formatEur } from '../lib/format'
+import { formatEur, priceText } from '../lib/format'
 import { ExternalIcon, ParcelIcon, StarIcon } from './icons'
+import { REACTION_LABEL } from './ReactionBar'
 
 interface Props {
   pick: Pick
@@ -17,8 +18,6 @@ const STOCK: Record<Availability, string | null> = {
   preorder: 'Pre-order',
   unknown: null,
 }
-
-const STAMP = { no: 'No way', maybe: 'Kind of', yes: 'Yes' } as const
 
 /** What's on a deck card: photo, rank, your stamp, price, why, caveat and other shops. Keyed by pick by its parent. */
 export function PickCard({ pick, budget, onBought }: Props) {
@@ -45,7 +44,7 @@ export function PickCard({ pick, budget, onBought }: Props) {
           </>
         )}
         <span className="rank">#{pick.rank}</span>
-        {pick.reaction && <span className={`stamp ${pick.reaction}`}>{STAMP[pick.reaction]}</span>}
+        {pick.reaction && <span className={`stamp ${pick.reaction}`}>{REACTION_LABEL[pick.reaction]}</span>}
       </div>
       <div className="pick-body">
         <h3 className="pick-title">{pick.title}</h3>
@@ -88,7 +87,7 @@ export function PickCard({ pick, budget, onBought }: Props) {
                 <a href={s.url} target="_blank" rel="noreferrer noopener">
                   {s.shop}
                 </a>
-                {s.price !== null && ` ${s.checked ? '' : '≈ '}${formatEur(s.price)}`}
+                {s.price !== null && ` ${priceText(s.price, s.checked)}`}
                 {s.availability === 'out_of_stock' && ' (sold out)'}
               </span>
             ))}

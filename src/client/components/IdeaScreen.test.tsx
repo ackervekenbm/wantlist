@@ -94,7 +94,41 @@ describe('StatusCard', () => {
 
 describe('Nothing new: Loosen and Reword', () => {
   const nothingNew = (over: Partial<Idea> = {}) =>
-    idea({ status: 'error', errorKind: 'nothing-new', error: 'Nothing new found.', ...over })
+    idea({ status: 'error', errorKind: 'nothing-new', error: 'Nothing new found. Loosen a criterion or reword the idea.', ...over })
+
+  it('says only seen picks turned up when that is the reason', async () => {
+    await open([nothingNew({ round: 2 })])
+    expect(pane().getByRole('region', { name: 'Nothing new found' })).toHaveTextContent(
+      "Round 3 turned up only picks you've already seen. Loosen a criterion or reword the idea.",
+    )
+  })
+
+  it('shows the server reason when the searches found nothing on round 1', async () => {
+    const error = 'The searches found nothing to buy. Try describing the idea differently.'
+    await open([nothingNew({ round: 0, picks: [], preferences: null, error })])
+    const card = pane().getByRole('region', { name: 'Nothing new found' })
+    expect(card).toHaveTextContent(error)
+    expect(card).not.toHaveTextContent(/already seen|Loosen/)
+    expect(within(card).getAllByRole('button').map((b) => b.textContent)).toEqual(['Reword'])
+  })
+
+  it('shows the server reason when no product survived verification', async () => {
+    const error = 'No product survived verification. Try rewording the idea.'
+    await open([nothingNew({ error })])
+    const card = pane().getByRole('region', { name: 'Nothing new found' })
+    expect(card).toHaveTextContent(error)
+    expect(card).not.toHaveTextContent(/already seen/)
+  })
+
+  it('Loosen keeps an edit already in progress', async () => {
+    const { user } = await open([nothingNew()])
+    await user.click(pane().getByRole('button', { name: 'Edit preferences' }))
+    const must = screen.getByLabelText('Must have, one per line')
+    await user.clear(must)
+    await user.type(must, 'airflow')
+    await user.click(pane().getByRole('button', { name: 'Loosen a criterion' }))
+    expect(screen.getByLabelText('Must have, one per line')).toHaveValue('airflow')
+  })
 
   it('Loosen opens the preferences editor, again after a cancel, and saves nothing by itself', async () => {
     const { api, user } = await open([nothingNew()])
@@ -156,17 +190,21 @@ describe('Idea menu', () => {
     expect(api.writes()).toEqual([])
   })
 
-  it('archives and goes home', async () => {
+  it('archives and goes home, replacing the idea history entry', async () => {
     const { api, user } = await open([idea()])
+    const entries = history.length
     await user.click((await menu(user)).getByRole('button', { name: 'Archive' }))
     await waitFor(() => expect(location.hash).toBe('#/'))
+    expect(history.length).toBe(entries)
     expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/ideas/1', body: { list: 'archived' } }])
   })
 
-  it('removes with undo and goes home', async () => {
+  it('removes with undo and goes home, replacing the idea history entry', async () => {
     const { api, user } = await open([idea()])
+    const entries = history.length
     await user.click((await menu(user)).getByRole('button', { name: 'Remove' }))
     await waitFor(() => expect(location.hash).toBe('#/'))
+    expect(history.length).toBe(entries)
     expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
     expect(api.writes()).toEqual([])
   })
@@ -202,7 +240,7 @@ describe('Bought and archived ideas', () => {
 
   it('shows what was bought, no reactions, and only Want again and Remove', async () => {
     const { api, user } = await open([idea({ list: 'bought', bought })])
-    expect(pane().getByRole('region', { name: 'Bought' })).toHaveTextContent(/Wahoo KICKR Headwind · Bikeshop · €\s249,99/)
+    expect(pane().getByRole('region', { name: 'Bought' })).toHaveTextContent(/Wahoo KICKR Headwind · Bikeshop · €\s249,99 · 7 Nov/)
     expect(pane().queryByRole('button', { name: 'No way' })).not.toBeInTheDocument()
     expect(pane().queryByRole('button', { name: /^Refine/ })).not.toBeInTheDocument()
     const m = await menu(user)
@@ -213,6 +251,7 @@ describe('Bought and archived ideas', () => {
 
   it('archived: no reactions, only Want again and Remove', async () => {
     const { user } = await open([idea({ list: 'archived' })])
+    expect(pane().getByRole('region', { name: 'Archived' })).toHaveTextContent(/not researched/)
     expect(pane().queryByRole('button', { name: 'No way' })).not.toBeInTheDocument()
     const m = await menu(user)
     expect(m.getAllByRole('button').map((b) => b.textContent)).toEqual(['Want again', 'Remove', 'Cancel'])

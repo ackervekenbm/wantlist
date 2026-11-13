@@ -20,7 +20,11 @@ export function TopBar({ status, currentTitle, theme, onTheme }: TopBarProps) {
   const next = nextTheme(theme)
   return (
     <header className="top">
-      <div className="mark">
+      {/* Home's page heading, and where focus lands when you come home with no row to return to. */}
+      <h1 className="sr" tabIndex={-1}>
+        wantlist
+      </h1>
+      <div className="mark" aria-hidden="true">
         <LogoMark />
         <span>wantlist</span>
       </div>

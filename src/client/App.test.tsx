@@ -62,6 +62,47 @@ describe('App', () => {
     expect(row).toHaveFocus()
   })
 
+  it('steps back with the Home link, so the system Back does not reopen the idea', async () => {
+    fakeApi([idea({ id: 1, title: 'Quiet trainer fan' })])
+    // What came before the app in this tab.
+    history.replaceState(null, '', '#/lists/bought')
+    history.pushState(null, '', '#/')
+    const user = await renderApp('#/')
+    await user.click(screen.getByRole('button', { name: /Quiet trainer fan.*React/ }))
+    expect(location.hash).toBe('#/idea/1')
+    await user.click(screen.getByRole('link', { name: 'Home' }))
+    await waitFor(() => expect(location.hash).toBe('#/'))
+    act(() => history.back())
+    await waitFor(() => expect(location.hash).toBe('#/lists/bought'))
+    expect(screen.getByRole('heading', { level: 1, name: 'Lists' })).toBeInTheDocument()
+  })
+
+  it('focuses the home heading when the idea has no row there, or when coming from the lists', async () => {
+    fakeApi([idea({ id: 1, title: 'Old lamp', list: 'archived' })])
+    const user = await renderApp('#/idea/1')
+    await user.click(screen.getByRole('link', { name: 'Home' }))
+    await waitFor(() => expect(location.hash).toBe('#/'))
+    const home = screen.getByRole('heading', { level: 1, name: 'wantlist' })
+    expect(home).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: '1 Archived' }))
+    expect(screen.getByRole('heading', { level: 1, name: 'Lists' })).toHaveFocus()
+    await user.click(screen.getByRole('link', { name: 'Home' }))
+    await waitFor(() => expect(location.hash).toBe('#/'))
+    expect(home).toHaveFocus()
+  })
+
+  it('keeps focus on the tab when switching list tabs', async () => {
+    fakeApi([idea({ id: 1 }), idea({ id: 2, text: 'old lamp', list: 'archived' })])
+    const user = await renderApp('#/lists/wanted')
+    const tab = screen.getByRole('button', { name: /^Archived\s*1$/ })
+    await user.click(tab)
+    expect(location.hash).toBe('#/lists/archived')
+    expect(tab).toHaveAttribute('aria-pressed', 'true')
+    expect(tab).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Remove old lamp' })).toBeInTheDocument()
+  })
+
   it('opens an idea from home, reacts, refines, and the round shows as queued', async () => {
     const api = fakeApi([idea({ id: 1, title: 'Quiet trainer fan' })])
     const user = await renderApp()
@@ -295,6 +336,17 @@ describe('App', () => {
     })
     expect(location.hash).toBe('#/idea/1')
     expect(h1).toHaveFocus()
+  })
+
+  it('stays on a list tab after a reload, with its home tile marked', async () => {
+    fakeApi([idea({ id: 1 }), idea({ id: 2, text: 'lamp', list: 'bought', bought: null })])
+    await renderApp('#/lists/bought')
+    expect(screen.getByRole('heading', { level: 1, name: 'Lists' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: /^Bought\s*1$/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Bought something else')).toBeInTheDocument()
+    const tiles = within(screen.getByRole('navigation', { name: 'Lists' }))
+    expect(tiles.getByRole('button', { name: '1 Bought' })).toHaveAttribute('aria-current', 'true')
+    expect(tiles.getByRole('button', { name: '1 Wanted' })).not.toHaveAttribute('aria-current')
   })
 
   it('sends an unknown idea back home once loaded, without a new history entry', async () => {

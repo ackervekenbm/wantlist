@@ -24,10 +24,17 @@ export function writeTheme(t: Theme): void {
   }
 }
 
-/** Sets `data-theme` on <html>; the CSS tokens follow it. */
+/** The browser bar colour per theme: --bg, as in index.html's theme-color metas. */
+const BAR = { light: '#ECE6DB', dark: '#12100D' }
+
+/** Sets `data-theme` on <html>, which the CSS tokens follow, and the browser bar colour with it. */
 export function applyTheme(t: Theme): void {
   if (t === 'system') delete document.documentElement.dataset.theme
   else document.documentElement.dataset.theme = t
+  // Each meta keeps its own scheme under system, and both take the forced theme otherwise.
+  for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+    meta.content = BAR[t === 'system' ? (meta.getAttribute('media')?.includes('dark') ? 'dark' : 'light') : t]
+  }
 }
 
 export function nextTheme(t: Theme): Theme {

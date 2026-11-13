@@ -28,4 +28,18 @@ describe('theme', () => {
     applyTheme('system')
     expect(document.documentElement.dataset.theme).toBeUndefined()
   })
+
+  it('points the browser bar colour at the forced theme, and back at each scheme under system', () => {
+    document.head.innerHTML =
+      '<meta name="theme-color" content="#ECE6DB" media="(prefers-color-scheme: light)">' +
+      '<meta name="theme-color" content="#12100D" media="(prefers-color-scheme: dark)">'
+    const bar = () => [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')].map((m) => m.content)
+    applyTheme('dark')
+    expect(bar()).toEqual(['#12100D', '#12100D'])
+    applyTheme('light')
+    expect(bar()).toEqual(['#ECE6DB', '#ECE6DB'])
+    applyTheme('system')
+    expect(bar()).toEqual(['#ECE6DB', '#12100D'])
+    document.head.innerHTML = ''
+  })
 })

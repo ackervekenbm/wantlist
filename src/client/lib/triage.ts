@@ -28,3 +28,13 @@ export function quotaResetAt(status: ServerStatus): string | null {
   if (benched.length === 0 || benched.some((b) => !b)) return null
   return (benched as string[]).sort()[0]
 }
+
+/** The title an idea shows: the model's (or yours) once researched, else what you typed. */
+export function shownTitle(idea: Idea): string {
+  return idea.round > 0 ? (idea.title ?? idea.text) : idea.text
+}
+
+/** The live research step when the researcher is on this idea, else null. */
+export function stepOf(status: ServerStatus | null, ideaId: number): string | null {
+  return status?.current?.ideaId === ideaId ? status.current.step : null
+}

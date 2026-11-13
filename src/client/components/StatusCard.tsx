@@ -2,7 +2,7 @@ import { useId, type ReactNode } from 'react'
 import type { Idea, ServerStatus } from '../../types'
 import { RETRY_MAX_ATTEMPTS } from '../../types/limits'
 import { clockTime } from '../lib/format'
-import { quotaResetAt } from '../lib/triage'
+import { quotaResetAt, stepOf } from '../lib/triage'
 
 interface Props {
   idea: Idea
@@ -22,7 +22,15 @@ export function StatusCard({ idea, status, onRerun, onLoosen, onReword }: Props)
   if (idea.status === 'error' && idea.errorKind === 'nothing-new') {
     return (
       <Card dot="warn" title="Nothing new found">
-        <p>Round {next} turned up only picks you've already seen. Loosen a criterion or reword the idea.</p>
+        {/* Only the exclusion failure means "seen it all"; the others (nothing to buy, nothing verified) carry their own advice. */}
+        {idea.error?.startsWith('Nothing new found') ? (
+          <p>
+            Round {next} turned up only picks you've already seen.{' '}
+            {onLoosen ? 'Loosen a criterion or reword the idea.' : 'Reword the idea.'}
+          </p>
+        ) : (
+          <p>{idea.error ?? 'Research found nothing to show.'}</p>
+        )}
         <div className="acts">
           {onLoosen && (
             <button type="button" className="btn small" onClick={onLoosen}>
@@ -49,7 +57,7 @@ export function StatusCard({ idea, status, onRerun, onLoosen, onReword }: Props)
     )
   }
   if (idea.status === 'researching') {
-    const step = status?.current?.ideaId === idea.id ? status.current.step : null
+    const step = stepOf(status, idea.id)
     return (
       <Card dot="live" title={`Researching round ${next}`}>
         <p className="now" aria-live="polite">

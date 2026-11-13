@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { shownTitle } from '../components/IdeaTitle'
 import { idea, pick, status } from '../test/fakeApi'
-import { isWorking, needOf, quotaResetAt } from './triage'
+import { isWorking, needOf, quotaResetAt, shownTitle } from './triage'
 
 describe('needOf', () => {
   it('asks for reactions while the latest round has an unreacted pick', () => {

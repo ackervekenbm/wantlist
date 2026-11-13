@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import type { Idea, IdeaList, IdeaPatch } from '../../types'
-import { formatEur } from '../lib/format'
+import { boughtLine } from '../lib/format'
 import { matches } from '../lib/filter'
-import { isWorking, needOf } from '../lib/triage'
+import { isWorking, needOf, shownTitle } from '../lib/triage'
 import { BackLink } from './BackLink'
 import { ExploreIcon, SearchIcon } from './icons'
-import { shownTitle } from './IdeaTitle'
 
 export const TABS: Array<{ list: IdeaList; label: string }> = [
   { list: 'wanted', label: 'Wanted' },
@@ -38,7 +37,11 @@ export function ListsScreen({ ideas, tab, onTab, onOpen, onPatch, onRemove }: Pr
       <h1 tabIndex={-1}>Lists</h1>
       <nav className="tabs" aria-label="List tabs">
         {TABS.map(({ list, label }) => (
-          <button key={list} type="button" aria-pressed={list === tab} onClick={() => onTab(list)}>
+          <button key={list} type="button" aria-pressed={list === tab} onClick={() => {
+              // The screen stays mounted across tabs (focus stays on this tab); the filter does not carry over.
+              setFilter('')
+              onTab(list)
+            }}>
             {label}
             <span className="c">{count(list)}</span>
           </button>
@@ -114,18 +117,10 @@ export function ListsScreen({ ideas, tab, onTab, onOpen, onPatch, onRemove }: Pr
   )
 }
 
-const dayMonth = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-})
-
 /** What the row says under the title: what happened, or what the idea is waiting for. */
 function subLine(idea: Idea): string {
   if (idea.list === 'bought') {
-    const b = idea.bought
-    if (!b) return 'Bought something else'
-    const when = Number.isNaN(Date.parse(b.at)) ? null : dayMonth.format(new Date(b.at))
-    return [b.title, b.shop, b.price == null ? null : formatEur(b.price), when].filter(Boolean).join(' · ')
+    return idea.bought ? boughtLine(idea.bought) : 'Bought something else'
   }
   if (idea.list === 'archived') return 'Archived'
   const need = needOf(idea)

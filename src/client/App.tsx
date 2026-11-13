@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { HomeScreen, Skeleton } from './components/HomeScreen'
 import { IdeaScreen } from './components/IdeaScreen'
-import { shownTitle } from './components/IdeaTitle'
+import { shownTitle } from './lib/triage'
 import { ListsScreen } from './components/ListsScreen'
 import { Shell } from './components/Shell'
 import { TopBar } from './components/TopBar'
@@ -43,6 +43,7 @@ export function App() {
         ideas={state.ideas}
         status={state.status}
         selectedId={route.name === 'idea' ? route.id : null}
+        selectedList={route.name === 'lists' ? route.tab : null}
         onOpen={(id) => navigate({ name: 'idea', id })}
         onLists={(tab) => navigate({ name: 'lists', tab })}
         onAdd={state.add}
@@ -56,7 +57,6 @@ export function App() {
     </div>
   ) : route.name === 'lists' ? (
     <ListsScreen
-      key={route.tab}
       ideas={state.ideas}
       tab={route.tab}
       onTab={(tab) => navigate({ name: 'lists', tab }, { replace: true })}
@@ -70,7 +70,8 @@ export function App() {
       key={openIdea.id}
       idea={openIdea}
       status={state.status}
-      onBack={() => navigate({ name: 'home' })}
+      // Archive and Remove leave no entry behind for an idea that is gone from view.
+      onBack={() => navigate({ name: 'home' }, { replace: true })}
       actions={state}
     />
   ) : null
@@ -106,7 +107,8 @@ export function App() {
 
 /**
  * Opening an idea or the lists focuses that screen's h1 and scrolls to the
- * top; going back home returns focus to the idea's row, when there is one.
+ * top; a tab switch on the lists leaves focus on the tab. Going back home
+ * returns focus to the idea's row, else to home's h1.
  */
 function useRouteFocus(route: Route, loaded: boolean) {
   const previous = useRef(route)
@@ -114,9 +116,12 @@ function useRouteFocus(route: Route, loaded: boolean) {
     const prev = previous.current
     previous.current = route
     if (route.name === 'home') {
-      if (prev.name === 'idea') document.querySelector<HTMLElement>(`[data-idea-id="${prev.id}"]`)?.focus()
+      if (prev.name === 'home') return
+      const row = prev.name === 'idea' && document.querySelector<HTMLElement>(`.pane-left [data-idea-id="${prev.id}"]`)
+      ;(row || document.querySelector<HTMLElement>('.pane-left h1'))?.focus()
       return
     }
+    if (prev !== route && prev.name === 'lists' && route.name === 'lists') return
     const h1 = document.querySelector<HTMLElement>('.pane-right h1')
     if (!h1) return
     h1.focus({ preventScroll: true })

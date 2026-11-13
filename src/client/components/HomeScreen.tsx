@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react'
 import type { Idea, IdeaList, NewIdea, ServerStatus } from '../../types'
 import { clockTime } from '../lib/format'
-import { isWorking, latestPicks, needOf, quotaResetAt, type Need } from '../lib/triage'
+import { isWorking, latestPicks, needOf, quotaResetAt, shownTitle, stepOf, type Need } from '../lib/triage'
 import { ChevronRightIcon, ExploreIcon } from './icons'
 import { IdeaForm } from './IdeaForm'
-import { shownTitle } from './IdeaTitle'
-import { Leader } from './Leader'
+import { Leader, Section } from './Leader'
 import { TABS } from './ListsScreen'
 
 interface Props {
@@ -13,6 +12,8 @@ interface Props {
   status: ServerStatus | null
   /** The idea open in the right pane, highlighted on a PC. */
   selectedId: number | null
+  /** The list open in the right pane, marked on its tile on a PC. */
+  selectedList?: IdeaList | null
   onOpen: (id: number) => void
   onLists: (tab: IdeaList) => void
   onAdd: (idea: NewIdea) => Promise<void>
@@ -23,7 +24,7 @@ interface Props {
 const NEED_ORDER: Need[] = ['react', 'nothing-new', 'stopped']
 
 /** Capture, what needs you, what the researcher is on, and the list tiles. */
-export function HomeScreen({ ideas, status, selectedId, onOpen, onLists, onAdd, loaded = true }: Props) {
+export function HomeScreen({ ideas, status, selectedId, selectedList = null, onOpen, onLists, onAdd, loaded = true }: Props) {
   // React first, then nothing new, then stopped; sort is stable, so server order holds within a group.
   const needs = ideas
     .flatMap((i) => {
@@ -71,7 +72,7 @@ export function HomeScreen({ ideas, status, selectedId, onOpen, onLists, onAdd, 
         </div>
       ) : (
         <>
-          <Section id="h-need" title="Needs you" count={needs.length}>
+          <Section title="Needs you" count={needs.length}>
             {needs.length > 0 ? (
               <div className="card rows">
                 {needs.map(({ idea, need }) => (
@@ -93,12 +94,12 @@ export function HomeScreen({ ideas, status, selectedId, onOpen, onLists, onAdd, 
           </Section>
 
           {working.length > 0 && (
-            <Section id="h-wait" title="With the researcher" count={working.length}>
+            <Section title="With the researcher" count={working.length}>
               <div className="card rows">
                 {working.map((idea) => {
                   const live = idea.status === 'researching'
                   const retry = !live && idea.nextAttemptAt
-                  const step = status?.current?.ideaId === idea.id ? status.current.step : null
+                  const step = stepOf(status, idea.id)
                   return (
                     <button key={idea.id} className="mini" {...rowProps(idea)}>
                       <span className={`dot ${live ? 'live' : retry ? 'warn' : 'off'}`} aria-hidden="true" />
@@ -116,7 +117,12 @@ export function HomeScreen({ ideas, status, selectedId, onOpen, onLists, onAdd, 
 
           <nav className="listlinks" aria-label="Lists">
             {TABS.map(({ list, label }) => (
-              <button key={list} type="button" onClick={() => onLists(list)}>
+              <button
+                key={list}
+                type="button"
+                aria-current={list === selectedList ? 'true' : undefined}
+                onClick={() => onLists(list)}
+              >
                 <b>{count(list)}</b> {label}
               </button>
             ))}
@@ -147,18 +153,6 @@ function NeedLine({ idea, need }: { idea: Idea; need: Need }) {
     <Leader className="row-sub" fig="try again">
       <span className="bad">Stopped</span>
     </Leader>
-  )
-}
-
-function Section({ id, title, count, children }: { id: string; title: string; count: number; children: ReactNode }) {
-  return (
-    <section className="sec" aria-labelledby={id}>
-      <h2 className="sec-h" id={id}>
-        {title} <span className="n">{count}</span>
-        <span className="rule" />
-      </h2>
-      {children}
-    </section>
   )
 }
 
