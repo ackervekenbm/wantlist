@@ -30,9 +30,8 @@ describe('App', () => {
     await user.type(screen.getByLabelText(/Notes/), 'quiet')
     await user.type(screen.getByLabelText('What do you want?'), 'Running shoes{Enter}')
 
-    const row = await screen.findByRole('button', {
-      name: /Running shoes.*queued/,
-    })
+    const researcher = await screen.findByRole('region', { name: /^With the researcher/ })
+    const row = within(researcher).getByRole('button', { name: /Running shoes.*queued/ })
     expect(api.writes()).toEqual([
       {
         method: 'POST',
@@ -60,6 +59,36 @@ describe('App', () => {
     await user.click(screen.getByRole('link', { name: 'Home' }))
     await waitFor(() => expect(location.hash).toBe('#/'))
     expect(row).toHaveFocus()
+  })
+
+  it('opens an idea from home, reacts, refines, and the round shows as queued', async () => {
+    const api = fakeApi([idea({ id: 1, title: 'Quiet trainer fan' })])
+    const user = await renderApp()
+    await user.click(screen.getByRole('button', { name: /Quiet trainer fan.*React/ }))
+    const pane = within(document.querySelector('.pane-right') as HTMLElement)
+    await user.click(pane.getByRole('button', { name: 'Yes' }))
+    await user.click(await pane.findByRole('button', { name: 'Refine with 1' }))
+    expect(await pane.findByRole('region', { name: 'Round 2 is queued' })).toBeInTheDocument()
+    expect(api.writes()).toEqual([
+      { method: 'PATCH', path: '/api/picks/1', body: { reaction: 'yes' } },
+      { method: 'POST', path: '/api/ideas/1/refine', body: undefined },
+    ])
+    expect(within(screen.getByRole('region', { name: /^With the researcher/ })).getByRole('button', { name: /Quiet trainer fan/ })).toBeInTheDocument()
+  })
+
+  it('switches the theme from the top bar: system, light, dark, and back', async () => {
+    fakeApi([])
+    const user = await renderApp()
+    const html = document.documentElement
+    expect(html.dataset.theme).toBeUndefined()
+    await user.click(screen.getByRole('button', { name: 'Theme: system. Switch to light' }))
+    expect(html.dataset.theme).toBe('light')
+    await user.click(screen.getByRole('button', { name: 'Theme: light. Switch to dark' }))
+    expect(html.dataset.theme).toBe('dark')
+    expect(localStorage.getItem('wantlist.theme')).toBe('dark')
+    await user.click(screen.getByRole('button', { name: 'Theme: dark. Switch to system' }))
+    expect(html.dataset.theme).toBeUndefined()
+    expect(screen.getByRole('button', { name: 'Theme: system. Switch to light' })).toBeInTheDocument()
   })
 
   it('keeps the text and shows why when adding fails', async () => {
@@ -139,7 +168,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: /^Archived\s*1$/ }))
     await user.click(screen.getByRole('button', { name: 'Remove first' }))
     expect(screen.queryByRole('button', { name: 'Remove first' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'undo' }))
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
     expect(screen.getByRole('button', { name: 'Remove first' })).toBeInTheDocument()
     expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/ideas/1', body: { list: 'archived' } }])
 
@@ -166,7 +195,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Archive broken' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('database is locked')
     expect(screen.getByRole('button', { name: 'Archive broken' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'dismiss' }))
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
     expect(screen.queryByText('database is locked')).not.toBeInTheDocument()
   })
 

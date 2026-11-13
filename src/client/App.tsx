@@ -85,7 +85,7 @@ export function App() {
           <div className="banner banner-bad" role="alert">
             <span>{state.error}</span>
             <button type="button" className="banner-close" onClick={state.dismissError}>
-              dismiss
+              Dismiss
             </button>
           </div>
         )
@@ -94,8 +94,8 @@ export function App() {
         state.removed && (
           <div className="toast" role="status">
             <span>Removed “{truncate(state.removed.text, 40)}”</span>
-            <button type="button" className="btn-text toast-undo" onClick={state.undoRemove}>
-              undo
+            <button type="button" onClick={state.undoRemove}>
+              Undo
             </button>
           </div>
         )

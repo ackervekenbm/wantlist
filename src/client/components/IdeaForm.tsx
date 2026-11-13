@@ -2,8 +2,8 @@ import { useId, useState, type FormEvent, type KeyboardEvent } from 'react'
 import type { NewIdea } from '../../types'
 
 /** Mirrors the server's limits (src/server/app.ts). */
-export const MAX_TEXT = 500
-export const MAX_NOTES = 500
+const MAX_TEXT = 500
+const MAX_NOTES = 500
 
 interface Props {
   initial?: Partial<NewIdea>
@@ -156,9 +156,9 @@ export function IdeaForm({ initial, submitLabel, secondaryLabel, compact, placeh
       {textarea}
 
       <div className="form-details">
-        <div className="form-field form-field-budget">
+        <div className="form-field">
           <label htmlFor={ids.budget} className="form-label">
-            Budget <span className="form-hint">(max €, optional)</span>
+            Budget
           </label>
           <input
             id={ids.budget}
@@ -166,21 +166,21 @@ export function IdeaForm({ initial, submitLabel, secondaryLabel, compact, placeh
             inputMode="decimal"
             autoComplete="off"
             value={budget}
-            placeholder="150"
+            placeholder="€ max"
             aria-invalid={invalidBudget}
             onChange={(e) => setBudget(e.target.value)}
           />
         </div>
-        <div className="form-field form-field-notes">
+        <div className="form-field">
           <label htmlFor={ids.notes} className="form-label">
-            Must-haves <span className="form-hint">(optional)</span>
+            Notes
           </label>
           <input
             id={ids.notes}
             className="input"
             maxLength={MAX_NOTES}
             value={notes}
-            placeholder="e.g. quiet, white, fits a small flat"
+            placeholder="size 36, no subscription…"
             onChange={(e) => setNotes(e.target.value)}
           />
         </div>
@@ -189,19 +189,17 @@ export function IdeaForm({ initial, submitLabel, secondaryLabel, compact, placeh
       {errors}
 
       <div className="form-bar">
-        <div className="form-buttons">
-          {onCancel && (
-            <button type="button" className="btn-text" onClick={onCancel} disabled={busy}>
-              cancel
-            </button>
-          )}
-          {secondaryLabel && (
-            <button type="button" className="btn btn-secondary" disabled={!canSubmit} onClick={() => void submit(true)}>
-              {secondaryLabel}
-            </button>
-          )}
-          {submitButton}
-        </div>
+        {onCancel && (
+          <button type="button" className="btn quiet" onClick={onCancel} disabled={busy}>
+            Cancel
+          </button>
+        )}
+        {secondaryLabel && (
+          <button type="button" className="btn" disabled={!canSubmit} onClick={() => void submit(true)}>
+            {secondaryLabel}
+          </button>
+        )}
+        {submitButton}
       </div>
     </form>
   )

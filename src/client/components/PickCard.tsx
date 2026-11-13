@@ -25,6 +25,7 @@ export function PickCard({ pick, budget, onBought }: Props) {
   const [broken, setBroken] = useState(false)
   const [best, ...others] = pick.suppliers
   const stock = best && STOCK[best.availability]
+  const overBudget = budget !== null && pick.price !== null && pick.price > budget
 
   return (
     <>
@@ -57,16 +58,21 @@ export function PickCard({ pick, budget, onBought }: Props) {
               {best?.checked ? <span className="ck">✓ checked</span> : <span className="approx">≈ search price</span>}
             </>
           )}
-          {pick.shop && <span>· {pick.shop}</span>}
-          {stock && <span className={best.availability === 'out_of_stock' ? 'bad' : undefined}>· {stock}</span>}
-          {pick.rating && (
-            <span title={`${pick.rating.value} out of 5`}>
-              · <StarIcon className="star" /> {pick.rating.value.toFixed(1)}
-              {pick.rating.count ? ` (${pick.rating.count})` : null}
-            </span>
-          )}
-          {budget !== null && pick.price !== null && pick.price > budget && <span className="bad">· over budget</span>}
+          {pick.shop && <span className="shop" title={pick.shop}>· {pick.shop}</span>}
         </p>
+        {/* Its own line, so a wrap never starts with a separator. */}
+        {(stock || pick.rating || overBudget) && (
+          <p className="meta">
+            {stock && <span className={best.availability === 'out_of_stock' ? 'bad' : undefined}>{stock}</span>}
+            {pick.rating && (
+              <span title={`${pick.rating.value} out of 5`}>
+                <StarIcon className="star" /> {pick.rating.value.toFixed(1)}
+                {pick.rating.count ? ` (${pick.rating.count})` : null}
+              </span>
+            )}
+            {overBudget && <span className="bad">over budget</span>}
+          </p>
+        )}
         {pick.why && <p className="why">{pick.why}</p>}
         {pick.caveat && (
           <p className="caveat">

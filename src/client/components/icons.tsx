@@ -28,9 +28,9 @@ export const ExternalIcon = (p: IconProps) => (
   </Icon>
 )
 
-export const CheckIcon = (p: IconProps) => (
+export const PencilIcon = (p: IconProps) => (
   <Icon {...p}>
-    <path d="M5 12.5l4.5 4.5L19 7.5" />
+    <path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" />
   </Icon>
 )
 
@@ -40,25 +40,13 @@ export const StarIcon = (p: IconProps) => (
   </Icon>
 )
 
-export const AlertIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M12 4l9 16H3zM12 10v4M12 17.5v.01" />
-  </Icon>
-)
-
 export const ChevronIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M6 9l6 6 6-6" />
   </Icon>
 )
 
-export const BagIcon = (p: IconProps) => (
-  <Icon {...p}>
-    <path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2" />
-  </Icon>
-)
 
-/** The quote-slip mark: a receipt with a torn foot. */
 export const LogoMark = ({ size = 22 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
     <path d="M5 2.5h14v19l-2.33-1.6-2.34 1.6L12 19.9l-2.33 1.6-2.34-1.6L5 21.5z" fill="var(--accent)" />
