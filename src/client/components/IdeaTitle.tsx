@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import type { Idea } from '../../types'
 import { TITLE_MAX } from '../../types/limits'
+import { PencilIcon } from './icons'
 
 interface Props {
   idea: Idea
@@ -84,13 +85,15 @@ export function IdeaTitle({ idea, onRename }: Props) {
           <button
             ref={renameRef}
             type="button"
-            className="linkish rename"
+            className="iconbtn rename"
+            aria-label="Rename"
+            title="Rename"
             onClick={() => {
               setDraft(title)
               setEditing(true)
             }}
           >
-            rename
+            <PencilIcon width={18} height={18} />
           </button>
         )
       )}

@@ -286,7 +286,7 @@ describe('Pick card', () => {
       ],
     })
     expect(screen.getByText(/Sold out/)).toBeInTheDocument()
-    expect(screen.getByText('· over budget')).toBeInTheDocument()
+    expect(screen.getByText('over budget')).toBeInTheDocument()
   })
 
   it('lists the other shops', () => {
