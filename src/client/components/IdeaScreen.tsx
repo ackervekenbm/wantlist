@@ -1,12 +1,12 @@
 import { Fragment, useState } from 'react'
 import type { Idea, Pick as PickT, ServerStatus } from '../../types'
 import type { IdeasActions } from '../hooks/useIdeas'
-import { formatEur } from '../lib/format'
-import { latestPicks } from '../lib/triage'
+import { boughtLine, formatEur } from '../lib/format'
+import { latestPicks, shownTitle } from '../lib/triage'
 import { BackLink } from './BackLink'
 import { ExploreIcon, ExternalIcon, MoreIcon } from './icons'
 import { IdeaForm } from './IdeaForm'
-import { IdeaTitle, shownTitle } from './IdeaTitle'
+import { IdeaTitle } from './IdeaTitle'
 import { EarlierRounds } from './EarlierRounds'
 import { Keepers } from './Keepers'
 import { PickDeck } from './PickDeck'
@@ -94,9 +94,7 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
         <Card title="Bought">
           {idea.bought ? (
             <p>
-              {[idea.bought.title, idea.bought.shop, idea.bought.price === null ? null : formatEur(idea.bought.price)]
-                .filter(Boolean)
-                .join(' · ')}{' '}
+              {boughtLine(idea.bought)}{' '}
               <a href={idea.bought.url} target="_blank" rel="noreferrer noopener">
                 Open shop <ExternalIcon />
               </a>
@@ -105,16 +103,18 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
             <p>Bought something else.</p>
           )}
         </Card>
+      ) : idea.list === 'archived' ? (
+        <Card title="Archived">
+          <p>Out of the way and not researched. Want it again from the menu to bring it back.</p>
+        </Card>
       ) : (
-        wanted && (
-          <StatusCard
-            idea={idea}
-            status={status}
-            onRerun={rerun}
-            onLoosen={idea.preferences ? () => setEditRequest((n) => n + 1) : undefined}
-            onReword={() => setSheet('edit')}
-          />
-        )
+        <StatusCard
+          idea={idea}
+          status={status}
+          onRerun={rerun}
+          onLoosen={idea.preferences ? () => setEditRequest((n) => n + 1) : undefined}
+          onReword={() => setSheet('edit')}
+        />
       )}
 
       <PickDeck key={`${id}-${latest[0]?.round}`} idea={idea} onReact={actions.react} onBought={bought} />
@@ -142,7 +142,7 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
       {wanted && !pending && idea.picks.length > 0 && (
         <RefineBar
           reactions={latest.filter((p) => p.reaction).length}
-          round={latest[0].round}
+          round={idea.round}
           anyReaction={idea.picks.some((p) => p.reaction)}
           preferencesEdited={idea.preferencesEdited}
           onRefine={() => actions.refine(id)}

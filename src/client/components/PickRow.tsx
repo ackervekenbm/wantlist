@@ -1,6 +1,7 @@
 import type { Pick, PickPatch } from '../../types'
-import { formatEur } from '../lib/format'
+import { priceText } from '../lib/format'
 import { ExternalIcon } from './icons'
+import { Leader } from './Leader'
 import { ReactionBar } from './ReactionBar'
 
 interface Props {
@@ -13,16 +14,11 @@ interface Props {
 
 /** A compact pick: title and price on a dotted leader, the shop, and its own keycaps. */
 export function PickRow({ pick, onReact, onBought }: Props) {
-  const checked = pick.suppliers[0]?.checked
   return (
     <li className="erow">
-      <div className="lead">
-        <span className="t">{pick.title}</span>
-        <span className="l" />
-        <span className="f">
-          {pick.price === null ? '–' : `${checked ? '' : '≈ '}${formatEur(pick.price)}${checked ? ' ✓' : ''}`}
-        </span>
-      </div>
+      <Leader fig={pick.price === null ? '–' : priceText(pick.price, pick.suppliers[0]?.checked ?? false)}>
+        {pick.title}
+      </Leader>
       <div className="erow-acts">
         <a className="linkish" href={pick.url} target="_blank" rel="noreferrer noopener">
           {pick.shop || 'Open shop'} <ExternalIcon />

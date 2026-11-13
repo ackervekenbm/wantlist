@@ -12,10 +12,13 @@ interface Props {
   onNext?: () => void
 }
 
-const CHOICES: Array<{ value: Reaction; Icon: typeof NoIcon; name: string }> = [
-  { value: 'no', Icon: NoIcon, name: 'No way' },
-  { value: 'maybe', Icon: MaybeIcon, name: 'Kind of' },
-  { value: 'yes', Icon: YesIcon, name: 'Yes' },
+/** What each reaction is called, on the keycaps and wherever a reaction is shown. */
+export const REACTION_LABEL: Record<Reaction, string> = { no: 'No way', maybe: 'Kind of', yes: 'Yes' }
+
+const CHOICES: Array<{ value: Reaction; Icon: typeof NoIcon }> = [
+  { value: 'no', Icon: NoIcon },
+  { value: 'maybe', Icon: MaybeIcon },
+  { value: 'yes', Icon: YesIcon },
 ]
 
 const QUICK = ['Too expensive', 'Not my style', 'Wrong type', 'Doubt the quality']
@@ -28,7 +31,7 @@ export function ReactionBar({ title, reaction, reason, onReact, onNext }: Props)
   return (
     <div className="react">
       <div className="keys" role="group" aria-label={`Your reaction to ${title}`}>
-        {CHOICES.map(({ value, Icon, name }) => {
+        {CHOICES.map(({ value, Icon }) => {
           const active = reaction === value
           return (
             <button
@@ -43,7 +46,7 @@ export function ReactionBar({ title, reaction, reason, onReact, onNext }: Props)
               }}
             >
               <Icon />
-              <span>{name}</span>
+              <span>{REACTION_LABEL[value]}</span>
             </button>
           )
         })}
@@ -112,7 +115,7 @@ function WhyNot({
         ))}
       </div>
       <div className="wrow">
-        <label htmlFor={id} className="visually-hidden">
+        <label htmlFor={id} className="sr">
           Why not {title}?
         </label>
         <input

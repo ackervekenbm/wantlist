@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from 
 import type { Idea, Pick, PickPatch, Reaction } from '../../types'
 import { latestPicks } from '../lib/triage'
 import { PickCard } from './PickCard'
-import { ReactionBar } from './ReactionBar'
+import { REACTION_LABEL, ReactionBar } from './ReactionBar'
 
 interface Props {
   idea: Idea
@@ -14,7 +14,6 @@ const ADVANCE_MS = 250
 const SWIPE_PX = 90
 /** Movement past this is a drag, not a tap: the click after it is swallowed. */
 const DRAG_PX = 24
-const LABEL: Record<Reaction, string> = { no: 'No way', maybe: 'Kind of', yes: 'Yes' }
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
@@ -65,7 +64,7 @@ export function PickDeck({ idea, onReact, onBought }: Props) {
   }, [at])
 
   if (picks.length === 0) return null
-  const round = picks[0].round
+  const round = idea.round
 
   const go = (id: number | 'end') => {
     setPending(null)
@@ -148,7 +147,7 @@ export function PickDeck({ idea, onReact, onBought }: Props) {
               type="button"
               className={`pip ${p.reaction ?? ''}`}
               aria-current={j === n}
-              aria-label={`Pick ${j + 1}${p.reaction ? `, ${LABEL[p.reaction]}` : ''}`}
+              aria-label={`Pick ${j + 1}${p.reaction ? `, ${REACTION_LABEL[p.reaction]}` : ''}`}
               onClick={() => go(p.id)}
             >
               <i>{j + 1}</i>
@@ -159,7 +158,7 @@ export function PickDeck({ idea, onReact, onBought }: Props) {
           {reacted} of {picks.length}
         </span>
       </div>
-      <p className="visually-hidden" aria-live="polite">
+      <p className="sr" aria-live="polite">
         {pick ? `Pick ${n + 1} of ${picks.length}` : `Round ${round} sorted`}
       </p>
 

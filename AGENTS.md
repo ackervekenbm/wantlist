@@ -180,19 +180,23 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 - `src/client/` — React UI, the "Quote Slip" design. `main.tsx` loads the
   bundled Bricolage Grotesque variable font (`@fontsource-variable/bricolage-grotesque`,
   no CDN). `lib/route.ts` is a hash router (`parseHash` / `toHash` /
-  `useRoute`): `#/` home, `#/idea/<id>`, `#/lists/<wanted|bought|archived>`.
+  `useRoute`, `navigate`, `goHome`): `#/` home, `#/idea/<id>`,
+  `#/lists/<wanted|bought|archived>`. In-app moves push a history entry that
+  remembers where it came from, so `BackLink` steps back when that was home
+  (else replaces with home), and Archive / Remove replace the idea's entry.
   `App.tsx` wires route, `useIdeas` and the screens into `components/Shell.tsx`:
   two panes (list left, idea or lists right) that are always both in the DOM;
   CSS alone shows one below 900 px (the route picks) and both from 900 px,
   with slots for a banner and the undo toast. `TopBar` holds the researcher
   chip (researching / queue / out of quota until… / research off) and the
   theme toggle (`lib/theme.ts`: system / light / dark, `data-theme` on
-  `<html>`, stored in localStorage when available). Screens:
-  `HomeScreen` (capture form, then **Needs you** / **With the researcher** /
-  tiles for the lists, sorted by `lib/triage.ts`: `needOf`, `isWorking`,
-  `quotaResetAt`; `lib/filter.ts` filters long lists), `ListsScreen` (the
-  three lists as tabs, with `BackLink`) and `IdeaScreen`: `IdeaTitle`
-  (rename), `StatusCard` (research step, retry count, errors),
+  `<html>` and the `theme-color` metas, stored in localStorage when available).
+  Screens: `HomeScreen` (capture form, then **Needs you** / **With the
+  researcher** / tiles for the lists, sorted by `lib/triage.ts`: `needOf`,
+  `isWorking`, `quotaResetAt`, `shownTitle`, `stepOf`), `ListsScreen` (the
+  three lists as tabs, with `BackLink`; `lib/filter.ts` filters lists above
+  8) and `IdeaScreen`: `IdeaTitle` (rename), `StatusCard` (research step,
+  retry count, errors; an archived idea gets its own card),
   `PreferencesPanel` (must-have / avoid / liked, one per line, editable),
   `PickDeck` (one `PickCard` at a time with swipe, pips and advance after a
   reaction; `ReactionBar`: No way opens a why-not, tapping the active one
@@ -202,13 +206,15 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   rounds, folded), both built from `PickRow`. `Sheet` is a native
   `<dialog>` used for the idea menu and edit. `IdeaForm` (capture and edit; Enter
   submits, Shift+Enter is a new line; `parseBudget` mirrors the server's
-  limits). `lib/format.ts` has `formatEur`. `hooks/useIdeas.ts` owns all
+  limits). `lib/format.ts` has `formatEur`, `clockTime`, `boughtLine` and
+  `priceText`. `Leader` (dotted-leader line) and `Section` (titled section)
+  are shared by every screen. `hooks/useIdeas.ts` owns all
   server state: polls every 5 s while research is queued or running, else
   every 60 s, and on tab focus; a removal is hidden at once and only DELETEd
   after a 6 s undo window (flushed with `keepalive` on `pagehide`). `react`
   is optimistic and rolls back on failure; `refine` and `rerun` queue a round.
-  Styles: CSS tokens in `styles.css` (dark default, light via
-  `prefers-color-scheme` or `data-theme`); new styles use the `--*` tokens,
+  Styles: CSS tokens in `styles.css` (light default, dark from
+  `prefers-color-scheme` or `data-theme="dark"`; `.sr` hides text visually); new styles use the `--*` tokens,
   never hardcoded colors; targets are at least 44 px and animation honours
   `prefers-reduced-motion`. Client tests sit next to the code (`*.test.tsx`,
   jsdom) and drive the real hook and components against an in-memory API

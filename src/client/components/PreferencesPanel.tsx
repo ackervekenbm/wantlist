@@ -1,13 +1,14 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import type { Preferences } from '../../types'
 import { PREF_ITEM_CHARS, PREF_ITEMS_MAX } from '../../types/limits'
+import { Section } from './Leader'
 
 interface Props {
   preferences: Preferences
   /** False while a round is queued or running. */
   editable: boolean
   onSave: (preferences: Preferences) => Promise<void>
-  /** Bump to open the editor with a fresh draft and scroll to it (Loosen a criterion). */
+  /** Bump to open the editor and scroll to it (Loosen a criterion); an open draft is kept. */
   editRequest?: number
 }
 
@@ -38,7 +39,7 @@ export function PreferencesPanel({ preferences, editable, onSave, editRequest = 
 
   if (editRequest !== request) {
     setRequest(editRequest)
-    if (editRequest > 0) setDraft(draftOf(preferences))
+    if (editRequest > 0) setDraft((d) => d ?? draftOf(preferences))
   }
   useEffect(() => {
     if (editRequest <= 0) return
@@ -72,11 +73,7 @@ export function PreferencesPanel({ preferences, editable, onSave, editRequest = 
   )
 
   return (
-    <section className="panel" aria-labelledby={`${id}-h`} ref={ref}>
-      <h2 className="sec-h" id={`${id}-h`}>
-        What I've learned
-        <span className="rule" />
-      </h2>
+    <Section className="panel" title="What I've learned" ref={ref}>
       <div className="card">
         {draft ? (
           <form className="prefs-edit" onSubmit={save}>
@@ -142,7 +139,7 @@ export function PreferencesPanel({ preferences, editable, onSave, editRequest = 
           </>
         )}
       </div>
-    </section>
+    </Section>
   )
 }
 

@@ -1,4 +1,5 @@
 import type { Pick, PickPatch } from '../../types'
+import { Section } from './Leader'
 import { PickRow } from './PickRow'
 
 interface Props {
@@ -13,16 +14,12 @@ interface Props {
 export function Keepers({ picks, onReact, onBought }: Props) {
   if (picks.length === 0) return null
   return (
-    <section className="panel">
-      <h2 className="sec-h">
-        Keepers <span className="n">{picks.length}</span>
-        <span className="rule" />
-      </h2>
+    <Section className="panel" title="Keepers" count={picks.length}>
       <ul className="card erows" aria-label="Keepers">
         {picks.map((pick) => (
           <PickRow key={pick.id} pick={pick} onReact={onReact} onBought={onBought} />
         ))}
       </ul>
-    </section>
+    </Section>
   )
 }

@@ -1,16 +1,12 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import type { Idea } from '../../types'
 import { TITLE_MAX } from '../../types/limits'
+import { shownTitle } from '../lib/triage'
 import { PencilIcon } from './icons'
 
 interface Props {
   idea: Idea
   onRename: (title: string | null) => Promise<void>
-}
-
-/** The title an idea card shows: the model's (or yours) once researched, else what you typed. */
-export function shownTitle(idea: Idea): string {
-  return idea.round > 0 ? (idea.title ?? idea.text) : idea.text
 }
 
 /** The screen's h1 with a rename button beside it. Clearing it hands naming back to the model. */
