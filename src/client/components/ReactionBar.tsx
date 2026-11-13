@@ -99,6 +99,8 @@ function WhyNot({
             key={text}
             type="button"
             className="chipbtn"
+            // Keeps focus in the input, so its blur doesn't save the typed text before the chip text.
+            onMouseDown={(e) => e.preventDefault()}
             aria-pressed={value.trim() === text}
             onClick={() => {
               setValue(text)
@@ -120,7 +122,10 @@ function WhyNot({
           value={value}
           autoFocus={autoFocus}
           onChange={(e) => setValue(e.target.value)}
-          onBlur={() => send()}
+          onBlur={(e) => {
+            // Tabbing onto a chip: the chip saves its own text.
+            if (!(e.relatedTarget instanceof HTMLElement && e.relatedTarget.classList.contains('chipbtn'))) send()
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()

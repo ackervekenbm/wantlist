@@ -127,6 +127,19 @@ describe('No way and why-not', () => {
     )
   })
 
+  it('a chip tapped after typing saves only the chip text', async () => {
+    const { api, user } = await open([three()])
+    await user.click(keys('Alpha').getByRole('button', { name: 'No way' }))
+    await user.type(screen.getByRole('textbox', { name: 'Why not Alpha?' }), 'meh')
+    await user.click(screen.getByRole('button', { name: 'Not my style' }))
+    await waitFor(() =>
+      expect(api.writes()).toEqual([
+        { method: 'PATCH', path: '/api/picks/1', body: { reaction: 'no' } },
+        { method: 'PATCH', path: '/api/picks/1', body: { reason: 'Not my style' } },
+      ]),
+    )
+  })
+
   it('Next saves the reason and moves on', async () => {
     const { api, user } = await open([three()])
     await user.click(keys('Alpha').getByRole('button', { name: 'No way' }))
@@ -194,6 +207,16 @@ describe('Swipe', () => {
     const { api } = await open([three()])
     drag('touch', 120, 10, true)
     await waitFor(() => expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/picks/1', body: { reaction: 'yes' } }]))
+  })
+
+  it('only the click right after a drag is swallowed', async () => {
+    const { api } = await open([three()])
+    drag('touch', 30, 0)
+    await wait(1)
+    fireEvent.click(screen.getByRole('button', { name: 'I bought this' }))
+    await waitFor(() =>
+      expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/ideas/1', body: { list: 'bought', boughtPickId: 1 } }]),
+    )
   })
 
   it('a mouse drag or a mostly vertical touch drag sends nothing', async () => {

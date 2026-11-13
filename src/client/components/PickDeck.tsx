@@ -12,6 +12,8 @@ interface Props {
 
 const ADVANCE_MS = 250
 const SWIPE_PX = 90
+/** Movement past this is a drag, not a tap: the click after it is swallowed. */
+const DRAG_PX = 24
 const LABEL: Record<Reaction, string> = { no: 'No way', maybe: 'Kind of', yes: 'Yes' }
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
@@ -102,7 +104,9 @@ export function PickDeck({ idea, onReact, onBought }: Props) {
       if (!start || !pick || !wanted) return
       const dx = e.clientX - start.x
       const dy = e.clientY - start.y
-      dragged.current = Math.hypot(dx, dy) > 10
+      dragged.current = Math.hypot(dx, dy) > DRAG_PX
+      // Only the click this pointerup produces is swallowed, never a later one (keyboard Enter).
+      setTimeout(() => (dragged.current = false))
       const r = dx > 0 ? 'yes' : 'no'
       if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy) && pick.reaction !== r) {
         react(pick, { reaction: r }).catch(() => {})
