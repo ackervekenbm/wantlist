@@ -279,6 +279,12 @@ describe('Refine dock, keepers and earlier rounds', () => {
     ])
   })
 
+  it('offers Refine with your edits after a preferences edit, with no reactions', async () => {
+    await open([idea({ preferencesEdited: true })])
+    expect(pane().getByRole('button', { name: 'Refine with your edits' })).toBeEnabled()
+    expect(pane().getByText('Your edits will steer round 2.')).toBeInTheDocument()
+  })
+
   it('lists keepers and earlier rounds as rows you can still react to', async () => {
     const { api, user } = await open([
       idea({
@@ -306,6 +312,7 @@ describe('Refine dock, keepers and earlier rounds', () => {
     const rows = within(pane().getByRole('list', { name: 'Round 1 picks' }))
     expect(rows.getByRole('textbox', { name: 'Why not Lasko?' })).toHaveValue('too loud')
     expect(rows.getByRole('textbox', { name: 'Why not Lasko?' })).not.toHaveFocus()
+    expect(rows.getAllByRole('button', { name: 'I bought this' })).toHaveLength(3)
 
     await user.click(within(rows.getByRole('group', { name: 'Your reaction to Honeywell' })).getByRole('button', { name: 'Yes' }))
     await user.click(within(keepers.getByRole('group', { name: 'Your reaction to Felt mule' })).getByRole('button', { name: 'Yes' }))

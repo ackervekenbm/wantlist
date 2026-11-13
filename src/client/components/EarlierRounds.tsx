@@ -8,12 +8,14 @@ interface Props {
   picks: Pick[]
   /** Absent off the wanted list. */
   onReact?: (pickId: number, patch: PickPatch) => Promise<void>
+  /** Absent off the wanted list. */
+  onBought?: (pick: Pick) => void
 }
 
 const SHORT = { no: 'No way', maybe: 'Kind of', yes: 'Yes' } as const
 
 /** One folded block per earlier round; its picks render only when open. */
-export function EarlierRounds({ picks, onReact }: Props) {
+export function EarlierRounds({ picks, onReact, onBought }: Props) {
   const rounds = [...new Set(picks.map((p) => p.round))]
   if (rounds.length === 0) return null
   return (
@@ -24,14 +26,14 @@ export function EarlierRounds({ picks, onReact }: Props) {
       </h2>
       <div className="card">
         {rounds.map((round) => (
-          <Round key={round} round={round} picks={picks.filter((p) => p.round === round)} onReact={onReact} />
+          <Round key={round} round={round} picks={picks.filter((p) => p.round === round)} onReact={onReact} onBought={onBought} />
         ))}
       </div>
     </section>
   )
 }
 
-function Round({ round, picks, onReact }: { round: number; picks: Pick[]; onReact: Props['onReact'] }) {
+function Round({ round, picks, onReact, onBought }: Props & { round: number }) {
   const [open, setOpen] = useState(false)
   const id = useId()
   return (
@@ -45,7 +47,7 @@ function Round({ round, picks, onReact }: { round: number; picks: Pick[]; onReac
         {open && (
           <ul className="erows" aria-label={`Round ${round} picks`}>
             {picks.map((pick) => (
-              <PickRow key={pick.id} pick={pick} onReact={onReact} />
+              <PickRow key={pick.id} pick={pick} onReact={onReact} onBought={onBought} />
             ))}
           </ul>
         )}

@@ -117,7 +117,11 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
         onReact={wanted ? actions.react : undefined}
         onBought={wanted ? bought : undefined}
       />
-      <EarlierRounds picks={earlier} onReact={wanted ? actions.react : undefined} />
+      <EarlierRounds
+        picks={earlier}
+        onReact={wanted ? actions.react : undefined}
+        onBought={wanted ? bought : undefined}
+      />
 
       {wanted && !pending && idea.picks.length > 0 && (
         <RefineBar

@@ -7,7 +7,7 @@ interface Props {
   pick: Pick
   /** Absent off the wanted list: the row is read-only. */
   onReact?: (pickId: number, patch: PickPatch) => Promise<void>
-  /** Keepers only: records this pick as the one you bought. */
+  /** Records this pick as the one you bought (wanted ideas). */
   onBought?: (pick: Pick) => void
 }
 
