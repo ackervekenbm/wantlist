@@ -44,7 +44,8 @@ describe('App', () => {
     await user.click(row)
     expect(location.hash).toBe('#/idea/1')
     expect(screen.getByRole('heading', { level: 1, name: 'Running shoes' })).toHaveFocus()
-    expect(screen.getByText(/^You wrote/)).toHaveTextContent('You wrote Running shoes · quiet · max € 89,99')
+    expect(screen.queryByText(/You wrote/)).not.toBeInTheDocument()
+    expect(screen.getByText('quiet · max € 89,99')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Round 1 is queued' })).toBeInTheDocument()
   })
 

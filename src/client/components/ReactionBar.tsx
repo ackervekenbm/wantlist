@@ -122,10 +122,7 @@ function WhyNot({
           value={value}
           autoFocus={autoFocus}
           onChange={(e) => setValue(e.target.value)}
-          onBlur={(e) => {
-            // Tabbing onto a chip: the chip saves its own text.
-            if (!(e.relatedTarget instanceof HTMLElement && e.relatedTarget.classList.contains('chipbtn'))) send()
-          }}
+          onBlur={() => send()}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()

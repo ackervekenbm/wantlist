@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { Idea, Pick as PickT, ServerStatus } from '../../types'
 import type { IdeasActions } from '../hooks/useIdeas'
 import { formatEur } from '../lib/format'
@@ -53,6 +53,17 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
     </li>
   )
 
+  // While the h1 is your own text, saying it again adds nothing.
+  const yours = [
+    shownTitle(idea) !== idea.text && (
+      <>
+        You wrote <q>{idea.text}</q>
+      </>
+    ),
+    idea.notes,
+    idea.budget !== null && `max ${formatEur(idea.budget)}`,
+  ].filter(Boolean)
+
   return (
     <div className="screen idea-screen">
       <div className="bar">
@@ -67,11 +78,16 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
           <ExploreIcon width={18} height={18} /> Explore · {idea.round > 0 ? `round ${idea.round}` : 'first round'}
         </p>
         <IdeaTitle idea={idea} onRename={(title) => patch({ title })} />
-        <p className="yours">
-          You wrote <q>{idea.text}</q>
-          {idea.notes && ` · ${idea.notes}`}
-          {idea.budget !== null && ` · max ${formatEur(idea.budget)}`}
-        </p>
+        {yours.length > 0 && (
+          <p className="yours">
+            {yours.map((part, i) => (
+              <Fragment key={i}>
+                {i > 0 && ' · '}
+                {part}
+              </Fragment>
+            ))}
+          </p>
+        )}
       </header>
 
       {idea.list === 'bought' ? (
