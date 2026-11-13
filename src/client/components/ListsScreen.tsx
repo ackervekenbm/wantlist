@@ -27,6 +27,12 @@ interface Props {
 /** The three lists: tabs with counts, a filter for long lists, one row per idea with its action. */
 export function ListsScreen({ ideas, tab, onTab, onOpen, onPatch, onRemove }: Props) {
   const [filter, setFilter] = useState('')
+  // The screen stays mounted across tabs (focus stays on the tab), so a new tab, from here or a home tile, drops the filter.
+  const [shownTab, setShownTab] = useState(tab)
+  if (tab !== shownTab) {
+    setShownTab(tab)
+    setFilter('')
+  }
   const count = (list: IdeaList) => ideas.filter((i) => i.list === list).length
   const inTab = ideas.filter((i) => i.list === tab)
   const visible = filter.trim() ? inTab.filter((i) => matches(i, filter)) : inTab
@@ -37,11 +43,7 @@ export function ListsScreen({ ideas, tab, onTab, onOpen, onPatch, onRemove }: Pr
       <h1 tabIndex={-1}>Lists</h1>
       <nav className="tabs" aria-label="List tabs">
         {TABS.map(({ list, label }) => (
-          <button key={list} type="button" aria-pressed={list === tab} onClick={() => {
-              // The screen stays mounted across tabs (focus stays on this tab); the filter does not carry over.
-              setFilter('')
-              onTab(list)
-            }}>
+          <button key={list} type="button" aria-pressed={list === tab} onClick={() => onTab(list)}>
             {label}
             <span className="c">{count(list)}</span>
           </button>
