@@ -183,7 +183,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   `useRoute`, `navigate`, `goHome`): `#/` home, `#/idea/<id>`,
   `#/lists/<wanted|bought|archived>`. In-app moves push a history entry that
   remembers where it came from, so `BackLink` steps back when that was home
-  (else replaces with home), and Archive / Remove replace the idea's entry.
+  (else replaces with home); Archive and Remove go home the same way.
   `App.tsx` wires route, `useIdeas` and the screens into `components/Shell.tsx`:
   two panes (list left, idea or lists right) that are always both in the DOM;
   CSS alone shows one below 900 px (the route picks) and both from 900 px,

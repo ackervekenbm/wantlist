@@ -77,6 +77,34 @@ describe('App', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Lists' })).toBeInTheDocument()
   })
 
+  it('archives from an idea opened on home by stepping back, so the system Back does not reopen it', async () => {
+    fakeApi([idea({ id: 1, title: 'Quiet trainer fan' })])
+    history.replaceState(null, '', '#/lists/bought')
+    history.pushState(null, '', '#/')
+    const user = await renderApp('#/')
+    await user.click(screen.getByRole('button', { name: /Quiet trainer fan.*React/ }))
+    expect(location.hash).toBe('#/idea/1')
+    await user.click(screen.getByRole('button', { name: 'Idea actions' }))
+    await user.click(within(await screen.findByRole('dialog', { name: /./ })).getByRole('button', { name: 'Archive' }))
+    await waitFor(() => expect(location.hash).toBe('#/'))
+    act(() => history.back())
+    await waitFor(() => expect(location.hash).toBe('#/lists/bought'))
+  })
+
+  it('drops the filter when a home tile switches the open list', async () => {
+    fakeApi([
+      ...Array.from({ length: 9 }, (_, i) => idea({ id: i + 1, text: `idea ${i}` })),
+      idea({ id: 10, text: 'old lamp', list: 'bought', bought: null }),
+      idea({ id: 11, text: 'kettle', list: 'bought', bought: null }),
+    ])
+    const user = await renderApp('#/lists/wanted')
+    await user.type(screen.getByLabelText('Filter ideas'), 'zzz')
+    await user.click(within(screen.getByRole('navigation', { name: 'Lists' })).getByRole('button', { name: '2 Bought' }))
+    expect(location.hash).toBe('#/lists/bought')
+    expect(screen.getByRole('button', { name: 'Remove old lamp' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove kettle' })).toBeInTheDocument()
+  })
+
   it('focuses the home heading when the idea has no row there, or when coming from the lists', async () => {
     fakeApi([idea({ id: 1, title: 'Old lamp', list: 'archived' })])
     const user = await renderApp('#/idea/1')

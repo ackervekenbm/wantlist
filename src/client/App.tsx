@@ -6,7 +6,7 @@ import { ListsScreen } from './components/ListsScreen'
 import { Shell } from './components/Shell'
 import { TopBar } from './components/TopBar'
 import { useIdeas } from './hooks/useIdeas'
-import { useRoute, type Route } from './lib/route'
+import { goHome, useRoute, type Route } from './lib/route'
 import { applyTheme, readTheme, writeTheme, type Theme } from './lib/theme'
 
 export function App() {
@@ -70,8 +70,8 @@ export function App() {
       key={openIdea.id}
       idea={openIdea}
       status={state.status}
-      // Archive and Remove leave no entry behind for an idea that is gone from view.
-      onBack={() => navigate({ name: 'home' }, { replace: true })}
+      // Archive and Remove go home like the Home link: back when opened from home, else replacing the idea's entry.
+      onBack={goHome}
       actions={state}
     />
   ) : null
