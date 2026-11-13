@@ -15,7 +15,7 @@ fits, and one honest caveat. Runs on a Raspberry Pi at €0.
   that matter ("quiet, white, fits a small flat"); both steer the research.
 - **Research in the background.** The worker plans search queries, searches
   the Belgian web, shortlists products from the real results, reads the
-  product pages and verifies the shortlist against them. Each card shows the
+  product pages and verifies the shortlist against them. Each idea shows the
   current step while it runs ("checking 4 offers at the shops…").
 - **Preferences you can see and edit.** What the research understood you are
   after: a summary, must-haves, things to avoid and things you like. Change
@@ -51,9 +51,14 @@ fits, and one honest caveat. Runs on a Raspberry Pi at €0.
   are retried by themselves (the card says when); anything that needs you,
   like a missing key, a search that found nothing, a round with nothing new or
   spent search credits, says so plainly.
-- **Calm on a phone.** Cards collapse to their top pick (remembered per
-  device), long lists get a filter, removals can be undone for a few seconds,
-  and it follows your system's light or dark mode.
+- **Quote Slip design, phone and PC.** A home screen sorts ideas into *Needs
+  you* (picks to react to, nothing new found, stopped) and *With the
+  researcher*, with tiles for your lists. Picks come as a deck you swipe
+  through, with the refine bar docked below. On a phone you see one screen at
+  a time; from 900 px wide the list and the open idea sit side by side.
+  Removals can be undone for a few seconds, and light, dark or system theme is
+  one tap in the top bar. A second mode for hunting a specific product is
+  planned.
 
 ## What you need
 
@@ -95,7 +100,7 @@ first reset instead of failing.
 One SQLite file on the server (`data/wantlist.db`; in Docker, the
 `wantlist-data` folder or volume): your ideas, budgets, notes, preferences, reactions, picks and what you bought.
 API keys live only in the server's environment (`.env`), never in the repo
-or the browser. The browser keeps only which cards you collapsed. There is
+or the browser. The browser keeps only your theme choice. There is
 no login, so keep it on your LAN or tailnet.
 
 ## Run it

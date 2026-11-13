@@ -78,7 +78,14 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   `researching` (`claimIdea`) → `done` (`completeIdea`: the new round's picks,
   brief and status in one transaction) or a failure (`failIdea`): back to
   `queued` with `next_attempt_at` when it will be retried, else `error`.
-  Migration 6 adds `error_kind` (`nothing-new` / `stopped`, set by `failIdea` only when it stops at `error`, cleared by `completeIdea` / `requeueIdea`). Picks are never deleted by a re-run: each round adds its own, so a failed
+  Migration 6 adds `error_kind` (`nothing-new` / `stopped`, surfaced as the
+  idea's `errorKind`): the worker passes it to `failIdea`, which stores it only
+  when the idea stops at `error` (`no-results` errors are `nothing-new`, every
+  other stop `stopped`); `completeIdea` and `requeueIdea` clear it, and the
+  migration backfills existing error rows from their message. The client's
+  Needs you list reads it. The retry cap is `RETRY_MAX_ATTEMPTS` (5, in
+  `src/types/limits.ts`), shared by the worker and the status card.
+  Picks are never deleted by a re-run: each round adds its own, so a failed
   refresh loses nothing. `updateIdea` throws `BusyError` (409) for a reworded
   text or a preferences edit while researching. `requeueIdea` (refine, research
   again) puts the idea back on the wanted list. `reactToPick` saves or clears a
@@ -170,27 +177,42 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   404/410, a bounce to the home page, or a "not found" title count as
   **dead**; 401/403/429/5xx are bot walls or shop trouble and count as
   unknown, so big marketplaces are not dropped. Never throws.
-- `src/client/` — React UI. `App.tsx`: capture form, Wanted / Bought /
-  Archived tabs, filter (more than 8 ideas), worker chip (researching / queue /
-  out of quota until… / research off), undo toast. `hooks/useIdeas.ts` owns
-  all server state: polls every 5 s while research is queued or running, else
+- `src/client/` — React UI, the "Quote Slip" design. `main.tsx` loads the
+  bundled Bricolage Grotesque variable font (`@fontsource-variable/bricolage-grotesque`,
+  no CDN). `lib/route.ts` is a hash router (`parseHash` / `toHash` /
+  `useRoute`): `#/` home, `#/idea/<id>`, `#/lists/<wanted|bought|archived>`.
+  `App.tsx` wires route, `useIdeas` and the screens into `components/Shell.tsx`:
+  two panes (list left, idea or lists right) that are always both in the DOM;
+  CSS alone shows one below 900 px (the route picks) and both from 900 px,
+  with slots for a banner and the undo toast. `TopBar` holds the researcher
+  chip (researching / queue / out of quota until… / research off) and the
+  theme toggle (`lib/theme.ts`: system / light / dark, `data-theme` on
+  `<html>`, stored in localStorage when available). Screens:
+  `HomeScreen` (capture form, then **Needs you** / **With the researcher** /
+  tiles for the lists, sorted by `lib/triage.ts`: `needOf`, `isWorking`,
+  `quotaResetAt`; `lib/filter.ts` filters long lists), `ListsScreen` (the
+  three lists as tabs, with `BackLink`) and `IdeaScreen`: `IdeaTitle`
+  (rename), `StatusCard` (research step, retry count, errors),
+  `PreferencesPanel` (must-have / avoid / liked, one per line, editable),
+  `PickDeck` (one `PickCard` at a time with swipe, pips and advance after a
+  reaction; `ReactionBar`: No way opens a why-not, tapping the active one
+  clears it; checked price ✓ vs "≈" search price, stock, rating, caveat, other
+  shops, "I bought this"), the `RefineBar` dock (needs a reaction or an
+  edit), and `Keepers` (earlier "yes" picks) and `EarlierRounds` (older
+  rounds, folded), both built from `PickRow`. `Sheet` is a native
+  `<dialog>` used for the idea menu and edit. `IdeaForm` (capture and edit; Enter
+  submits, Shift+Enter is a new line; `parseBudget` mirrors the server's
+  limits). `lib/format.ts` has `formatEur`. `hooks/useIdeas.ts` owns all
+  server state: polls every 5 s while research is queued or running, else
   every 60 s, and on tab focus; a removal is hidden at once and only DELETEd
   after a 6 s undo window (flushed with `keepalive` on `pagehide`). `react`
   is optimistic and rolls back on failure; `refine` and `rerun` queue a round.
-  `components/IdeaCard.tsx` (collapsible, collapse remembered in
-  localStorage via `lib/storage.ts`) composes `IdeaTitle` (collapse toggle,
-  the idea's own words, rename), `PreferencesPanel` (must-have / avoid / liked,
-  one per line, editable), `ReactionBar` (No way opens a why-not; tapping the
-  active one clears it), `RefineBar` (needs a reaction or an edit), `Keepers`
-  (earlier "yes" picks) and `EarlierRounds` (older rounds, folded).
-  `PickCard.tsx` (checked price ✓ vs "≈"
-  search price, stock, rating, caveat, other shops, "I bought this"),
-  `IdeaForm.tsx` (shared by capture and edit; Enter submits, Shift+Enter is a
-  new line; `parseBudget` mirrors the server's limits). Styles: CSS tokens in
-  `styles.css` (dark default, light via `prefers-color-scheme`); new styles
-  use the `--*` tokens, never hardcoded colors. Client tests sit next to the
-  code (`*.test.tsx`, jsdom) and drive the real hook and components against
-  an in-memory API (`src/client/test/fakeApi.ts`).
+  Styles: CSS tokens in `styles.css` (dark default, light via
+  `prefers-color-scheme` or `data-theme`); new styles use the `--*` tokens,
+  never hardcoded colors; targets are at least 44 px and animation honours
+  `prefers-reduced-motion`. Client tests sit next to the code (`*.test.tsx`,
+  jsdom) and drive the real hook and components against an in-memory API
+  (`src/client/test/fakeApi.ts`).
 - **Lists vs research status.** `list` (wanted / bought / archived) is the
   user's side and independent of `status`; only `wanted` ideas are
   researched (`dueIdeaIds`), and refining or re-running moves an idea back to
