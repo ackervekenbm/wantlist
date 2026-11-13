@@ -64,11 +64,15 @@ describe('PickDeck moves', () => {
   })
 
   it('a rollback inside the 250 ms cancels the advance', async () => {
-    const { api, user } = await open([three()])
+    const { api } = await open([three()])
     api.failNextPickPatch()
+    // Stop the clock so a slow machine can't run out the 250 ms before the rollback lands.
+    vi.useFakeTimers({ shouldAdvanceTime: false })
     const yes = keys('Alpha').getByRole('button', { name: 'Yes' })
-    await user.click(yes)
-    await waitFor(() => expect(yes).toHaveAttribute('aria-pressed', 'false'))
+    fireEvent.click(yes)
+    expect(yes).toHaveAttribute('aria-pressed', 'true')
+    for (let i = 0; i < 10; i += 1) await act(async () => {})
+    expect(yes).toHaveAttribute('aria-pressed', 'false')
     await wait(500)
     expect(current()).toBe('Alpha')
   })
