@@ -100,7 +100,7 @@ button{cursor:pointer}
 .btn.small{min-height:44px;font-size:14px;padding:0 12px}
 .btn:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
 /* a disabled primary goes flat and quiet instead of a washed-out green */
-.btn.primary:disabled{opacity:1;background:var(--sunk);border-color:var(--rule);color:var(--ink-3)}
+.btn.primary:disabled{opacity:1;background:var(--sunk);border-color:var(--rule);color:var(--ink-2)}
 .linkish{background:none;border:0;padding:0 4px;min-height:44px;color:var(--ink-2);font-size:13px;font-weight:500;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--rule-strong)}
 
 /* section header with rule, card */

@@ -12,7 +12,7 @@ export function clockTime(iso: string, now = new Date()): string {
   if (Number.isNaN(d.getTime())) return 'later'
   const sameDay = d.toDateString() === now.toDateString()
   return d.toLocaleString(
-    undefined,
+    'en-GB',
     sameDay ? { hour: '2-digit', minute: '2-digit' } : { weekday: 'short', hour: '2-digit', minute: '2-digit' },
   )
 }

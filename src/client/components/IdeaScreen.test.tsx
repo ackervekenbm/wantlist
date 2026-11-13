@@ -30,6 +30,13 @@ describe('IdeaScreen header', () => {
     expect(pane().getByRole('heading', { level: 1, name: 'Quiet trainer fan' })).toHaveFocus()
     expect(pane().getByText(/^You wrote/)).toHaveTextContent('You wrote A fan for my indoor bike setup · white · max € 200')
   })
+
+  it('does not repeat your text under an h1 that already is your text', async () => {
+    await open([idea({ status: 'queued', round: 0, picks: [], preferences: null, notes: null, budget: null })])
+    expect(pane().getByRole('heading', { level: 1, name: 'A fan for my indoor bike setup' })).toBeInTheDocument()
+    expect(pane().queryByText(/You wrote/)).not.toBeInTheDocument()
+    expect(document.querySelector('.yours')).toBeNull()
+  })
 })
 
 describe('StatusCard', () => {

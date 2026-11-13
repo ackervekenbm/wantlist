@@ -82,7 +82,7 @@ export function App() {
       right={right}
       banner={
         state.error && (
-          <div className="banner banner-bad" role="alert">
+          <div className="banner" role="alert">
             <span>{state.error}</span>
             <button type="button" className="banner-close" onClick={state.dismissError}>
               Dismiss
