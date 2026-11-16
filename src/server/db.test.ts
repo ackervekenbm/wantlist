@@ -20,8 +20,8 @@ import {
   recoverInterrupted,
   requeueIdea,
   updateIdea,
-} from '../src/server/db'
-import { finalPicks, researchResult, tempDb, tempDir } from './helpers'
+} from './db'
+import { finalPicks, researchResult, tempDb, tempDir } from './test/helpers'
 
 const NO_SIGNAL = { requireSignal: false }
 const PREFS = { summary: 's', mustHaves: ['quiet'], avoid: [], likes: [] }

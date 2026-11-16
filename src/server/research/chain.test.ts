@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildProviderChain, DEFAULT_GEMINI_CHAIN } from '../src/server/research/chain'
+import { buildProviderChain, DEFAULT_GEMINI_CHAIN } from './chain'
 
 const defaults = DEFAULT_GEMINI_CHAIN.split(',').map((m) => `gemini:${m}`)
 const ids = (env: NodeJS.ProcessEnv) => buildProviderChain(env).map((p) => p.id)

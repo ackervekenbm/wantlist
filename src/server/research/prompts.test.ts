@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   extractText,
   extractTitle,
-} from '../src/server/research/http'
-import { parseJsonLoose } from '../src/server/research/json'
-import { isHttpUrl, isListingUrl, mergePicksByProduct, normalizeProductTitle, normalizeUrl } from '../src/server/research/offers'
-import { ResearchError } from '../src/server/research/errors'
+} from './http'
+import { parseJsonLoose } from './json'
+import { isHttpUrl, isListingUrl, mergePicksByProduct, normalizeProductTitle, normalizeUrl } from './offers'
+import { ResearchError } from './errors'
 import {
   buildCandidateUser,
   buildLearnUser,
@@ -15,8 +15,8 @@ import {
   normalizePass1,
   normalizePass2,
   normalizePlan,
-} from '../src/server/research/prompts'
-import type { FinalPick, HistoryPick, Preferences, ResearchCandidate, ResearchHistory } from '../src/types'
+} from './prompts'
+import type { FinalPick, HistoryPick, Preferences, ResearchCandidate, ResearchHistory } from '../../types'
 
 describe('parseJsonLoose', () => {
   it('parses plain json', () => {

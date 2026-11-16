@@ -15,7 +15,7 @@ shared types in `src/types/`.
 ```bash
 npm install       # install deps (uses package-lock.json, commit it)
 npm run build     # = typecheck && lint && vite build && tsc -p tsconfig.server.json  ← the verify step
-npm test          # vitest unit tests (tests/, node env)
+npm test          # vitest: server tests in node, client tests in jsdom
 ```
 
 Installs are **script-free**: `.npmrc` sets `ignore-scripts=true`.
@@ -28,6 +28,14 @@ genuinely needs an install script cannot be added without revisiting `.npmrc`.
 The server compiles with `tsc` (CommonJS) into `dist-server/server/` — `rootDir`
 is `src/` because the server imports `src/types/` — so the entry point is
 `dist-server/server/index.js` (`npm start`, the Dockerfile `CMD`).
+
+Tests sit next to the code they test (`foo.ts` → `foo.test.ts`): server
+tests run in node, client tests in jsdom (vitest `projects`). Shared test code
+lives in one folder per side: `src/server/test/` (`helpers.ts`: temp
+databases, fake results) and `src/client/test/` (setup, the in-memory API).
+Use those rather than another local copy. The server build leaves both tests
+and `src/server/test/` out. A browser end-to-end test, if one is ever added,
+is the only kind that would get its own top-level folder (`e2e/`).
 
 **Verification for every change is `npm run build && npm test`.** CI runs the
 `check` job (`npm ci && npm run build && npm test`, `.github/workflows/ci.yml`)
@@ -105,7 +113,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 - `src/server/app.ts` — `createApp({db, worker, missingKeys, clientDist})`:
   every `/api/*` route, JSON 404s/400s/500s, and the built client
   (`/assets/*` immutable, the shell `no-cache`, SPA fallback). Route tests drive
-  it with supertest (`tests/app.test.ts`), no listening socket.
+  it with supertest (`app.test.ts`), no listening socket.
   Reactions and rounds: `PATCH /api/picks/:id` (`reaction`, `reason`);
   `PATCH /api/ideas/:id` also takes `title` (null hands naming back to the
   model) and `preferences`; `POST /api/ideas/:id/refine` needs a reaction or an
@@ -298,7 +306,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   pass-2 URLs not in the candidate set) rather than trusting the model.
 - Tests never touch the network: providers are tested with `fetch` stubbed
   (real Google/OpenAI error shapes), the pipeline with a scripted model, a fake
-  search provider and `http.ts` mocked (`tests/pipeline.test.ts`).
+  search provider and `http.ts` mocked (`pipeline.test.ts`).
 
 ## Dependencies / Dependabot
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { OpenAiCompatProvider } from '../src/server/research/openai'
-import { ResearchError } from '../src/server/research/errors'
+import { OpenAiCompatProvider } from './openai'
+import { ResearchError } from './errors'
 
 const ARGS = {
   systemInstruction: 'Pick candidates.',

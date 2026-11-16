@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildHistory } from '../src/server/history'
-import type { Idea, Pick, Reaction } from '../src/types'
+import { buildHistory } from './history'
+import type { Idea, Pick, Reaction } from '../types'
 
 const prefs = { summary: 's', mustHaves: [], avoid: [], likes: [] }
 

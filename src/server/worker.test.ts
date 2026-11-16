@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createIdea, getIdea, reactToPick, requeueIdea } from '../src/server/db'
-import { ResearchError, type FailureKind } from '../src/server/research/errors'
-import { DEFAULT_RETRY, createWorker, retryAt, type WorkerOptions } from '../src/server/worker'
-import type { ResearchEngine, ResearchRequest, ResearchResult } from '../src/types'
-import { researchResult, tempDb } from './helpers'
+import { createIdea, getIdea, reactToPick, requeueIdea } from './db'
+import { ResearchError, type FailureKind } from './research/errors'
+import { DEFAULT_RETRY, createWorker, retryAt, type WorkerOptions } from './worker'
+import type { ResearchEngine, ResearchRequest, ResearchResult } from '../types'
+import { researchResult, tempDb } from './test/helpers'
 
 function fail(
   message: string,

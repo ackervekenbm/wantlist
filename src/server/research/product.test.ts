@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { availabilityOf, decodeEntities, extractProductData, parsePriceEur } from '../src/server/research/product'
+import { availabilityOf, decodeEntities, extractProductData, parsePriceEur } from './product'
 
 const PAGE = 'https://shop.be/nl/p/fan/123'
 
