@@ -31,12 +31,24 @@ is `src/` because the server imports `src/types/` — so the entry point is
 
 **Verification for every change is `npm run build && npm test`.** CI runs the
 `check` job (`npm ci && npm run build && npm test`, `.github/workflows/ci.yml`)
-on every PR and push to `main`. PRs that touch the image also run the
+on every PR and push to `main`. Every PR also runs the
 **smoke** job (`.github/workflows/docker-build.yml`): build the image, boot it
 without API keys, poll `/api/health`, and assert `/api/ideas` and the
 cache headers (app shell `no-cache`, `/assets/*` immutable). On `main` the image
 is then built natively per arch (amd64 + arm64 runners, no QEMU) and combined
 into the multi-arch `ghcr.io/ackervekenbm/wantlist:latest` / `:<sha7>`.
+A green `check` and `smoke` are required to merge. There is no other test suite.
+
+## README upkeep (MANDATORY)
+
+`README.md` is the project's public front page, so it has to match the app.
+Before opening a PR, check the README against your change and update it in
+the **same PR** when you add, remove or rename a feature, a control or a setting;
+change a command, script, port, environment variable or image tag; or change
+what is stored where. Keep its style: plain user-facing wording, no internal
+jargon. If nothing in the README is affected, say so in the PR description.
+AGENTS.md (architecture) and `docs/deployment.md` (deployment) follow the
+same rule.
 
 ## Issue-first workflow (MANDATORY)
 
@@ -48,7 +60,41 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 
 - Name the branch `fix/...`, `feat/...` or `chore/...` (one per issue).
 - Put `Fixes #<n>` on its own line in the PR body so the issue auto-closes on merge.
-- The PR author never merges their own PR — hand over to a reviewer to merge.
+- One issue, one PR, branched off the latest `main`, targeting `main`
+  (`Fixes #<n>` only closes issues from there).
+- Don't stack by default. Work that needs an unmerged PR goes into that PR, as
+  its own commit with its own `Fixes #<n>` line, or waits until it has merged.
+- When a stack is unavoidable, keep it small and say "merge #<n> first" in the
+  PR body. A squash lands the lower PR as a new commit, so the next PR conflicts
+  wherever it edits those lines again. Right after each merge, rebase the next
+  branch with `git fetch && git rebase origin/main` (git skips the commit that
+  already landed; add `--update-refs` from the top branch to move the whole
+  stack), then `git push --force-with-lease`. If the merged PR had several
+  commits, git can't match its squash: use
+  `git rebase --onto origin/main <old tip of the merged branch>`.
+
+## Git / PR conventions
+
+- `main` is protected (ruleset `main-branch-protection`): **no direct pushes**,
+  linear history, and every change lands via a pull request and a **squash
+  merge** (the only merge method). Required checks: `check` and `smoke`, on a
+  branch that is up to date with `main` (the PR's **Update branch** button, or
+  a rebase).
+- After merging, GitHub auto-deletes the head branch (`delete-branch-on-merge` is on).
+- Pattern: create branch → implement → update README/docs → `npm run build && npm test` → push → `gh pr create`
+  → merge once the checks pass. Use `gh pr merge --squash` when asked to merge.
+- **Never merge your own PR.** Ready PRs are handed over to a reviewer to merge;
+  if the author merges, the other party reviews the squash only after the fact.
+- Commit messages are imperative, single-paragraph (plus context lines), and
+  reference the fix: `Fixes #<n>`.
+- **Branch hygiene** — keep the workspace tidy:
+  - Always branch off the latest `main` before starting new work.
+  - After a PR lands (squash merged), GitHub auto-deletes the remote branch.
+    Also delete the local branch afterwards:
+    `git checkout main && git fetch --prune && git branch -D <branch>`.
+  - Periodically prune stale local branches whose remotes are already gone:
+    `git fetch --prune && git for-each-ref --format='%(refname:short) %(upstream:track)' refs/heads | grep gone`.
+    Keep the workspace down to `main` plus active work branches.
 
 ## Architecture
 
@@ -255,6 +301,12 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 - Dependabot majors stay enabled. The `typescript` major is ignored in
   `.github/dependabot.yml` (TypeScript 7 is outside typescript-eslint's peer
   range); lift it once typescript-eslint supports it.
+- Dependabot also watches GitHub Actions (pinned to commit SHAs, version in a
+  comment) and the Docker base image (pinned by digest; Node majors are a
+  deliberate move, so they are ignored there).
+- Dependabot security alerts and security updates are on; a security update
+  opens its own PR outside the weekly group. CodeQL (default setup) scans
+  every PR.
 - The runtime image is `node:22-alpine` and installs production dependencies
   only; `better-sqlite3` majors that change the native ABI or drop a musl
   prebuild are caught by the smoke job before merge.
