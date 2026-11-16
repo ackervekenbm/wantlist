@@ -53,7 +53,7 @@ fits, and one honest caveat. Runs on a Raspberry Pi at €0.
   spent search credits, says so plainly.
 - **Quote Slip design, phone and PC.** A home screen sorts ideas into *Needs
   you* (picks to react to, nothing new found, stopped) and *With the
-  researcher*, with tiles for your lists. Picks come as a deck you swipe
+  researcher*, with tiles for your lists. Picks come as a deck you step
   through, with the refine bar docked below. On a phone you see one screen at
   a time; from 900 px wide the list and the open idea sit side by side.
   Removals can be undone for a few seconds, and light, dark or system theme is

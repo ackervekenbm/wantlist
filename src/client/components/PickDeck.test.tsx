@@ -1,4 +1,4 @@
-import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Idea } from '../../types'
@@ -205,53 +205,6 @@ describe('Deck navigation', () => {
     await user.click(deck().getByRole('button', { name: 'Look again' }))
     expect(current()).toBe('Alpha')
     expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/picks/3', body: { reaction: 'yes' } }])
-  })
-})
-
-describe('Swipe', () => {
-  const drag = (pointerType: string, dx: number, dy: number, click = false) => {
-    const card = document.querySelector('.deck .pick') as HTMLElement
-    const down = createEvent.pointerDown(card, { pointerType, clientX: 100, clientY: 100 })
-    // jsdom has PointerEvent, so the handler sees real coordinates.
-    expect(down).toMatchObject({ clientX: 100, pointerType })
-    fireEvent(card, down)
-    fireEvent.pointerMove(card, { pointerType, clientX: 100 + dx / 2, clientY: 100 + dy / 2 })
-    fireEvent.pointerUp(card, { pointerType, clientX: 100 + dx, clientY: 100 + dy })
-    if (click) fireEvent.click(within(card).getByRole('button', { name: 'I bought this' }))
-  }
-
-  it('a touch drag of 120 px right says Yes, and swallows the click after it', async () => {
-    const { api } = await open([three()])
-    drag('touch', 120, 10, true)
-    await waitFor(() => expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/picks/1', body: { reaction: 'yes' } }]))
-  })
-
-  it('a touch drag of 120 px left says No way and opens the why-not, staying on the card', async () => {
-    const { api } = await open([three()])
-    drag('touch', -120, 5)
-    await waitFor(() => expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/picks/1', body: { reaction: 'no' } }]))
-    expect(await screen.findByLabelText('Why not Alpha?')).toBeInTheDocument()
-    expect(keys('Alpha').getByRole('button', { name: 'No way' })).toHaveAttribute('aria-pressed', 'true')
-    await wait(300)
-    expect(current()).toBe('Alpha')
-  })
-
-  it('only the click right after a drag is swallowed', async () => {
-    const { api } = await open([three()])
-    drag('touch', 30, 0)
-    await wait(1)
-    fireEvent.click(screen.getByRole('button', { name: 'I bought this' }))
-    await waitFor(() =>
-      expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/ideas/1', body: { list: 'bought', boughtPickId: 1 } }]),
-    )
-  })
-
-  it('a mouse drag or a mostly vertical touch drag sends nothing', async () => {
-    const { api } = await open([three()])
-    drag('mouse', 120, 0)
-    drag('touch', 100, 150)
-    await wait(50)
-    expect(api.writes()).toEqual([])
   })
 })
 

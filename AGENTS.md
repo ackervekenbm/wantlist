@@ -198,7 +198,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   8) and `IdeaScreen`: `IdeaTitle` (rename), `StatusCard` (research step,
   retry count, errors; an archived idea gets its own card),
   `PreferencesPanel` (must-have / avoid / liked, one per line, editable),
-  `PickDeck` (one `PickCard` at a time with swipe, pips and advance after a
+  `PickDeck` (one `PickCard` at a time with pips and advance after a
   reaction; `ReactionBar`: No way opens a why-not, tapping the active one
   clears it; checked price ✓ vs "≈" search price, stock, rating, caveat, other
   shops, "I bought this"), the `RefineBar` dock (needs a reaction or an
