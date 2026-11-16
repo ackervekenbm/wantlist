@@ -397,7 +397,7 @@ details.apart .offers{border-top:1px solid var(--rule)}
 .choice .key[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
 
 /* ---------- lists ---------- */
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:10px;padding:3px;border-radius:12px;background:var(--sunk);border:1px solid var(--rule)}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:10px;padding:3px;border-radius:12px;background:var(--sunk);border:1px solid var(--rule)}
 .tabs button{min-height:44px;border:0;border-radius:9px;background:transparent;font-size:13px;font-weight:600;color:var(--ink-2);padding:0 4px}
 .tabs button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 0 var(--key-edge),0 0 0 1px var(--rule-strong)}
 .tabs .c{font-variant-numeric:tabular-nums;font-weight:500;color:var(--ink-2);margin-left:4px}

@@ -10,6 +10,7 @@ describe('routes', () => {
       { name: 'lists', tab: 'wanted' },
       { name: 'lists', tab: 'bought' },
       { name: 'lists', tab: 'archived' },
+      { name: 'lists', tab: 'pantry' },
     ]
     for (const r of routes) expect(parseHash(toHash(r))).toEqual(r)
     expect(toHash({ name: 'home' })).toBe('#/')
@@ -18,7 +19,7 @@ describe('routes', () => {
   })
 
   it('treats anything unknown as home', () => {
-    for (const h of ['', '#', '#/idea/abc', '#/idea/0', '#/nope', '#/lists/pantry']) {
+    for (const h of ['', '#', '#/idea/abc', '#/idea/0', '#/nope']) {
       expect(parseHash(h)).toEqual({ name: 'home' })
     }
   })

@@ -46,6 +46,7 @@ export function App() {
         selectedList={route.name === 'lists' ? route.tab : null}
         onOpen={(id) => navigate({ name: 'idea', id })}
         onLists={(tab) => navigate({ name: 'lists', tab })}
+        onRunningLow={(id) => void state.runningLow(id).catch(() => {})}
         onAdd={state.add}
       />
     </div>
