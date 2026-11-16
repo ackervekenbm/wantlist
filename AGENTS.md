@@ -53,8 +53,13 @@ A green `check` and `smoke` are required to merge. There is no other test suite.
 Before opening a PR, check the README against your change and update it in
 the **same PR** when you add, remove or rename a feature, a control or a setting;
 change a command, script, port, environment variable or image tag; or change
-what is stored where. Keep its style: plain user-facing wording, no internal
-jargon. If nothing in the README is affected, say so in the PR description.
+what is stored where. Keep its style: a banner, one-line tagline
+and badges up top, short emoji highlights, detail in collapsible `<details>`
+sections, plain user-facing wording, no internal jargon. The banner is
+`scripts/banner.html`, rendered to `docs/banner.png` by `scripts/banner.mjs`
+(Playwright installed with `--no-save`, deliberately not a dependency);
+re-render it when its wording or the icon changes. Anything shown in it is
+invented, never real data. If nothing in the README is affected, say so in the PR description.
 AGENTS.md (architecture) and `docs/deployment.md` (deployment) follow the
 same rule.
 

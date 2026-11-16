@@ -1,0 +1,62 @@
+<!doctype html>
+<!-- The README banner (docs/banner.png). Rendered by scripts/banner.mjs at
+     860x300 CSS px, 2x. Quote Slip colours; the pick on the slip is invented. -->
+<html lang="en">
+<meta charset="utf-8" />
+<style>
+  @font-face {
+    font-family: 'Bricolage';
+    src: url('../node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2') format('woff2');
+    font-weight: 200 800;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 860px; height: 300px; font-family: 'Bricolage', system-ui, sans-serif; color: #201C17; }
+  .banner {
+    width: 860px; height: 300px; border-radius: 24px; background: #ECE6DB;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 56px; overflow: hidden;
+  }
+  .brand { display: flex; flex-direction: column; gap: 18px; }
+  .name { display: flex; align-items: center; gap: 16px; }
+  .name svg { width: 64px; height: 64px; }
+  .name h1 { font-size: 54px; font-weight: 750; letter-spacing: -1.5px; }
+  .tag { font-size: 21px; line-height: 1.35; color: #5B5247; max-width: 340px; }
+  .tag b { color: #201C17; font-weight: 650; }
+
+  .slip {
+    position: relative; width: 330px; background: #FFFDF8; padding: 26px 24px 22px;
+    -webkit-mask: radial-gradient(circle 6px at 9px 0, #0000 98%, #000) -9px 0 / 18px 100% repeat-x;
+  }
+  .slip .eyebrow { font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: #73685B; font-weight: 600; }
+  .slip h2 { font-size: 20px; font-weight: 700; margin: 6px 0 14px; }
+  .line { display: flex; align-items: baseline; gap: 6px; font-size: 15px; margin: 7px 0; color: #5B5247; }
+  .line .dots { flex: 1; border-bottom: 2px dotted #BDB09E; transform: translateY(-4px); }
+  .line .v { color: #201C17; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .ok { color: #2B6A45; }
+  .why { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #DCD3C5; font-size: 14px; color: #5B5247; }
+  /* The torn-edge mask would cut a box-shadow off, so the wrapper casts it. */
+  .lift { filter: drop-shadow(0 10px 18px rgba(70, 48, 20, .22)); }
+</style>
+<div class="banner">
+  <div class="brand">
+    <div class="name">
+      <svg viewBox="0 0 512 512" aria-hidden="true">
+        <rect width="512" height="512" rx="112" fill="#2C5B4B" />
+        <circle cx="232" cy="232" r="132" fill="#FFFDF8" stroke="#E9C987" stroke-width="32" />
+        <path d="M332 332 L404 404" stroke="#E9C987" stroke-width="44" stroke-linecap="round" />
+        <path d="M190 196 L232 154 L274 196 V300 a12 12 0 0 1 -12 12 H202 a12 12 0 0 1 -12 -12 Z" fill="#2C5B4B" />
+        <circle cx="232" cy="194" r="12" fill="#FFFDF8" />
+      </svg>
+      <h1>wantlist</h1>
+    </div>
+    <p class="tag">Type a vague buying idea and walk away. <b>Come back to a few good picks</b>, checked at the shops.</p>
+  </div>
+  <div class="lift"><div class="slip">
+    <div class="eyebrow">Pick 1 · Quiet cycling fan</div>
+    <h2>Breeze Pro 40 floor fan</h2>
+    <div class="line"><span>Price at the shop</span><span class="dots"></span><span class="v">€ 129,00 <span class="ok">✓</span></span></div>
+    <div class="line"><span>Stock</span><span class="dots"></span><span class="v ok">in stock</span></div>
+    <div class="line"><span>Also at</span><span class="dots"></span><span class="v">+2 shops</span></div>
+    <p class="why">Under 40 dB on the low setting, and it fits beside a bike trainer.</p>
+  </div></div>
+</div>
+</html>
