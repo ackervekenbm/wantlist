@@ -139,6 +139,9 @@ Don't roll back to an image from before refine rounds: older images replace
 all picks of an idea on its next research, so earlier rounds and reactions
 would be lost.
 
+Don't roll back to an image from before Hunt either: older images don't know
+what the hunt columns mean, so hunt offers would show up as Explore picks.
+
 ## Backups
 
 `wantlist.db` in the data folder is the only state (the database runs in WAL

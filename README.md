@@ -31,6 +31,7 @@ on free API tiers: €0 a month.
 - 💶 **Prices you can trust.** Every offer is opened at the shop: price and stock come from the shop itself, dead links are dropped, and sold-out products make way for ones you can buy.
 - 👍 **React, then refine.** Mark each pick *No way*, *Kind of* or *Yes*, say why not, and the next round learns from it.
 - 🧾 **Preferences you can see.** What the researcher understood (must-haves, things to avoid, things you like) is written out, and you can edit it.
+- 🎯 **Hunt the exact thing.** Know exactly what to buy? Switch the idea to *Hunt* and it finds the cheapest real offer for that product, ranked by what you pay delivered. Refills come back with one tap.
 - 🛒 **Wanted, bought, archived.** *I bought this* keeps what you paid and where; only the wanted list is researched.
 - 🔒 **Yours.** One SQLite file on your own server, no accounts, no tracking. API keys stay on the server.
 
@@ -84,6 +85,18 @@ included. For Docker Compose and OpenMediaVault, see [Deployment](#deployment).
 </details>
 
 <details>
+<summary><strong>Hunting an exact product</strong></summary>
+
+- Every idea is in **Explore** (3–5 different products) or **Hunt** (one exact product, the cheapest offer). The first run guesses which from your text; the **Explore / Hunt** switch at the top of an idea overrules it. **Hunt this one** on a pick turns the idea into a hunt for that product, and your Explore rounds stay reachable.
+- A hunt has a **target**: product, variant, condition (new, refurbished, used or any) and what doesn't count ("not Optimum"). It's drafted for you and editable.
+- Offers are ranked by **what you pay delivered**: item price plus delivery. A delivery cost the shop doesn't state is never guessed: it says "delivery not shown". When pack sizes differ, offers compare **per unit** (per vial, per kg).
+- The best offer gets a slip with a **Bought here** button; the other shops are listed below it. Pick-up only, no delivery to Belgium and "not the exact product" offers sit in folded groups, never on top. There's no reacting to offers: a hunt reads like a quote.
+- **Bought here** records what you paid and asks "Will you buy this again?". Yes: the hunt is *covered* and waits in the **Pantry** (on the home screen and in the lists). No: it moves to Bought. Every purchase is kept, so the next slip can say "9% less than last time".
+- **Running low** on a covered hunt starts a new hunt in the background. Nothing is ever watched or re-hunted on its own.
+
+</details>
+
+<details>
 <summary><strong>How the research works</strong></summary>
 
 1. **Plan.** A model turns your idea, budget and must-haves into a few search queries (in Dutch, like the shops), a title and your preferences. From the second round it first learns from your reactions.
@@ -92,6 +105,8 @@ included. For Docker Compose and OpenMediaVault, see [Deployment](#deployment).
 4. **Verify.** The server reads the top product pages, and a model keeps only what the evidence supports, with the why and the caveat.
 5. **Check the offers.** Every remaining shop link is opened once for liveness, price, stock, photo and rating.
 
+A hunt runs a variant of this: it plans queries for shops that sell exactly the target, opens up to 10 offer pages, has a model read match, pack size, condition and delivery from each page, and ranks the offers in code by delivered price. It doesn't skip products you've seen, since finding the same shops again with today's prices is the point.
+
 The models run on free tiers, so wantlist routes around their limits: several Gemini models (each with its own quota) and optional Groq or OpenRouter keys form a chain. A model that runs out sits out until its reset and the next one answers; when all of them are out, ideas wait instead of failing. Anything that needs you, like a missing key or spent search credits, says so on the idea.
 
 </details>
@@ -99,15 +114,15 @@ The models run on free tiers, so wantlist routes around their limits: several Ge
 <details>
 <summary><strong>Phone and desktop</strong></summary>
 
-The home screen sorts ideas into *Needs you* (picks to react to, nothing new found, stopped) and *With the researcher*. On a phone you see one screen at a time; from 900 px wide, the list and the open idea sit side by side. Light, dark or system theme is one tap in the top bar, and a removed idea can be undone for a few seconds.
+The home screen sorts ideas into *Needs you* (picks to react to, a hunt's best offer, nothing new found, stopped), *With the researcher*, and the *Pantry* of covered hunts with their **Running low** buttons. On a phone you see one screen at a time; from 900 px wide, the list and the open idea sit side by side. Light, dark or system theme is one tap in the top bar, and a removed idea can be undone for a few seconds.
 
 </details>
 
 ## Where your data lives
 
 Everything is in one SQLite file on your server (`/app/data/wantlist.db` in the
-container): your ideas, budgets, notes, preferences, reactions, picks and what
-you bought. API keys live only in the server's environment, never in the
+container): your ideas, budgets, notes, preferences, reactions, picks, hunt targets and offers, and
+every purchase (what you paid, where, per unit). API keys live only in the server's environment, never in the
 browser or the database. The browser keeps only your theme choice.
 
 There is **no login**, so keep wantlist on your home network or tailnet, and

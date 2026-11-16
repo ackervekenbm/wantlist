@@ -150,6 +150,25 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   again) puts the idea back on the wanted list. `reactToPick` saves or clears a
   reaction (clearing drops the reason). All timestamps leave the API as
   ISO-8601 UTC.
+- Hunt mode (migration 7). An idea has a `mode` (`explore` / `hunt`, with
+  `mode_by_owner` once the owner switches it), a JSON `target` (`HuntTarget`:
+  product, variant, condition, exclude, unit; `target_by_owner` once edited)
+  and `refill` (null = unknown, the model's guess, then the owner's answer). A
+  pick has a `kind` (`pick` / `offer`) and, for offers, `offer` (`OfferFacts`:
+  match, packs, delivery, delivered, perUnit, group...); a hunt offer is one pick
+  row with one supplier and its round is the hunt run. Table `purchases`
+  (`ON DELETE CASCADE`): shop, packs, units, `paid` incl. delivery, `per_unit`.
+  Covered (the Pantry) is `mode = 'hunt' AND list = 'bought' AND refill = 1`,
+  not a fourth list value (the `list` CHECK cannot change). `startHunt` switches
+  to hunt (owner's choice) and queues a run, drafting the target from a pick
+  (condition from the idea's words, else new); `recordPurchase` writes the
+  purchase, the `bought` snapshot, `list = 'bought'` and `refill`;
+  `runningLow` (covered only) re-queues; `undoPurchase` deletes one and, if it
+  was the newest, puts the idea back on wanted. Routes: `PATCH /api/ideas/:id`
+  also takes `mode` and `target` (409 while researching); `POST
+  /api/ideas/:id/hunt` `{pickId}` (202), `POST …/purchases` `{pickId|null, paid,
+  refill}` (201), `POST …/running-low` (202; 409 unless covered and idle),
+  `DELETE /api/purchases/:id` (the undo).
 - `src/server/worker.ts` — in-process worker with per-instance state. A pass
   researches up to `WORKER_QUEUE_CAP` (default 3) **due** ideas, one at a time.
   It sleeps until the earlier of the next scheduled retry or
@@ -196,6 +215,22 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   server-side. Each step reports a human-readable `onProgress` step. When
   every query fails, the most telling search error is rethrown (a refused
   Serper key or spent credits beats "no results").
+- Hunt research: the worker passes `mode`, `modeByOwner`, `target` and
+  `targetByOwner` in the `ResearchRequest`; the plan step also guesses mode,
+  target and refill (never re-guessed once owner-set), and a hunt continues in the
+  same run. `research/hunt.ts` (`runHunt`): queries for the exact target →
+  search (nothing excluded: re-hunting should find the same shops) → the model
+  selects offer URLs from the results → pages read once through the `PageCache`
+  → one model call returns `OfferFacts` per page (only what the page states;
+  delivery `unknown` otherwise) → price and stock from the shop's product data →
+  `rank.ts`. `rankOffers` is pure code: `deliveredPrice` (free / paid /
+  free-over threshold), per-unit when `target.unit` is set and packs differ,
+  eligibility for best (exact match, checked price, in stock, deliverable), and
+  groups `best` · `exact` · `unavailable` (pick-up only / no delivery to
+  Belgium) · `mismatch`. No eligible offer throws `HUNT_NOTHING` (`no-results`).
+  `huntPrompts.ts` holds the select and offer-facts prompts, schemas and
+  normalizers; `shared.ts` the search and page helpers both pipelines use
+  (`searchAll`, `checkedSupplier`, `mapLimit`).
 - `src/server/research/errors.ts` — `ResearchError` with a `kind` that decides
   what happens next (table in the file): `transient` / `quota` / `invalid`
   retry, `unavailable` / `blocked` / `no-results` stop. Providers and the
@@ -288,6 +323,17 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   `prefers-reduced-motion`. Client tests sit next to the code (`*.test.tsx`,
   jsdom) and drive the real hook and components against an in-memory API
   (`src/client/test/fakeApi.ts`).
+- Hunt UI: `ModeSwitch` (Explore / Hunt, disabled while researching) in the
+  idea's top bar; `HuntView` composes `TargetPlate` (product, variant,
+  condition, exclusions; edit in a `Sheet`), `OfferSlip` (best offer: delivered
+  price, per unit, "x% less than last time"), `OfferList` (other shops and the
+  folded unavailable / mismatch groups), `BoughtSheet` (paid, "Will you buy this
+  again?", undo toast) and `CoveredStub` (covered since, what you paid, Running
+  low). `lib/hunt.ts`: `offersOf` (newest hunt round), `exploreRounds`,
+  `bestOffer`, `versusLast`. Hunt offers stay out of Keepers, earlier rounds and
+  refine. **Hunt this one** sits on the pick card and Keepers row. Pantry is a
+  route tab (`#/lists/pantry`, `ListTab` in `lib/route.ts`) and a home section:
+  a filter over covered hunts, each with Running low.
 - **Lists vs research status.** `list` (wanted / bought / archived) is the
   user's side and independent of `status`; only `wanted` ideas are
   researched (`dueIdeaIds`), and refining or re-running moves an idea back to
