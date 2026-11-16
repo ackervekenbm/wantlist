@@ -129,7 +129,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   dropped unless nothing else is left, otherwise the model's ranking stands.
   Every model step carries `SHOP_RULES` (consumer shops delivering to
   Belgium, Dutch ones on par with Belgian ones; no trade/horeca/wholesale, import resellers or far-away shops for
-  everyday items); shopping queries are Dutch and Serper runs `gl=be`,
+  everyday items); candidates and verify also carry `PICK_RULES`
+  (known brands with reviews and a known price first, English why/caveat,
+  no unbacked claims); shopping queries are Dutch and Serper runs `gl=be`,
   `hl=nl`.
   Gemini cannot browse on the free tier, so all real searching/reading happens
   server-side. Each step reports a human-readable `onProgress` step. When

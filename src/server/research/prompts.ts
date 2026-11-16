@@ -57,6 +57,19 @@ const SHOP_RULES = `Where to buy (the owner lives in Belgium):
 - Skip anything shown as unavailable, sold out or discontinued ("niet
   leverbaar", "uitverkocht", "épuisé", "currently unavailable").`
 
+/** How the candidate and verify steps weigh otherwise equal products. */
+const PICK_RULES = `Weighing products:
+- Prefer known brands with real reviews (a rating, a review count, a name
+  people recognise) over anonymous marketplace products with a made-up brand
+  or none. Not exclusive: a no-name product may still make the list when it
+  fits clearly better or is the only one that fits.
+- Prefer products whose price is known from the snippet or the shop page.
+  With a budget, leave out products whose price is unknown.
+- "why" and "caveat" are always written in English, whatever the shop's
+  language; product titles stay as the shop writes them.
+- A "why" states only what the evidence shows: never "verified", "in stock"
+  or "delivers to Belgium" unless the page says so.`
+
 // ---------------------------------------------------------------------------
 // Preferences and earlier picks, as every step sees them
 // ---------------------------------------------------------------------------
@@ -218,6 +231,14 @@ Preferences:
 - Turn "yes" and "maybe" picks, and the positive part of their reasons, into
   "likes" as traits (style, material, size, feature), never product names,
   brands or shops. They do not become "mustHaves".
+- A price reaction ("too expensive", "more than it should be") becomes a
+  "likes" trait such as "good value, not premium-priced", never a number in
+  "mustHaves" or "avoid": only the owner's Budget is a price ceiling.
+- Preferences are about the product only. Never add items about the shop,
+  delivery, country or stock ("delivers to Belgium", "available in Belgium",
+  "no trade-only shops", "unavailable products"): the shop rules below
+  already cover those.
+- Each fact once: never repeat a must-have as its opposite in "avoid".
 - Items marked as set by the owner must stay word-for-word in their list.
 - "summary": one sentence on what the owner is really after now.
 - Title: keep the current title unless the reactions justify a sharper one;
@@ -330,6 +351,8 @@ Ground rules:
   "Liked so far" traits.
 ${BUDGET_RULE}
 
+${PICK_RULES}
+
 ${SHOP_RULES}`
 
 export const CANDIDATE_SCHEMA = {
@@ -344,7 +367,7 @@ export const CANDIDATE_SCHEMA = {
           shop: { type: 'string' },
           url: { type: 'string' },
           price: { type: 'string', description: 'e.g. "129" or "129-180" or empty' },
-          why: { type: 'string', description: 'One short line, <=180 chars' },
+          why: { type: 'string', description: 'One short line in English, <=180 chars' },
         },
         required: ['title', 'shop', 'url'],
       },
@@ -445,10 +468,15 @@ Ground rules:
   shows one (bare number or range).
 - "Shop data" lines come from the shop page's own product markup: trust them
   over snippets for price and stock. Prefer products that are in stock.
-- Each pick also gets a "caveat": one short, honest trade-off or thing to
-  check before buying (noise, size, compatibility, subscription, short
-  warranty...), grounded in the evidence or well-known about the product.
-  Leave it empty rather than invent one.
+- Each pick also gets a "caveat": one short, honest trade-off measured
+  against the owner's preferences (noise, size, capacity, build quality,
+  compatibility, subscription, short warranty...), grounded in the evidence
+  or well-known about the product. Never stock, delivery time or generic
+  usage tips ("keep it dry", "check the settings"): the card shows stock
+  already. Leave it empty rather than invent one.
+- A must-have size or variant (e.g. "size 36"): drop the pick when the page
+  shows it unavailable; when the page does not say, the caveat is "check
+  <variant> is in stock".
 - Rank best first. Final list: 3-5 distinct products. Do not pad with guesses.
 - Never invent URLs - only use the URLs provided in the candidates.
 - One URL is one product page: never give two picks the same supplier URL.
@@ -456,6 +484,8 @@ Ground rules:
   use the product the page is about, or drop it.
 - Mention delivery/stock only if the page evidence states it.
 ${BUDGET_RULE}
+
+${PICK_RULES}
 
 ${SHOP_RULES}`
 
@@ -478,8 +508,8 @@ export function verifySchema(withRepeat: boolean) {
               : {}),
             rank: { type: 'integer' },
             title: { type: 'string' },
-            why: { type: 'string', description: 'One line, <=180 chars' },
-            caveat: { type: 'string', description: 'One honest trade-off, <=120 chars, or empty' },
+            why: { type: 'string', description: 'One line in English, <=180 chars' },
+            caveat: { type: 'string', description: 'One honest trade-off in English, <=120 chars, or empty' },
             suppliers: {
               type: 'array',
               items: {

@@ -244,6 +244,7 @@ describe('PipelineEngine', () => {
     await engine(model, search(() => HITS)).research({ ideaId: 1, text: 'fan' })
     expect(model.systems).toHaveLength(3)
     for (const system of model.systems) expect(system).toContain('deliver to Belgium')
+    expect(model.systems.slice(1).every((system) => system.includes('Prefer known brands'))).toBe(true)
   })
 
   it('drops dead offers and products left without one', async () => {
