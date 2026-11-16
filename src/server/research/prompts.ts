@@ -40,10 +40,12 @@ const BUDGET_RULE = `- When a budget is given, it is a ceiling: prefer products 
 
 /** Where the owner can actually buy: every step sees these. */
 const SHOP_RULES = `Where to buy (the owner lives in Belgium):
-- Only shops that sell to private customers and deliver to Belgium. Prefer
-  Belgian shops and the Belgian storefront of big ones (bol.com/be,
-  coolblue.be, amazon.com.be, a brand's BE site), then shops in the
-  Netherlands, France, Germany or Luxembourg that clearly ship to Belgium.
+- Only shops that sell to private customers and deliver to Belgium.
+- Belgian shops and Dutch shops that deliver to Belgium are equally good:
+  never rank a Dutch shop lower for being Dutch. When one shop has a Belgian
+  storefront (bol.com/be, coolblue.be, amazon.com.be, a brand's BE site), use
+  that one. Shops in France, Germany or Luxembourg that clearly ship to
+  Belgium come next.
 - Never: trade, B2B, horeca or wholesale shops (business accounts, prices
   excl. VAT, e.g. HANOS, Makro, Frigohoreca, Bidfood); import or reseller
   sites (Ubuy, Desertcart and the like); a shop's US, UK or other foreign

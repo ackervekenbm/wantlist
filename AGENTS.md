@@ -128,7 +128,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   saw. Offers sort in stock → priced → cheapest; picks sold out everywhere are
   dropped unless nothing else is left, otherwise the model's ranking stands.
   Every model step carries `SHOP_RULES` (consumer shops delivering to
-  Belgium; no trade/horeca/wholesale, import resellers or far-away shops for
+  Belgium, Dutch ones on par with Belgian ones; no trade/horeca/wholesale, import resellers or far-away shops for
   everyday items); shopping queries are Dutch and Serper runs `gl=be`,
   `hl=nl`.
   Gemini cannot browse on the free tier, so all real searching/reading happens
