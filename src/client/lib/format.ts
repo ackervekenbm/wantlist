@@ -32,9 +32,19 @@ export function priceText(price: number, checked: boolean): string {
   return checked ? `${formatEur(price)} ✓` : `≈ ${formatEur(price)}`
 }
 
+/** "€59,95": always cents, no space, for the figures on a hunt. */
+export function eurTight(amount: number): string {
+  return eur.format(amount).replace(/\s/g, '')
+}
+
 /** "€19,98/vial". */
 export function perUnitText(amount: number, unit: string): string {
-  return `${eur.format(amount).replace(/\s/g, '')}/${unit}`
+  return `${eurTight(amount)}/${unit}`
+}
+
+/** "14 Sep". */
+export function shortDate(iso: string): string {
+  return dayMonth.format(new Date(iso))
 }
 
 /** What delivery costs: "free", "€ 4,95", "free over € 49 ✓" (✓ once the price reaches it), or why it is unknown. */

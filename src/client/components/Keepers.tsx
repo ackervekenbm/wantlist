@@ -8,16 +8,18 @@ interface Props {
   /** Both absent off the wanted list. */
   onReact?: (pickId: number, patch: PickPatch) => Promise<void>
   onBought?: (pick: Pick) => void
+  /** Hunts this pick's exact product. */
+  onHunt?: (pick: Pick) => void
 }
 
 /** Picks you said yes to in earlier rounds, still reactable. */
-export function Keepers({ picks, onReact, onBought }: Props) {
+export function Keepers({ picks, onReact, onBought, onHunt }: Props) {
   if (picks.length === 0) return null
   return (
     <Section className="panel" title="Keepers" count={picks.length}>
       <ul className="card erows" aria-label="Keepers">
         {picks.map((pick) => (
-          <PickRow key={pick.id} pick={pick} onReact={onReact} onBought={onBought} />
+          <PickRow key={pick.id} pick={pick} onReact={onReact} onBought={onBought} onHunt={onHunt} />
         ))}
       </ul>
     </Section>

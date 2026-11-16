@@ -136,3 +136,11 @@ export const ParcelIcon = (p: IconProps) => (
     <path d="M14 28l26 12 26-12M40 40v26M27 22l26 12" />
   </Icon>
 )
+
+/** Hunt mode: a perforated quote slip. */
+export const HuntIcon = (p: IconProps) => (
+  <Icon strokeWidth={1.8} {...p}>
+    <path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z" />
+    <path d="M9 8h6M9 12h6M9 16h3" />
+  </Icon>
+)

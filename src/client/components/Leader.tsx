@@ -15,12 +15,15 @@ export function Leader({ children, fig, className }: { children: ReactNode; fig:
 export function Section({
   title,
   count,
+  note,
   className = 'sec',
   ref,
   children,
 }: {
   title: string
   count?: number
+  /** Small print after the rule, e.g. what the figures mean. */
+  note?: string
   /** `sec` on home, `panel` on the idea screen. */
   className?: string
   ref?: Ref<HTMLElement>
@@ -38,6 +41,7 @@ export function Section({
           </>
         )}
         <span className="rule" />
+        {note && <span className="n">{note}</span>}
       </h2>
       {children}
     </section>

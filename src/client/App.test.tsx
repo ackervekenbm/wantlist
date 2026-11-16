@@ -2,23 +2,8 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
-import { UNDO_MS, type IdeasActions } from './hooks/useIdeas'
+import { UNDO_MS } from './hooks/useIdeas'
 import { fakeApi, idea, pick, status } from './test/fakeApi'
-
-// The hunt screen is not built yet: a hunt idea opens a stub with one Buy button that drives the hook's `buy`.
-vi.mock('./components/IdeaScreen', async () => {
-  const actual = await vi.importActual<typeof import('./components/IdeaScreen')>('./components/IdeaScreen')
-  return {
-    IdeaScreen: (props: Parameters<typeof actual.IdeaScreen>[0]) =>
-      props.idea.mode === 'hunt' ? (
-        <button type="button" onClick={() => void (props.actions as IdeasActions).buy(props.idea.id, { pickId: 5, paid: 59.95, refill: true })}>
-          Buy test
-        </button>
-      ) : (
-        actual.IdeaScreen(props)
-      ),
-  }
-})
 
 /** Renders the app on a route (`#/idea/1`, `#/lists/wanted`, …) once the ideas have loaded. */
 async function renderApp(hash = '#/') {
@@ -243,9 +228,11 @@ describe('App', () => {
         delivered: 59.95, perUnit: 19.98, condition: 'new', sellerNote: null, group: 'best',
       },
     })
-    const api = fakeApi([idea({ mode: 'hunt', title: 'Feliway refill', target: { product: 'Feliway', variant: '', condition: 'new', exclude: [], unit: 'vial' }, picks: [offer] })])
+    const api = fakeApi([idea({ mode: 'hunt', title: 'Feliway refill', refill: true, target: { product: 'Feliway', variant: '', condition: 'new', exclude: [], unit: 'vial' }, picks: [offer] })])
     const user = await renderApp('#/idea/1')
-    await user.click(screen.getByRole('button', { name: 'Buy test' }))
+    await user.click(within(screen.getByRole('group', { name: 'Best real offer' })).getByRole('button', { name: 'Bought here' }))
+    await user.click(within(await screen.findByRole('dialog', { name: /^Bought at/ })).getByRole('button', { name: 'Save purchase' }))
+    expect(api.writes()).toEqual([{ method: 'POST', path: '/api/ideas/1/purchases', body: { pickId: 5, paid: 59.95, refill: true } }])
     expect(await screen.findByText("Covered. Feliway refill sleeps in the Pantry until you're running low.")).toBeInTheDocument()
     expect(api.ideas()[0]).toMatchObject({ list: 'bought', refill: true })
 

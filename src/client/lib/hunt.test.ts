@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Delivery, OfferFacts, Purchase } from '../../types'
 import { idea, pick } from '../test/fakeApi'
 import { deliveryText, perUnitText } from './format'
-import { bestOffer, exploreRounds, huntEyebrow, offersOf, versusLast } from './hunt'
+import { bestOffer, exploreRounds, figureOf, huntEyebrow, offersOf, unitOf, versusLast } from './hunt'
 import { needOf, pantryOf } from './triage'
 
 const facts = (over: Partial<OfferFacts> = {}): OfferFacts => ({
@@ -70,5 +70,32 @@ describe('per unit and delivery text', () => {
     expect(deliveryText(d('unknown'), null)).toBe('delivery not shown')
     expect(deliveryText(d('pickup_only'), null)).toBe('pick-up only')
     expect(deliveryText(d('no_be'), null)).toBe('no delivery to Belgium')
+  })
+})
+
+describe('unitOf and figureOf', () => {
+  const vial = (id: number, packs: number, price: number, perUnit: number | null, group: OfferFacts['group'] = 'exact') =>
+    pick({
+      id,
+      kind: 'offer',
+      price,
+      offer: {
+        match: 'exact', mismatch: null, packs, unitsPerPack: 1,
+        delivery: { kind: perUnit === null ? 'unknown' : 'free', cost: null, threshold: null },
+        delivered: perUnit === null ? null : price, perUnit, condition: 'new', sellerNote: null, group,
+      },
+    })
+  const target = { product: 'Feliway', variant: '48 ml', condition: 'new' as const, exclude: [], unit: 'vial' }
+
+  it('compares per unit only when the exact offers differ in pack size', () => {
+    expect(unitOf(idea({ mode: 'hunt', target, picks: [vial(1, 3, 60, 20, 'best'), vial(2, 6, 120, 20)] }))).toBe('vial')
+    expect(unitOf(idea({ mode: 'hunt', target, picks: [vial(1, 3, 60, 20, 'best'), vial(2, 3, 66, 22)] }))).toBeNull()
+    expect(unitOf(idea({ mode: 'hunt', target: { ...target, unit: null }, picks: [vial(1, 3, 60, 20), vial(2, 6, 120, 20)] }))).toBeNull()
+  })
+
+  it('falls back to the item price when delivery is not shown', () => {
+    expect(figureOf(vial(1, 2, 50, null), 'vial')).toBe(25)
+    expect(figureOf(vial(1, 2, 50, null), null)).toBe(50)
+    expect(figureOf(vial(1, 3, 60, 20), 'vial')).toBe(20)
   })
 })

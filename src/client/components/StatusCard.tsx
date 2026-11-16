@@ -8,7 +8,7 @@ interface Props {
   idea: Idea
   status: ServerStatus | null
   onRerun: () => void
-  /** Opens What I've learned for editing; absent when there is nothing learned yet. */
+  /** Opens What I've learned (a hunt: the target) for editing; absent when there is nothing to edit yet. */
   onLoosen?: () => void
   onReword: () => void
 }
@@ -16,12 +16,13 @@ interface Props {
 /** Where research on a wanted idea stands, with the one thing you can do about it. Nothing when it's done. */
 export function StatusCard({ idea, status, onRerun, onLoosen, onReword }: Props) {
   const next = idea.round + 1
+  const hunt = idea.mode === 'hunt'
   const off = status && !status.researchEnabled
   const reset = status && quotaResetAt(status)
 
   if (idea.status === 'error' && idea.errorKind === 'nothing-new') {
     return (
-      <Card dot="warn" title="Nothing new found">
+      <Card dot="warn" title={hunt ? 'No exact match on sale' : 'Nothing new found'}>
         {/* Only the exclusion failure means "seen it all"; the others (nothing to buy, nothing verified) carry their own advice. */}
         {idea.error?.startsWith('Nothing new found') ? (
           <p>
@@ -34,7 +35,7 @@ export function StatusCard({ idea, status, onRerun, onLoosen, onReword }: Props)
         <div className="acts">
           {onLoosen && (
             <button type="button" className="btn small" onClick={onLoosen}>
-              Loosen a criterion
+              {hunt ? 'Loosen the target' : 'Loosen a criterion'}
             </button>
           )}
           <button type="button" className="btn small quiet" onClick={onReword}>
@@ -59,9 +60,9 @@ export function StatusCard({ idea, status, onRerun, onLoosen, onReword }: Props)
   if (idea.status === 'researching') {
     const step = stepOf(status, idea.id)
     return (
-      <Card dot="live" title={`Researching round ${next}`}>
+      <Card dot="live" title={hunt ? 'Hunting' : `Researching round ${next}`}>
         <p className="now" aria-live="polite">
-          {step ?? 'Digging through shops and reviews'}…
+          {step ?? (hunt ? 'Looking for every shop that sells it' : 'Digging through shops and reviews')}…
         </p>
         <p>Usually a few minutes; you can leave.</p>
       </Card>
@@ -99,7 +100,7 @@ export function StatusCard({ idea, status, onRerun, onLoosen, onReword }: Props)
     )
   }
   return (
-    <Card dot="off" title={`Round ${next} is queued`}>
+    <Card dot="off" title={hunt ? 'Hunt is queued' : `Round ${next} is queued`}>
       <p>It starts after the current research, usually within minutes. No need to wait here.</p>
     </Card>
   )

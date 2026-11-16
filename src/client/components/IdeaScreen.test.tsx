@@ -384,3 +384,24 @@ describe('IdeaScreen with a hunt round', () => {
     expect(pane().queryByText('Hunt offer shop')).not.toBeInTheDocument()
   })
 })
+
+describe('IdeaScreen mode switch', () => {
+  it('switches an Explore idea to Hunt, which queues a hunt', async () => {
+    const { api, user } = await open([idea()])
+    const mode = within(pane().getByRole('group', { name: 'Mode' }))
+    expect(mode.getByRole('button', { name: 'Explore' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(mode.getByRole('button', { name: 'Hunt' }))
+    expect(await pane().findByRole('region', { name: 'Hunt is queued' })).toBeInTheDocument()
+    expect(pane().getByText('HUNT')).toBeInTheDocument()
+    expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/ideas/1', body: { mode: 'hunt' } }])
+  })
+
+  it('hunts a keeper', async () => {
+    const { api, user } = await open([
+      idea({ round: 2, picks: [pick({ id: 20, round: 2 }), pick({ id: 11, round: 1, title: 'Felt mule', reaction: 'yes' })] }),
+    ])
+    const keepers = within(pane().getByRole('list', { name: 'Keepers' }))
+    await user.click(keepers.getByRole('button', { name: 'Hunt this one' }))
+    expect(api.writes()).toEqual([{ method: 'POST', path: '/api/ideas/1/hunt', body: { pickId: 11 } }])
+  })
+})
