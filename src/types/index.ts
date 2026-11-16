@@ -59,10 +59,75 @@ export interface Preferences {
   likes: string[]
 }
 
+export type IdeaMode = 'explore' | 'hunt'
+export type Condition = 'new' | 'refurbished' | 'used' | 'any'
+
+/** The exact product a hunt looks for. */
+export interface HuntTarget {
+  product: string
+  variant: string
+  condition: Condition
+  exclude: string[]
+  /** "vial", "kg"; null when packs never differ. */
+  unit: string | null
+}
+
+export type DeliveryKind = 'free' | 'paid' | 'free_over' | 'pickup_only' | 'no_be' | 'unknown'
+
+export interface Delivery {
+  kind: DeliveryKind
+  cost: number | null
+  threshold: number | null
+}
+
+export type OfferGroup = 'best' | 'exact' | 'unavailable' | 'mismatch'
+
+/** What a hunt knows about one shop's offer. */
+export interface OfferFacts {
+  match: 'exact' | 'mismatch'
+  mismatch: string | null
+  packs: number
+  unitsPerPack: number | null
+  delivery: Delivery
+  /** Item price plus delivery, when known. */
+  delivered: number | null
+  perUnit: number | null
+  condition: Condition | null
+  sellerNote: string | null
+  group: OfferGroup
+}
+
+/** What was paid for an idea, newest first on the idea. */
+export interface Purchase {
+  id: number
+  ideaId: number
+  /** ISO-8601 (UTC). */
+  at: string
+  shop: string | null
+  url: string | null
+  title: string
+  packs: number
+  unitsPerPack: number | null
+  unitLabel: string | null
+  /** EUR, delivery included. */
+  paid: number
+  perUnit: number | null
+}
+
+/** Body of the buy action. */
+export interface NewPurchase {
+  pickId: number | null
+  paid: number
+  refill: boolean
+}
+
 export interface Pick {
   id: number
   ideaId: number
   rank: number
+  kind: 'pick' | 'offer'
+  /** Only for kind 'offer'. */
+  offer: OfferFacts | null
   /** Research round that produced this pick (1-based). */
   round: number
   reaction: Reaction | null
@@ -90,6 +155,9 @@ export interface Pick {
 export interface ResearchBrief {
   title: string
   preferences: Preferences
+  mode?: IdeaMode
+  target?: HuntTarget | null
+  refill?: boolean | null
 }
 
 export interface HistoryPick {
@@ -146,8 +214,22 @@ export interface Idea {
   preferencesEdited: boolean
   /** The idea was reworded after this round: earlier picks are not history. */
   freshSinceRound: number | null
+  mode: IdeaMode
+  /** The owner chose the mode; research no longer re-guesses it. */
+  modeByOwner: boolean
+  target: HuntTarget | null
+  targetByOwner: boolean
+  /** Buy again when it runs out; null = unknown. */
+  refill: boolean | null
+  /** Newest first. */
+  purchases: Purchase[]
   /** Ordered by round descending, then rank. */
   picks: Pick[]
+}
+
+/** A hunt idea that was bought and will be bought again. */
+export function isCovered(idea: Idea): boolean {
+  return idea.mode === 'hunt' && idea.list === 'bought' && idea.refill === true
 }
 
 export interface ServerStatus {
@@ -205,6 +287,8 @@ export interface FinalPick {
    */
   suppliers: PickSupplier[]
   sourceUrls: string[]
+  kind?: 'offer'
+  offer?: OfferFacts
 }
 
 export interface ResearchResult {
@@ -219,6 +303,10 @@ export interface ResearchRequest {
   notes?: string | null
   title?: string | null
   history?: ResearchHistory | null
+  mode?: IdeaMode
+  target?: HuntTarget | null
+  targetByOwner?: boolean
+  modeByOwner?: boolean
   /** Called with a short human-readable step ("searching shops", ...). */
   onProgress?: (step: string) => void
 }
@@ -245,6 +333,8 @@ export interface IdeaPatch {
   /** A string sets an owner title; null returns to the model's. */
   title?: string | null
   preferences?: Preferences
+  mode?: IdeaMode
+  target?: HuntTarget | null
 }
 
 /** Body of PATCH /api/picks/:id. */

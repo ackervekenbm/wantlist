@@ -4,19 +4,24 @@ import Database from 'better-sqlite3'
 import type {
   Availability,
   BoughtPick,
+  HuntTarget,
   Idea,
   IdeaList,
   IdeaPatch,
   IdeaStatus,
   ErrorKind,
   NewIdea,
+  NewPurchase,
+  OfferFacts,
   Pick,
   PickPatch,
   PickSupplier,
   Preferences,
+  Purchase,
   Rating,
   ResearchResult,
 } from '../types'
+import { isCovered } from '../types'
 import { parsePriceEur } from './research/product'
 
 export type WlDb = Database.Database
@@ -113,6 +118,32 @@ const MIGRATIONS: Array<(db: WlDb) => void> = [
       WHEN error LIKE 'No product survived%' OR error LIKE 'Nothing new found%' THEN 'nothing-new' ELSE 'stopped' END
       WHERE status = 'error' AND error_kind IS NULL`)
   },
+  // 7 - Hunt mode: a target per idea, offers as picks, and what was paid
+  (db) => {
+    addColumn(db, 'ideas', 'mode', `TEXT NOT NULL DEFAULT 'explore' CHECK (mode IN ('explore','hunt'))`)
+    addColumn(db, 'ideas', 'mode_by_owner', 'INTEGER NOT NULL DEFAULT 0')
+    addColumn(db, 'ideas', 'target', 'TEXT')
+    addColumn(db, 'ideas', 'target_by_owner', 'INTEGER NOT NULL DEFAULT 0')
+    addColumn(db, 'ideas', 'refill', 'INTEGER')
+    addColumn(db, 'picks', 'kind', `TEXT NOT NULL DEFAULT 'pick' CHECK (kind IN ('pick','offer'))`)
+    addColumn(db, 'picks', 'offer', 'TEXT')
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS purchases (
+        id INTEGER PRIMARY KEY,
+        idea_id INTEGER NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
+        at TEXT NOT NULL,
+        shop TEXT,
+        url TEXT,
+        title TEXT NOT NULL,
+        packs INTEGER NOT NULL DEFAULT 1,
+        units_per_pack REAL,
+        unit_label TEXT,
+        paid REAL NOT NULL,
+        per_unit REAL
+      );
+      CREATE INDEX IF NOT EXISTS idx_purchases_idea ON purchases(idea_id);
+    `)
+  },
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
@@ -158,9 +189,16 @@ interface IdeaRow {
   preferencesEdited: number
   freshSinceRound: number | null
   errorKind: ErrorKind | null
+  mode: Idea['mode']
+  modeByOwner: number
+  target: string | null
+  targetByOwner: number
+  refill: number | null
 }
 
 interface PickRow {
+  kind: Pick['kind']
+  offer: string | null
   id: number
   ideaId: number
   rank: number
@@ -183,10 +221,14 @@ interface PickRow {
 const IDEA_COLUMNS = `id, text, budget, notes, list, bought, status, created_at AS createdAt, researched_at AS researchedAt,
   error, attempts, next_attempt_at AS nextAttemptAt,
   title, title_by_owner AS titleByOwner, round, preferences, preferences_edited AS preferencesEdited,
-  fresh_since_round AS freshSinceRound, error_kind AS errorKind`
+  fresh_since_round AS freshSinceRound, error_kind AS errorKind,
+  mode, mode_by_owner AS modeByOwner, target, target_by_owner AS targetByOwner, refill`
+
+const PURCHASE_COLUMNS = `id, idea_id AS ideaId, at, shop, url, title, packs, units_per_pack AS unitsPerPack,
+  unit_label AS unitLabel, paid, per_unit AS perUnit`
 
 const PICK_COLUMNS = `id, idea_id AS ideaId, rank, round, reaction, reason, title, shop, url, price, why, caveat, image, rating,
-  source_urls AS sourceUrls, fetched_at AS fetchedAt, suppliers`
+  source_urls AS sourceUrls, fetched_at AS fetchedAt, suppliers, kind, offer`
 
 /** Newest first, with picks, in two queries. */
 export function listIdeas(db: WlDb): Idea[] {
@@ -198,7 +240,14 @@ export function listIdeas(db: WlDb): Idea[] {
     list.push(toPick(row))
     byIdea.set(row.ideaId, list)
   }
-  return ideas.map((row) => toIdea(row, byIdea.get(row.id) ?? []))
+  const purchases = db.prepare(`SELECT ${PURCHASE_COLUMNS} FROM purchases ORDER BY id DESC`).all() as Purchase[]
+  const boughtBy = new Map<number, Purchase[]>()
+  for (const p of purchases) {
+    const list = boughtBy.get(p.ideaId) ?? []
+    list.push({ ...p, at: toIso(p.at) as string })
+    boughtBy.set(p.ideaId, list)
+  }
+  return ideas.map((row) => toIdea(row, byIdea.get(row.id) ?? [], boughtBy.get(row.id) ?? []))
 }
 
 export function getIdea(db: WlDb, id: number): Idea | null {
@@ -209,7 +258,10 @@ export function getIdea(db: WlDb, id: number): Idea | null {
   const picks = db
     .prepare(`SELECT ${PICK_COLUMNS} FROM picks WHERE idea_id = ? ORDER BY round DESC, rank`)
     .all(id) as PickRow[]
-  return toIdea(row, picks.map(toPick))
+  const purchases = db
+    .prepare(`SELECT ${PURCHASE_COLUMNS} FROM purchases WHERE idea_id = ? ORDER BY id DESC`)
+    .all(id) as Purchase[]
+  return toIdea(row, picks.map(toPick), purchases.map((p) => ({ ...p, at: toIso(p.at) as string })))
 }
 
 /** Wanted ideas waiting for the worker, scheduled retries included. */
@@ -283,7 +335,8 @@ export function updateIdea(db: WlDb, id: number, patch: IdeaPatch, now = new Dat
     }
     const text = patch.text?.trim()
     const reworded = text !== undefined && text !== idea.text.trim()
-    if (idea.status === 'researching' && (reworded || patch.preferences !== undefined)) {
+    const steers = reworded || patch.preferences !== undefined || patch.mode !== undefined || patch.target !== undefined
+    if (idea.status === 'researching' && steers) {
       throw new BusyError('this idea is being researched right now')
     }
     if (text !== undefined) set('text', text)
@@ -301,6 +354,19 @@ export function updateIdea(db: WlDb, id: number, patch: IdeaPatch, now = new Dat
       set('title', patch.title)
       set('title_by_owner', patch.title === null ? 0 : 1)
     }
+    if (patch.target !== undefined) {
+      set('target', patch.target ? JSON.stringify(patch.target) : null)
+      set('target_by_owner', patch.target ? 1 : 0)
+    }
+    if (patch.mode !== undefined) {
+      set('mode', patch.mode)
+      set('mode_by_owner', 1)
+      const kind = patch.mode === 'hunt' ? 'offer' : 'pick'
+      if (!idea.picks.some((p) => p.kind === kind)) {
+        sets.push(`status = 'queued'`, 'error = NULL', 'error_kind = NULL', 'attempts = 0', 'next_attempt_at = NULL')
+        if (patch.list === undefined) set('list', 'wanted')
+      }
+    }
     if (patch.budget !== undefined) set('budget', patch.budget)
     if (patch.notes !== undefined) set('notes', patch.notes?.trim() || null)
     if (patch.list !== undefined) {
@@ -310,6 +376,9 @@ export function updateIdea(db: WlDb, id: number, patch: IdeaPatch, now = new Dat
         const pick = idea.picks.find((p) => p.id === patch.boughtPickId)
         if (!pick) throw new PatchError('that pick does not belong to this idea')
         bought = { title: pick.title, shop: pick.shop, url: pick.url, price: pick.price, at: now.toISOString() }
+        if (pick.price != null) {
+          insertPurchase(db, idea, { title: pick.title, shop: pick.shop, url: pick.url, packs: 1, unitsPerPack: null, paid: pick.price }, now)
+        }
       } else if (patch.list === 'bought' && patch.boughtPickId === undefined) {
         // Moving to bought without naming a pick keeps an earlier snapshot.
         bought = idea.bought
@@ -346,14 +415,19 @@ export function claimIdea(db: WlDb, id: number): boolean {
 export function completeIdea(db: WlDb, id: number, result: ResearchResult, now = new Date()): boolean {
   const roundOf = db.prepare('SELECT round FROM ideas WHERE id = ?')
   const ins = db.prepare(
-    `INSERT INTO picks (idea_id, rank, round, title, shop, url, price, why, caveat, image, rating, source_urls, fetched_at, suppliers)
-     VALUES (@ideaId, @rank, @round, @title, @shop, @url, @price, @why, @caveat, @image, @rating, @sourceUrls, @fetchedAt, @suppliers)`,
+    `INSERT INTO picks (idea_id, rank, round, title, shop, url, price, why, caveat, image, rating, source_urls, fetched_at, suppliers, kind, offer)
+     VALUES (@ideaId, @rank, @round, @title, @shop, @url, @price, @why, @caveat, @image, @rating, @sourceUrls, @fetchedAt, @suppliers, @kind, @offer)`,
   )
   const done = db.prepare(
     `UPDATE ideas SET status = 'done', error = NULL, error_kind = NULL, attempts = 0, next_attempt_at = NULL,
-       researched_at = ?, round = ?, preferences = ?, preferences_edited = 0,
-       title = CASE WHEN title_by_owner = 1 OR ? = '' THEN title ELSE ? END
-     WHERE id = ?`,
+       researched_at = @at, round = @round,
+       preferences = CASE WHEN @hunt = 1 THEN preferences ELSE @preferences END,
+       preferences_edited = CASE WHEN @hunt = 1 THEN preferences_edited ELSE 0 END,
+       title = CASE WHEN title_by_owner = 1 OR @title = '' THEN title ELSE @title END,
+       mode = CASE WHEN mode_by_owner = 0 AND @mode IS NOT NULL THEN @mode ELSE mode END,
+       target = CASE WHEN target_by_owner = 0 AND @target IS NOT NULL THEN @target ELSE target END,
+       refill = COALESCE(refill, @refill)
+     WHERE id = @id`,
   )
   const fetchedAt = now.toISOString()
   return db.transaction(() => {
@@ -376,10 +450,22 @@ export function completeIdea(db: WlDb, id: number, result: ResearchResult, now =
         sourceUrls: JSON.stringify(p.sourceUrls),
         fetchedAt,
         suppliers: JSON.stringify(p.suppliers),
+        kind: p.kind ?? 'pick',
+        offer: p.offer ? JSON.stringify(p.offer) : null,
       })
     }
-    const { title } = result.brief
-    done.run(fetchedAt, round, JSON.stringify(result.brief.preferences), title, title, id)
+    const { brief } = result
+    done.run({
+      id,
+      at: fetchedAt,
+      round,
+      hunt: brief.mode === 'hunt' ? 1 : 0,
+      preferences: JSON.stringify(brief.preferences),
+      title: brief.title,
+      mode: brief.mode ?? null,
+      target: brief.target ? JSON.stringify(brief.target) : null,
+      refill: brief.refill == null ? null : brief.refill ? 1 : 0,
+    })
     return true
   })()
 }
@@ -427,6 +513,115 @@ export function requeueIdea(
   })()
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+function insertPurchase(
+  db: WlDb,
+  idea: Idea,
+  p: { title: string; shop: string | null; url: string | null; packs: number; unitsPerPack: number | null; paid: number },
+  now: Date,
+): void {
+  const unit = idea.target?.unit ?? null
+  const perUnit = unit ? round2(p.paid / (p.packs * (p.unitsPerPack ?? 1))) : null
+  db.prepare(
+    `INSERT INTO purchases (idea_id, at, shop, url, title, packs, units_per_pack, unit_label, paid, per_unit)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(idea.id, now.toISOString(), p.shop, p.url, p.title, p.packs, p.unitsPerPack, unit, p.paid, perUnit)
+}
+
+const QUEUE_NOW = `status = 'queued', error = NULL, error_kind = NULL, attempts = 0, next_attempt_at = NULL, list = 'wanted'`
+
+/**
+ * Switches an idea to Hunt (the owner's choice) and queues a run. With a
+ * pick, the target is drafted from it; the condition comes from what the
+ * idea says. 'busy' while researching, 'bad-pick' for another idea's pick.
+ */
+export function startHunt(db: WlDb, id: number, pickId: number | null): Idea | null | 'busy' | 'bad-pick' {
+  return db.transaction(() => {
+    const idea = getIdea(db, id)
+    if (!idea) return null
+    if (idea.status === 'researching') return 'busy'
+    const pick = pickId === null ? null : idea.picks.find((p) => p.id === pickId)
+    if (pick === undefined) return 'bad-pick'
+    let target: HuntTarget | null = null
+    if (pick) {
+      const said = [idea.text, idea.notes, ...(idea.preferences?.mustHaves ?? [])].join(' ')
+      const condition = /refurb|gereviseerd|reconditionn/i.test(said)
+        ? 'refurbished'
+        : /tweedehands|occasion|used|gebruikt/i.test(said)
+          ? 'used'
+          : 'new'
+      target = { product: pick.title, variant: '', condition, exclude: [], unit: null }
+    }
+    db.prepare(
+      `UPDATE ideas SET mode = 'hunt', mode_by_owner = 1, target = ?, target_by_owner = 0, bought = NULL, ${QUEUE_NOW} WHERE id = ?`,
+    ).run(target ? JSON.stringify(target) : null, id)
+    return getIdea(db, id)
+  })()
+}
+
+/**
+ * Records what was paid (a pick of this idea, or null for something else),
+ * moves the idea to bought and keeps the `bought` snapshot.
+ */
+export function recordPurchase(db: WlDb, id: number, input: NewPurchase, now = new Date()): Idea | null | 'bad-pick' {
+  return db.transaction(() => {
+    const idea = getIdea(db, id)
+    if (!idea) return null
+    const pick = input.pickId === null ? null : idea.picks.find((p) => p.id === input.pickId)
+    if (pick === undefined) return 'bad-pick'
+    const offer = pick?.offer
+    insertPurchase(
+      db,
+      idea,
+      {
+        title: pick?.title ?? idea.title ?? idea.text,
+        shop: pick?.shop ?? null,
+        url: pick?.url ?? null,
+        packs: offer?.packs ?? 1,
+        unitsPerPack: offer?.unitsPerPack ?? null,
+        paid: input.paid,
+      },
+      now,
+    )
+    const bought: BoughtPick | null = pick
+      ? { title: pick.title, shop: pick.shop, url: pick.url, price: pick.price, at: now.toISOString() }
+      : null
+    db.prepare(`UPDATE ideas SET list = 'bought', bought = ?, refill = ? WHERE id = ?`).run(
+      bought ? JSON.stringify(bought) : null,
+      input.refill ? 1 : 0,
+      id,
+    )
+    return getIdea(db, id)
+  })()
+}
+
+/** A covered idea runs low: back on the wanted list and queued for a new hunt. */
+export function runningLow(db: WlDb, id: number): Idea | null | 'not-covered' | 'busy' {
+  return db.transaction(() => {
+    const idea = getIdea(db, id)
+    if (!idea) return null
+    if (!isCovered(idea)) return 'not-covered'
+    if (idea.status === 'researching') return 'busy'
+    db.prepare(`UPDATE ideas SET bought = NULL, ${QUEUE_NOW} WHERE id = ?`).run(id)
+    return getIdea(db, id)
+  })()
+}
+
+/** Removes a purchase; undoing the newest one puts the idea back on the wanted list. */
+export function undoPurchase(db: WlDb, purchaseId: number): Idea | null {
+  return db.transaction(() => {
+    const row = db.prepare('SELECT idea_id AS ideaId FROM purchases WHERE id = ?').get(purchaseId) as
+      | { ideaId: number }
+      | undefined
+    if (!row) return null
+    const newest = getIdea(db, row.ideaId)?.purchases[0]?.id === purchaseId
+    db.prepare('DELETE FROM purchases WHERE id = ?').run(purchaseId)
+    if (newest) db.prepare(`UPDATE ideas SET list = 'wanted', bought = NULL WHERE id = ?`).run(row.ideaId)
+    return getIdea(db, row.ideaId)
+  })()
+}
+
 /** Saves, changes or clears the owner's reaction to a pick. Null: unknown pick. */
 export function reactToPick(db: WlDb, pickId: number, patch: PickPatch): Idea | null {
   return db.transaction(() => {
@@ -459,9 +654,14 @@ export function recoverInterrupted(db: WlDb): number {
 // Row mapping
 // ---------------------------------------------------------------------------
 
-function toIdea(row: IdeaRow, picks: Pick[]): Idea {
+function toIdea(row: IdeaRow, picks: Pick[], purchases: Purchase[]): Idea {
   return {
     ...row,
+    modeByOwner: row.modeByOwner === 1,
+    target: parseJson<HuntTarget>(row.target),
+    targetByOwner: row.targetByOwner === 1,
+    refill: row.refill === null ? null : row.refill === 1,
+    purchases,
     createdAt: toIso(row.createdAt) as string,
     researchedAt: toIso(row.researchedAt),
     titleByOwner: row.titleByOwner === 1,
@@ -479,6 +679,16 @@ function toPick(row: PickRow): Pick {
     rating: parseRating(row.rating),
     sourceUrls: parseStrings(row.sourceUrls),
     suppliers: parseSuppliers(row.suppliers),
+    offer: parseJson<OfferFacts>(row.offer),
+  }
+}
+
+function parseJson<T>(raw: string | null): T | null {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return null
   }
 }
 
