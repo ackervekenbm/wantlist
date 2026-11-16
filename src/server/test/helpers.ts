@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach } from 'vitest'
-import { openDb, type WlDb } from '../src/server/db'
-import type { FinalPick, ResearchResult } from '../src/types'
+import { openDb, type WlDb } from '../db'
+import type { FinalPick, ResearchResult } from '../../types'
 
 const cleanups: Array<() => void> = []
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { extractText, fetchPage } from '../src/server/research/http'
+import { extractText, fetchPage } from './http'
 
 const URL_ = 'https://shop.be/nl/p/fan/123'
 

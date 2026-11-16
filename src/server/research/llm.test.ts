@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ResearchError, msUntilMidnight, type FailureKind } from '../src/server/research/errors'
-import { ModelRouter, type GenerateArgs, type LlmProvider } from '../src/server/research/llm'
+import { ResearchError, msUntilMidnight, type FailureKind } from './errors'
+import { ModelRouter, type GenerateArgs, type LlmProvider } from './llm'
 
 const ARGS: GenerateArgs = {
   systemInstruction: 'sys',

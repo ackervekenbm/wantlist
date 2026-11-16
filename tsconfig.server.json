@@ -14,5 +14,6 @@
     "rootDir": "src",
     "types": ["node"]
   },
-  "include": ["src/server", "src/types"]
+  "include": ["src/server", "src/types"],
+  "exclude": ["src/**/*.test.ts", "src/server/test"]
 }

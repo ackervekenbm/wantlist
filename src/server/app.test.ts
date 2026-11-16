@@ -2,11 +2,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_IDEA_LENGTH, createApp } from '../src/server/app'
-import { REASON_MAX } from '../src/types/limits'
-import { claimIdea, completeIdea, createIdea, failIdea, getIdea, requeueIdea, type WlDb } from '../src/server/db'
-import type { Worker } from '../src/server/worker'
-import { researchResult, tempDb, tempDir } from './helpers'
+import { MAX_IDEA_LENGTH, createApp } from './app'
+import { REASON_MAX } from '../types/limits'
+import { claimIdea, completeIdea, createIdea, failIdea, getIdea, requeueIdea, type WlDb } from './db'
+import type { Worker } from './worker'
+import { researchResult, tempDb, tempDir } from './test/helpers'
 
 function fakeWorker() {
   return {
