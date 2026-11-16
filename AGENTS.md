@@ -125,8 +125,12 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   `PageCache`, so pages read for verification are reused; 6 in flight): dead
   offers are dropped, and price, stock, photo and rating are taken from the
   shop page's own product data (`checked: true`) over what search or the model
-  saw. Offers sort in stock → priced → cheapest; picks sold out everywhere sink
-  to the end, otherwise the model's ranking stands.
+  saw. Offers sort in stock → priced → cheapest; picks sold out everywhere are
+  dropped unless nothing else is left, otherwise the model's ranking stands.
+  Every model step carries `SHOP_RULES` (consumer shops delivering to
+  Belgium; no trade/horeca/wholesale, import resellers or far-away shops for
+  everyday items); shopping queries are Dutch and Serper runs `gl=be`,
+  `hl=nl`.
   Gemini cannot browse on the free tier, so all real searching/reading happens
   server-side. Each step reports a human-readable `onProgress` step. When
   every query fails, the most telling search error is rethrown (a refused
