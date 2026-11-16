@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react'
 import type { Idea, Pick as PickT, ServerStatus } from '../../types'
 import type { IdeasActions } from '../hooks/useIdeas'
 import { boughtLine, formatEur } from '../lib/format'
+import { exploreRounds } from '../lib/hunt'
 import { latestPicks, shownTitle } from '../lib/triage'
 import { BackLink } from './BackLink'
 import { ExploreIcon, ExternalIcon, MoreIcon } from './icons'
@@ -33,7 +34,8 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
   const wanted = idea.list === 'wanted'
   const close = () => setSheet(null)
   const latest = latestPicks(idea)
-  const earlier = idea.picks.filter((p) => p.round !== latest[0]?.round)
+  const explore = exploreRounds(idea)
+  const earlier = explore.filter((p) => p.round !== latest[0]?.round)
   const bought = (pick: PickT) => fire(patch({ list: 'bought', boughtPickId: pick.id }))
   const patch = (p: Parameters<typeof actions.patch>[1]) => actions.patch(id, p)
   const rerun = () => fire(actions.rerun(id))
@@ -139,11 +141,11 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
         onBought={wanted ? bought : undefined}
       />
 
-      {wanted && !pending && idea.picks.length > 0 && (
+      {wanted && !pending && explore.length > 0 && (
         <RefineBar
           reactions={latest.filter((p) => p.reaction).length}
           round={idea.round}
-          anyReaction={idea.picks.some((p) => p.reaction)}
+          anyReaction={explore.some((p) => p.reaction)}
           preferencesEdited={idea.preferencesEdited}
           onRefine={() => actions.refine(id)}
         />

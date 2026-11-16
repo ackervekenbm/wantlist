@@ -370,3 +370,17 @@ describe('Refine dock, keepers and earlier rounds', () => {
     )
   })
 })
+
+describe('IdeaScreen with a hunt round', () => {
+  it('keeps hunt offers out of Keepers and Earlier rounds', async () => {
+    const offer = pick({ id: 30, round: 3, kind: 'offer', title: 'Hunt offer shop' })
+    const picks = [
+      offer,
+      pick({ id: 20, round: 2, title: 'Latest fan' }),
+      pick({ id: 10, round: 1, title: 'Old keeper', reaction: 'yes' }),
+    ]
+    await open([idea({ round: 3, picks })])
+    expect(pane().getByText('Old keeper')).toBeInTheDocument()
+    expect(pane().queryByText('Hunt offer shop')).not.toBeInTheDocument()
+  })
+})
