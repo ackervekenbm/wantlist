@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express'
-import type { IdeaList, IdeaPatch, ModelHealth, NewIdea, PickPatch, Preferences, Reaction, ServerStatus } from '../types'
+import type { Condition, HuntTarget, IdeaList, IdeaMode, IdeaPatch, ModelHealth, NewIdea, PickPatch, Preferences, Reaction, ServerStatus } from '../types'
 import { PREF_ITEMS_MAX, PREF_ITEM_CHARS, PREF_SUMMARY_CHARS, REASON_MAX, TITLE_MAX } from '../types/limits'
 import type { WlDb } from './db'
 import {
@@ -13,7 +13,11 @@ import {
   getIdea,
   listIdeas,
   reactToPick,
+  recordPurchase,
   requeueIdea,
+  runningLow,
+  startHunt,
+  undoPurchase,
   updateIdea,
 } from './db'
 import type { Worker } from './worker'
@@ -92,7 +96,7 @@ export function createApp(opts: AppOptions): express.Express {
       const idea = updateIdea(db, id, patch)
       if (!idea) return notFound(res)
       // Back on the wanted list with research still pending: pick it up.
-      if (patch.list === 'wanted' && idea.status === 'queued') worker.kick()
+      if (idea.list === 'wanted' && idea.status === 'queued') worker.kick()
       res.json(idea)
     } catch (err) {
       if (err instanceof PatchError) return badRequest(res, err.message)
@@ -130,6 +134,53 @@ export function createApp(opts: AppOptions): express.Express {
   }
   app.post('/api/ideas/:id/refine', requeue(true))
   app.post('/api/ideas/:id/rerun', requeue(false))
+
+  app.post('/api/ideas/:id/hunt', (req, res) => {
+    const id = ideaId(req, res)
+    if (id === null) return
+    const { pickId } = asBody(req.body)
+    if (!Number.isSafeInteger(pickId)) return badRequest(res, 'pickId must be a pick id')
+    const idea = startHunt(db, id, pickId as number)
+    if (idea === null) return notFound(res)
+    if (idea === 'busy') return busy(res)
+    if (idea === 'bad-pick') return badRequest(res, 'that pick is not part of this idea')
+    worker.kick()
+    res.status(202).json(idea)
+  })
+
+  app.post('/api/ideas/:id/purchases', (req, res) => {
+    const id = ideaId(req, res)
+    if (id === null) return
+    const b = asBody(req.body)
+    const { pickId, paid, refill } = b
+    if (pickId !== null && !Number.isSafeInteger(pickId)) return badRequest(res, 'pickId must be a pick id or null')
+    if (typeof paid !== 'number' || !Number.isFinite(paid) || paid <= 0 || paid > MAX_BUDGET_EUR) {
+      return badRequest(res, `paid must be a number of euros between 0 and ${MAX_BUDGET_EUR}`)
+    }
+    if (typeof refill !== 'boolean') return badRequest(res, 'refill must be true or false')
+    const idea = recordPurchase(db, id, { pickId: pickId as number | null, paid, refill })
+    if (idea === null) return notFound(res)
+    if (idea === 'bad-pick') return badRequest(res, 'that pick is not part of this idea')
+    res.status(201).json(idea)
+  })
+
+  app.post('/api/ideas/:id/running-low', (req, res) => {
+    const id = ideaId(req, res)
+    if (id === null) return
+    const idea = runningLow(db, id)
+    if (idea === null) return notFound(res)
+    if (idea === 'not-covered' || idea === 'busy') return busy(res)
+    worker.kick()
+    res.status(202).json(idea)
+  })
+
+  app.delete('/api/purchases/:id', (req, res) => {
+    const id = ideaId(req, res)
+    if (id === null) return
+    const idea = undoPurchase(db, id)
+    if (!idea) return notFound(res)
+    res.json(idea)
+  })
 
   /** Debug: run a worker pass now and wait for it. */
   app.post('/api/worker/run', async (_req, res) => {
@@ -263,8 +314,45 @@ function parsePatch(body: unknown): IdeaPatch | string {
     if ('error' in prefs) return prefs.error
     patch.preferences = prefs
   }
+  if (b.mode !== undefined) {
+    if (!MODES.includes(b.mode as IdeaMode)) return `mode must be one of ${MODES.join(', ')}`
+    patch.mode = b.mode as IdeaMode
+  }
+  if (b.target !== undefined) {
+    const target = parseTarget(b.target)
+    if (typeof target === 'string') return target
+    patch.target = target
+  }
   if (Object.keys(patch).length === 0) return 'nothing to change'
   return patch
+}
+
+const MODES: readonly IdeaMode[] = ['explore', 'hunt']
+const CONDITIONS: readonly Condition[] = ['new', 'refurbished', 'used', 'any']
+const TARGET_TEXT_MAX = 120
+const TARGET_EXCLUDE_MAX = 6
+const TARGET_EXCLUDE_CHARS = 60
+const TARGET_UNIT_MAX = 20
+
+function parseTarget(raw: unknown): HuntTarget | null | string {
+  if (raw === null) return null
+  const b = asBody(raw)
+  const bad = `target needs a product and variant (up to ${TARGET_TEXT_MAX} characters), a condition, up to ${TARGET_EXCLUDE_MAX} exclude words and a unit or null`
+  const text = (v: unknown) => typeof v === 'string' && v.trim().length <= TARGET_TEXT_MAX
+  if (!text(b.product) || !text(b.variant) || !(b.product as string).trim()) return bad
+  if (!CONDITIONS.includes(b.condition as Condition)) return bad
+  if (!Array.isArray(b.exclude) || b.exclude.length > TARGET_EXCLUDE_MAX) return bad
+  const exclude: string[] = []
+  for (const item of b.exclude) {
+    if (typeof item !== 'string' || !item.trim() || item.trim().length > TARGET_EXCLUDE_CHARS) return bad
+    exclude.push(item.trim())
+  }
+  let unit: string | null = null
+  if (b.unit !== null) {
+    if (typeof b.unit !== 'string' || b.unit.trim().length > TARGET_UNIT_MAX) return bad
+    unit = b.unit.trim() || null
+  }
+  return { product: (b.product as string).trim(), variant: (b.variant as string).trim(), condition: b.condition as Condition, exclude, unit }
 }
 
 function parsePickPatch(body: unknown): PickPatch | string {
