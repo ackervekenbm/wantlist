@@ -13,6 +13,7 @@ import type { ModelRouter } from './llm'
 import {
   exclusionOf,
   isExcluded,
+  isListingUrl,
   mergePicksByProduct,
   mergeSuppliers,
   normalizeUrl,
@@ -192,7 +193,8 @@ export class PipelineEngine implements ResearchEngine {
    * Runs every query, de-duplicating hits. One failed query is tolerated;
    * when every query fails, the most telling error is rethrown (a refused key
    * beats a flaky network), so the idea shows why instead of "no results".
-   * Hits the owner already saw are dropped before the row cap counts them.
+   * Hits the owner already saw, and category or search pages, are dropped
+   * before the row cap counts them.
    */
   private async searchAll(
     queries: string[],
@@ -209,7 +211,7 @@ export class PipelineEngine implements ResearchEngine {
         progress(`step 2: searched "${q}" -> ${hits.length} hits`)
         for (const h of hits) {
           const key = normalizeUrl(h.url)
-          if (seen.has(key)) continue
+          if (seen.has(key) || isListingUrl(h.url)) continue
           seen.add(key)
           // By URL only: a hit's title is the page title, not a product name to compare.
           if (ex.urls.has(key)) {

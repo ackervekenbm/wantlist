@@ -294,7 +294,9 @@ Ground rules:
   range in EUR. Otherwise leave empty.
 - Each candidate: concrete product title, shop name, the exact result URL, a
   one-line "why this fits" grounded in the idea.
-- Prefer product pages over category/home/aggregator pages.
+- Only pages for ONE specific product: never a category, search, best-seller
+  or comparison page. One URL is one product: never give two candidates the
+  same URL, and never name a product the page is not about.
 - Respect every "Must have" and "Avoid" line; prefer products with the
   "Liked so far" traits.
 ${BUDGET_RULE}`
@@ -355,6 +357,7 @@ export function normalizePass1(
   const obj = raw as Partial<Pass1Result>
   const allowedNorm = allowedUrls ? new Set([...allowedUrls].map(normalizeUrl)) : undefined
   const candidates = Array.isArray(obj.candidates) ? obj.candidates : []
+  const seen = new Set<string>()
   const cleaned = candidates
     .map((c) => ({
       title: String(c?.title ?? '').trim(),
@@ -371,6 +374,8 @@ export function normalizePass1(
         (!allowedNorm || allowedNorm.has(normalizeUrl(c.url))) &&
         !exclude?.(c),
     )
+    // One URL is one product: a second candidate on the same page is the model guessing.
+    .filter((c) => !seen.has(normalizeUrl(c.url)) && seen.add(normalizeUrl(c.url)))
   return {
     summary: '',
     criteria: [],
@@ -412,6 +417,9 @@ Ground rules:
   Leave it empty rather than invent one.
 - Rank best first. Final list: 3-5 distinct products. Do not pad with guesses.
 - Never invent URLs - only use the URLs provided in the candidates.
+- One URL is one product page: never give two picks the same supplier URL.
+  When the page evidence shows a different product than the candidate title,
+  use the product the page is about, or drop it.
 - Mention delivery/stock only if the page evidence states it.
 ${BUDGET_RULE}`
 

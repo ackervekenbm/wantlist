@@ -37,7 +37,9 @@ export function normalizeProductTitle(title: string): string {
 /**
  * Code-level safety net: group picks that name the same product, so an
  * identical product never shows up twice (primary grouping is done by the
- * model in the verify prompt; this catches what slips through).
+ * model in the verify prompt; this catches what slips through). One URL is
+ * one product page, so a later pick loses any offer an earlier pick already
+ * has, and is dropped when none is left.
  */
 export function mergePicksByProduct(picks: FinalPick[]): FinalPick[] {
   const groups = new Map<string, FinalPick>()
@@ -56,7 +58,15 @@ export function mergePicksByProduct(picks: FinalPick[]): FinalPick[] {
     existing.rating ??= p.rating
     existing.sourceUrls = [...new Set([...existing.sourceUrls, ...p.sourceUrls])]
   }
-  return [...groups.values()]
+  const claimed = new Set<string>()
+  const out: FinalPick[] = []
+  for (const p of groups.values()) {
+    const suppliers = p.suppliers.filter((s) => !claimed.has(normalizeUrl(s.url)))
+    if (suppliers.length === 0) continue
+    for (const s of suppliers) claimed.add(normalizeUrl(s.url))
+    out.push(suppliers.length === p.suppliers.length ? p : { ...p, ...primaryFields(suppliers), suppliers })
+  }
+  return out
 }
 
 /** The top-level shop/url/price a pick mirrors from its best offer. */
@@ -73,6 +83,23 @@ export function isHttpUrl(value: string): boolean {
   try {
     const u = new URL(value)
     return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+const LISTING_PATH = /\/(l|s|b|zgbs|search|zoeken|recherche|catalogsearch|bestsellers?)(\/|$)|\/gp\/bestsellers/i
+const SEARCH_PARAM = /^(q|query|k|keywords?|search|searchterm|text)$/i
+
+/**
+ * Category, search and best-seller pages (bol `/l/`, Amazon `/b?node=`,
+ * `/zgbs/`, `?q=`): they list many products, so they are never one
+ * product's offer.
+ */
+export function isListingUrl(url: string): boolean {
+  try {
+    const u = new URL(url)
+    return LISTING_PATH.test(u.pathname) || [...u.searchParams.keys()].some((k) => SEARCH_PARAM.test(k))
   } catch {
     return false
   }

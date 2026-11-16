@@ -137,6 +137,16 @@ describe('PipelineEngine', () => {
     ])
   })
 
+  it('never shows category or search pages to the candidate step', async () => {
+    const listing = 'https://www.bol.com/be/nl/l/ventilatoren/1234/'
+    const model = new StepModel({})
+    await engine(model, search(() => [...HITS, { title: 'Ventilatoren', url: listing, snippet: '' }])).research({
+      ideaId: 1,
+      text: 'a fan',
+    })
+    expect(model.prompts.join('\n')).not.toContain(listing)
+  })
+
   it('gives every step the budget and notes', async () => {
     const model = new StepModel({})
     await engine(model, search(() => HITS)).research({ ideaId: 1, text: 'fan', budget: 150, notes: 'white, quiet' })

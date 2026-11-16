@@ -4,7 +4,7 @@ import {
   extractTitle,
 } from '../src/server/research/http'
 import { parseJsonLoose } from '../src/server/research/json'
-import { isHttpUrl, mergePicksByProduct, normalizeProductTitle, normalizeUrl } from '../src/server/research/offers'
+import { isHttpUrl, isListingUrl, mergePicksByProduct, normalizeProductTitle, normalizeUrl } from '../src/server/research/offers'
 import { ResearchError } from '../src/server/research/errors'
 import {
   buildCandidateUser,
@@ -82,6 +82,16 @@ describe('normalizePass1', () => {
     expect(result.candidates).toHaveLength(1)
     expect(result.candidates[0].title).toBe('Good')
     expect(result.candidates[0].price).toBe('19')
+  })
+
+  it('keeps one candidate per URL', () => {
+    const raw = {
+      candidates: [
+        { title: 'Xemm wetsteen', shop: 'bol', url: 'https://www.bol.com/be/nl/p/x/1/' },
+        { title: 'HGMD wetsteen', shop: 'bol', url: 'https://www.bol.com/be/nl/p/x/1?srsltid=a' },
+      ],
+    }
+    expect(normalizePass1(raw).candidates.map((c) => c.title)).toEqual(['Xemm wetsteen'])
   })
 
   it('caps at five candidates', () => {
@@ -327,12 +337,47 @@ describe('mergePicksByProduct', () => {
     expect(merged).toHaveLength(2)
   })
 
+  it('gives a shared URL to the first pick only, dropping a pick left without offers', () => {
+    const santos = 'https://frigohoreca.be/en/juicers/1642-santos?srsltid=x'
+    const both = pick('Hendi juicer', 'Bol', 'https://bol.com/p/hendi', 40)
+    both.suppliers.push({ shop: 'Frigohoreca', url: santos, price: 447, availability: 'unknown', checked: false })
+    const merged = mergePicksByProduct([pick('Bartscher press', 'Frigohoreca', santos, 447), both, pick('Santos copy', 'F', santos, 1)])
+    expect(merged.map((p) => [p.title, p.suppliers.map((s) => s.url)])).toEqual([
+      ['Bartscher press', [santos]],
+      ['Hendi juicer', ['https://bol.com/p/hendi']],
+    ])
+  })
+
   it('normalizes trailing punctuation out of titles', () => {
     expect(normalizeProductTitle('Wahoo KICKR Headwind!')).toBe('wahoo kickr headwind')
   })
 })
 
 describe('url helpers', () => {
+  it('recognises category, search and best-seller pages', () => {
+    for (const url of [
+      'https://www.bol.com/be/nl/l/slijpstenen-6000/28232/4298966290/',
+      'https://www.amazon.com.be/-/en/b?ie=UTF8&node=27900300031',
+      'https://www.amazon.com/Best-Sellers-Manual-Juicers/zgbs/kitchen/1095338',
+      'https://www.amazon.com.be/s?k=citruspers',
+      'https://www.coolblue.be/nl/zoeken?query=citruspers',
+      'https://shop.be/catalogsearch/result/?q=fan',
+    ]) {
+      expect(isListingUrl(url), url).toBe(true)
+    }
+    for (const url of [
+      'https://www.bol.com/be/nl/p/vdn-wetsteen-set/9300000174803055/',
+      'https://www.amazon.com.be/-/en/Mbillion-Litre/dp/B0BN6DQDR9',
+      'https://www.coolblue.be/nl/product/897024/princess-201862-citruspers-pure.html',
+      'https://www.brabantia.com/be_nl/stepup-pedaalemmer-10-liter-jade-green/',
+      'https://a.be/p.php?id=1',
+      'not a url',
+    ]) {
+      expect(isListingUrl(url), url).toBe(false)
+    }
+  })
+
+
   it('recognises http(s) urls only', () => {
     expect(isHttpUrl('https://x.be/a')).toBe(true)
     expect(isHttpUrl('http://x.be/a')).toBe(true)
