@@ -412,4 +412,15 @@ describe('App', () => {
     expect(history.length).toBe(entries)
     expect(screen.getByText('Pick an idea on the left, or add one')).toBeInTheDocument()
   })
+
+  it('Running low on a pantry row posts and moves the hunt to With the researcher', async () => {
+    const api = fakeApi([idea({ id: 5, mode: 'hunt', list: 'bought', refill: true, title: 'Cat litter', picks: [] })])
+    const user = await renderApp()
+    const pantry = screen.getByRole('region', { name: /^Pantry/ })
+    await user.click(within(pantry).getByRole('button', { name: 'Running low on Cat litter' }))
+    const researcher = await screen.findByRole('region', { name: /^With the researcher/ })
+    expect(within(researcher).getByRole('button', { name: /Cat litter/ })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /^Pantry/ })).not.toBeInTheDocument()
+    expect(api.writes().map((w) => [w.method, w.path])).toContainEqual(['POST', '/api/ideas/5/running-low'])
+  })
 })

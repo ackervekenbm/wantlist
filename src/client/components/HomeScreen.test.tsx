@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { Idea, ServerStatus } from '../../types'
+import type { HuntTarget, Idea, ServerStatus } from '../../types'
 import { clockTime } from '../lib/format'
 import { idea, pick, status } from '../test/fakeApi'
 import { HomeScreen } from './HomeScreen'
@@ -130,7 +130,7 @@ describe('HomeScreen', () => {
       kind: 'offer',
       offer: { match: 'exact', mismatch: null, packs: 3, unitsPerPack: 1, delivery: { kind: 'free', cost: null, threshold: null }, delivered: 59.95, perUnit: 19.98, condition: 'new', sellerNote: null, group: 'best' },
     })
-    const target = { brand: null, product: 'Feliway', size: null, unit: 'vial', note: null } as unknown as Idea['target']
+    const target: HuntTarget = { product: 'Feliway', variant: '', condition: 'new', exclude: [], unit: 'vial' }
     renderHome({ ideas: [idea({ id: 20, mode: 'hunt', title: 'Feliway refill', target, picks: [best] })] })
     expect(row(20)).toHaveTextContent(/Feliway refill.*Best offer.*19,98.*vial/)
     expect(row(20).querySelector('.glyph.hunt')).not.toBeNull()
