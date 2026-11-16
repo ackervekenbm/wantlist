@@ -2,8 +2,23 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
-import { UNDO_MS } from './hooks/useIdeas'
-import { fakeApi, idea, status } from './test/fakeApi'
+import { UNDO_MS, type IdeasActions } from './hooks/useIdeas'
+import { fakeApi, idea, pick, status } from './test/fakeApi'
+
+// The hunt screen is not built yet: a hunt idea opens a stub with one Buy button that drives the hook's `buy`.
+vi.mock('./components/IdeaScreen', async () => {
+  const actual = await vi.importActual<typeof import('./components/IdeaScreen')>('./components/IdeaScreen')
+  return {
+    IdeaScreen: (props: Parameters<typeof actual.IdeaScreen>[0]) =>
+      props.idea.mode === 'hunt' ? (
+        <button type="button" onClick={() => void (props.actions as IdeasActions).buy(props.idea.id, { pickId: 5, paid: 59.95, refill: true })}>
+          Buy test
+        </button>
+      ) : (
+        actual.IdeaScreen(props)
+      ),
+  }
+})
 
 /** Renders the app on a route (`#/idea/1`, `#/lists/wanted`, …) once the ideas have loaded. */
 async function renderApp(hash = '#/') {
@@ -216,6 +231,30 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: '1 Bought' }))
     expect(location.hash).toBe('#/lists/bought')
     expect(await screen.findByText(/^Wahoo KICKR Headwind · Bikeshop · €\s249,99/)).toBeInTheDocument()
+  })
+
+  it('covers a hunt on purchase and Undo puts it back in Needs you', async () => {
+    const offer = pick({
+      id: 5,
+      kind: 'offer',
+      offer: {
+        match: 'exact', mismatch: null, packs: 1, unitsPerPack: 3,
+        delivery: { kind: 'free', cost: null, threshold: null },
+        delivered: 59.95, perUnit: 19.98, condition: 'new', sellerNote: null, group: 'best',
+      },
+    })
+    const api = fakeApi([idea({ mode: 'hunt', title: 'Feliway refill', target: { product: 'Feliway', variant: '', condition: 'new', exclude: [], unit: 'vial' }, picks: [offer] })])
+    const user = await renderApp('#/idea/1')
+    await user.click(screen.getByRole('button', { name: 'Buy test' }))
+    expect(await screen.findByText("Covered. Feliway refill sleeps in the Pantry until you're running low.")).toBeInTheDocument()
+    expect(api.ideas()[0]).toMatchObject({ list: 'bought', refill: true })
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(screen.queryByText(/^Covered\./)).not.toBeInTheDocument())
+    expect(api.ideas()[0]).toMatchObject({ list: 'wanted', bought: null, purchases: [] })
+    const needs = await screen.findByRole('region', { name: /^Needs you/ })
+    expect(within(needs).getByText(/Feliway refill/)).toBeInTheDocument()
+    expect(within(needs).getByText('€19,98/vial')).toBeInTheDocument()
   })
 
   it('archives an idea and brings it back', async () => {

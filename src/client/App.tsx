@@ -92,13 +92,26 @@ export function App() {
         )
       }
       toast={
-        state.removed && (
+        state.bought ? (
+          <div className="toast" role="status">
+            <span>
+              {state.bought.covered
+                ? `Covered. ${state.bought.title} sleeps in the Pantry until you're running low.`
+                : `Bought. ${state.bought.title} moved to Bought.`}
+            </span>
+            <button type="button" onClick={() => void state.undoBuy().catch(() => {})}>
+              Undo
+            </button>
+          </div>
+        ) : (
+          state.removed && (
           <div className="toast" role="status">
             <span>Removed “{truncate(state.removed.text, 40)}”</span>
             <button type="button" onClick={state.undoRemove}>
               Undo
             </button>
           </div>
+          )
         )
       }
     />

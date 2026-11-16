@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Idea, IdeaList, NewIdea, ServerStatus } from '../../types'
-import { clockTime } from '../lib/format'
+import { clockTime, formatEur, perUnitText } from '../lib/format'
+import { bestOffer } from '../lib/hunt'
 import { isWorking, latestPicks, needOf, quotaResetAt, shownTitle, stepOf, type Need } from '../lib/triage'
 import { ChevronRightIcon, ExploreIcon } from './icons'
 import { IdeaForm } from './IdeaForm'
@@ -21,7 +22,7 @@ interface Props {
   loaded?: boolean
 }
 
-const NEED_ORDER: Need[] = ['react', 'nothing-new', 'stopped']
+const NEED_ORDER: Need[] = ['react', 'offer', 'nothing-new', 'stopped']
 
 /** Capture, what needs you, what the researcher is on, and the list tiles. */
 export function HomeScreen({ ideas, status, selectedId, selectedList = null, onOpen, onLists, onAdd, loaded = true }: Props) {
@@ -139,6 +140,17 @@ function NeedLine({ idea, need }: { idea: Idea; need: Need }) {
     return (
       <Leader className="row-sub" fig={`${left} new pick${left === 1 ? '' : 's'}`}>
         <span className="act">React</span> · round {idea.round}
+      </Leader>
+    )
+  }
+  if (need === 'offer') {
+    const best = bestOffer(idea)
+    const unit = idea.target?.unit
+    const perUnit = best?.offer?.perUnit
+    const price = perUnit != null && unit ? perUnitText(perUnit, unit) : best?.offer?.delivered != null ? formatEur(best.offer.delivered) : ''
+    return (
+      <Leader className="row-sub" fig={price}>
+        <span className="act">Best offer</span>
       </Leader>
     )
   }

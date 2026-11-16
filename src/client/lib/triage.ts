@@ -1,18 +1,25 @@
-import type { Idea, ServerStatus } from '../../types'
+import { isCovered, type Idea, type ServerStatus } from '../../types'
+import { bestOffer } from './hunt'
 
 /** Why a wanted idea is on the Needs you list. */
-export type Need = 'react' | 'nothing-new' | 'stopped'
+export type Need = 'react' | 'offer' | 'nothing-new' | 'stopped'
 
-/** Picks of the newest round (picks arrive newest round first). */
+/** Explore picks of the newest round (picks arrive newest round first). */
 export function latestPicks(idea: Idea) {
-  const round = idea.picks[0]?.round
-  return idea.picks.filter((p) => p.round === round)
+  const picks = idea.picks.filter((p) => p.kind === 'pick')
+  return picks.filter((p) => p.round === picks[0]?.round)
 }
 
-/** Needs you: unreacted picks in the latest round, nothing new found, or stopped. Wanted ideas only. */
+/** Covered hunts: bought and waiting until you run low. */
+export function pantryOf(ideas: Idea[]): Idea[] {
+  return ideas.filter(isCovered)
+}
+
+/** Needs you: a hunt's best offer, unreacted picks in the latest round, nothing new found, or stopped. Wanted ideas only. */
 export function needOf(idea: Idea): Need | null {
   if (idea.list !== 'wanted') return null
   if (idea.status === 'error') return idea.errorKind === 'nothing-new' ? 'nothing-new' : 'stopped'
+  if (idea.status === 'done' && idea.mode === 'hunt') return bestOffer(idea) ? 'offer' : null
   if (idea.status === 'done' && latestPicks(idea).some((p) => !p.reaction)) return 'react'
   return null
 }

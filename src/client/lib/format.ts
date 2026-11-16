@@ -1,4 +1,4 @@
-import type { BoughtPick } from '../../types'
+import type { BoughtPick, Delivery } from '../../types'
 
 const eur = new Intl.NumberFormat('nl-BE', { style: 'currency', currency: 'EUR' })
 const eurWhole = new Intl.NumberFormat('nl-BE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
@@ -30,4 +30,28 @@ export function boughtLine(b: BoughtPick): string {
 /** A compact price: "€ 249,99 ✓" when checked on the shop page, "≈ € 249,99" from search. */
 export function priceText(price: number, checked: boolean): string {
   return checked ? `${formatEur(price)} ✓` : `≈ ${formatEur(price)}`
+}
+
+/** "€19,98/vial". */
+export function perUnitText(amount: number, unit: string): string {
+  return `${eur.format(amount).replace(/\s/g, '')}/${unit}`
+}
+
+/** What delivery costs: "free", "€ 4,95", "free over € 49 ✓" (✓ once the price reaches it), or why it is unknown. */
+export function deliveryText(d: Delivery, price: number | null): string {
+  switch (d.kind) {
+    case 'free':
+      return 'free'
+    case 'paid':
+      return d.cost === null ? 'delivery not shown' : formatEur(d.cost)
+    case 'free_over':
+      if (d.threshold === null) return 'delivery not shown'
+      return `free over ${formatEur(d.threshold)}${price !== null && price >= d.threshold ? ' ✓' : ''}`
+    case 'pickup_only':
+      return 'pick-up only'
+    case 'no_be':
+      return 'no delivery to Belgium'
+    default:
+      return 'delivery not shown'
+  }
 }
