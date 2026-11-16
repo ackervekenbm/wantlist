@@ -43,8 +43,10 @@ export function rankOffers(offers: FinalPick[], target: HuntTarget): FinalPick[]
       Number(b.delivered !== null) - Number(a.delivered !== null),
   )
 
+  const wrongCondition = (o: OfferFacts): boolean =>
+    !!o.condition && target.condition !== 'any' && o.condition !== target.condition
   const groupOf = (r: (typeof rows)[number]): OfferGroup =>
-    r.offer.match === 'mismatch'
+    r.offer.match === 'mismatch' || wrongCondition(r.offer)
       ? 'mismatch'
       : r.offer.delivery.kind === 'pickup_only' || r.offer.delivery.kind === 'no_be'
         ? 'unavailable'
@@ -61,6 +63,7 @@ export function rankOffers(offers: FinalPick[], target: HuntTarget): FinalPick[]
       delivered: r.delivered,
       perUnit: target.unit !== null && r.delivered !== null && r.units > 0 ? cents(r.delivered / r.units) : null,
       group,
+      mismatch: group === 'mismatch' ? (r.offer.mismatch ?? r.offer.condition) : r.offer.mismatch,
     }
     return { ...r.p, offer, rank: i + 1 }
   })

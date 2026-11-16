@@ -526,6 +526,14 @@ describe('hunt mode', () => {
     expect(startHunt(db, 999, null)).toBeNull()
   })
 
+  it('startHunt reads condition words, not word fragments', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'a focused, unused-looking desk lamp')
+    completeIdea(db, id, researchResult())
+    const idea = startHunt(db, id, getIdea(db, id)!.picks[0].id)
+    expect(idea).toMatchObject({ target: { condition: 'new' } })
+  })
+
   it('recordPurchase from a hunt offer', () => {
     const { db } = tempDb()
     const id = createIdea(db, 'Feliway refill')

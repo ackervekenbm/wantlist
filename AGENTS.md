@@ -161,9 +161,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   Covered (the Pantry) is `mode = 'hunt' AND list = 'bought' AND refill = 1`,
   not a fourth list value (the `list` CHECK cannot change). `startHunt` switches
   to hunt (owner's choice) and queues a run, drafting the target from a pick
-  (condition from the idea's words, else new); `recordPurchase` writes the
+  (condition from the idea's words, else new) and clears the `bought` snapshot; `recordPurchase` writes the
   purchase, the `bought` snapshot, `list = 'bought'` and `refill`;
-  `runningLow` (covered only) re-queues; `undoPurchase` deletes one and, if it
+  `runningLow` (covered only) clears the snapshot and re-queues; `undoPurchase` deletes one and, if it
   was the newest, puts the idea back on wanted. Routes: `PATCH /api/ideas/:id`
   also takes `mode` and `target` (409 while researching); `POST
   /api/ideas/:id/hunt` `{pickId}` (202), `POST …/purchases` `{pickId|null, paid,

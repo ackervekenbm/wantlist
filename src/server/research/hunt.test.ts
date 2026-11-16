@@ -40,13 +40,16 @@ const FACTS = (url: string, packs: number) => ({ url, title: 'Feliway Friends 48
 class HuntModel implements LlmProvider {
   readonly id = 'fake'
   calls = 0
-  constructor(private readonly plan: unknown = { title: 'Feliway Friends', target: TARGET, refill: true, searchQueries: ['q'] }) {}
+  constructor(
+    private readonly plan: unknown = { title: 'Feliway Friends', target: TARGET, refill: true, searchQueries: ['q'] },
+    private readonly snippetPrice: number | null = null,
+  ) {}
   async generate(args: GenerateArgs): Promise<unknown> {
     this.calls += 1
     const s = args.systemInstruction
     if (s.includes('planning step')) return this.plan
     if (s.includes('offer-selection')) {
-      return { offers: SHOPS.slice(0, 3).map((url) => ({ url, shop: new URL(url).host, title: 'Feliway' })) }
+      return { offers: SHOPS.slice(0, 3).map((url) => ({ url, shop: new URL(url).host, title: 'Feliway', price: this.snippetPrice })) }
     }
     return { offers: SHOPS.slice(0, 3).map((url, i) => FACTS(url, i === 2 ? 2 : 1)) }
   }
@@ -99,6 +102,13 @@ describe('hunt', () => {
     })
     expect(queries.length).toBeLessThanOrEqual(4)
     expect(vi.mocked(http.fetchPage).mock.calls.length).toBeLessThanOrEqual(10)
+  })
+
+  it('never checks or crowns a price the page did not state', async () => {
+    const stockOnly: Page = { status: 'live', title: 'p', text: 'Feliway', product: product({ price: null, availability: 'in_stock' }) }
+    pages({ [SHOPS[0]]: stockOnly, [SHOPS[1]]: stockOnly, [SHOPS[2]]: stockOnly })
+    const err = await engine(new HuntModel(undefined, 9)).research({ ideaId: 1, text: 'x', mode: 'hunt', target: TARGET }).catch((e) => e)
+    expect(err).toMatchObject({ kind: 'no-results', message: HUNT_NOTHING })
   })
 
   it('fails with no-results when no offer is checked and in stock', async () => {

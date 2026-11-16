@@ -548,7 +548,7 @@ export function startHunt(db: WlDb, id: number, pickId: number | null): Idea | n
       const said = [idea.text, idea.notes, ...(idea.preferences?.mustHaves ?? [])].join(' ')
       const condition = /refurb|gereviseerd|reconditionn/i.test(said)
         ? 'refurbished'
-        : /tweedehands|occasion|used|gebruikt/i.test(said)
+        : /\b(tweedehands|occasion|gebruikt|second[- ]hand|used)\b/i.test(said)
           ? 'used'
           : 'new'
       target = { product: pick.title, variant: '', condition, exclude: [], unit: null }

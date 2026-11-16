@@ -86,4 +86,12 @@ describe('rankOffers', () => {
     const r = rankOffers([offer('a', 1, free, { checked: false }), offer('b', 2, free, { checked: false })], target)
     expect(r.some((p) => p.offer?.group === 'best')).toBe(false)
   })
+
+  it('does not crown an offer in the wrong condition', () => {
+    const worn = offer('a', 1, free)
+    worn.offer!.condition = 'refurbished'
+    const r = rankOffers([worn, offer('b', 5, free)], target)
+    expect(order(r)).toEqual(['b:best', 'a:mismatch'])
+    expect(r[1].offer?.mismatch).toBe('refurbished')
+  })
 })

@@ -70,4 +70,11 @@ describe('buildHistory', () => {
     expect(h.mode).toBe('learn')
     expect(h.picks.map((p) => p.title).sort()).toEqual(['m', 'n'])
   })
+
+  it('ignores hunt offers: null when only offers exist, else only the picks', () => {
+    const o = (title: string) => pick(2, title, null, { kind: 'offer' })
+    expect(buildHistory(idea({ round: 2, picks: [o('x')] }))).toBeNull()
+    const h = buildHistory(idea({ round: 3, picks: [pick(1, 'a', null), o('x'), o('y')] }))!
+    expect(h.picks.map((p) => p.title)).toEqual(['a'])
+  })
 })

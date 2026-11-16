@@ -97,6 +97,8 @@ export async function runHunt(deps: HuntDeps, req: ResearchRequest, plan: HuntPl
   const offers = facts.flatMap((f): FinalPick[] => {
     const hit = byUrl.get(normalizeUrl(f.url))
     const supplier = hit ? checkedSupplier(offer(hit.s.shop, hit.s.url, hit.s.price), hit.page) : null
+    // A page that only states stock gave no shop price: the shown price is the snippet's, so not checked.
+    if (supplier && hit?.page.product?.price == null) supplier.checked = false
     if (!hit || !supplier) return []
     return [
       {
