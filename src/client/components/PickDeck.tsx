@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Idea, Pick, PickPatch, Reaction } from '../../types'
 import { latestPicks } from '../lib/triage'
 import { PickCard } from './PickCard'
@@ -11,9 +11,6 @@ interface Props {
 }
 
 const ADVANCE_MS = 250
-const SWIPE_PX = 90
-/** Movement past this is a drag, not a tap: the click after it is swallowed. */
-const DRAG_PX = 24
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
@@ -37,8 +34,6 @@ export function PickDeck({ idea, onReact, onBought }: Props) {
   const picksRef = useRef(picks)
   const cardRef = useRef<HTMLElement>(null)
   const moved = useRef(false)
-  const drag = useRef<{ x: number; y: number } | null>(null)
-  const dragged = useRef(false)
 
   const pick = at === 'end' ? undefined : (picks.find((p) => p.id === at) ?? picks[0])
   const n = pick ? picks.indexOf(pick) : picks.length
@@ -82,45 +77,6 @@ export function PickDeck({ idea, onReact, onBought }: Props) {
       else setPending({ id: p.id, reaction: r })
     }
     return done
-  }
-
-  const swipe = {
-    onPointerDown: (e: PointerEvent) => {
-      dragged.current = false
-      drag.current = e.pointerType === 'touch' || e.pointerType === 'pen' ? { x: e.clientX, y: e.clientY } : null
-    },
-    onPointerMove: (e: PointerEvent<HTMLElement>) => {
-      if (!drag.current || reducedMotion()) return
-      const dx = e.clientX - drag.current.x
-      if (Math.abs(dx) > Math.abs(e.clientY - drag.current.y)) {
-        e.currentTarget.style.transform = `translateX(${dx}px) rotate(${dx / 30}deg)`
-      }
-    },
-    onPointerUp: (e: PointerEvent<HTMLElement>) => {
-      const start = drag.current
-      drag.current = null
-      e.currentTarget.style.transform = ''
-      if (!start || !pick || !wanted) return
-      const dx = e.clientX - start.x
-      const dy = e.clientY - start.y
-      dragged.current = Math.hypot(dx, dy) > DRAG_PX
-      // Only the click this pointerup produces is swallowed, never a later one (keyboard Enter).
-      setTimeout(() => (dragged.current = false))
-      const r = dx > 0 ? 'yes' : 'no'
-      if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy) && pick.reaction !== r) {
-        react(pick, { reaction: r }).catch(() => {})
-      }
-    },
-    onPointerCancel: (e: PointerEvent<HTMLElement>) => {
-      drag.current = null
-      e.currentTarget.style.transform = ''
-    },
-    onClickCapture: (e: MouseEvent) => {
-      if (!dragged.current) return
-      dragged.current = false
-      e.preventDefault()
-      e.stopPropagation()
-    },
   }
 
   const tally = (r: Reaction) => picks.filter((p) => p.reaction === r).length
@@ -170,7 +126,6 @@ export function PickDeck({ idea, onReact, onBought }: Props) {
             tabIndex={0}
             className={`card pick in${live?.id === pick.id ? ` out-${live.reaction === 'yes' ? 'r' : 'l'}` : ''}`}
             aria-label={`Pick ${n + 1} of ${picks.length}`}
-            {...swipe}
           >
             <PickCard pick={pick} budget={idea.budget} onBought={wanted ? () => onBought(pick) : undefined} />
           </article>
@@ -198,7 +153,7 @@ export function PickDeck({ idea, onReact, onBought }: Props) {
             onNext={() => advance(pick.id)}
           />
           {pick.reaction !== 'no' && (
-            <p className="keyhint">Tap again to clear · swipe the card: left No way, right Yes</p>
+            <p className="keyhint">Tap again to clear</p>
           )}
         </>
       )}
