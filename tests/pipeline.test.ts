@@ -192,7 +192,7 @@ describe('PipelineEngine', () => {
     expect(picks[1].suppliers[0]).toMatchObject({ price: 59, availability: 'unknown', checked: false })
   })
 
-  it('sinks products that are sold out everywhere and orders offers in stock first', async () => {
+  it('drops products sold out everywhere and orders offers in stock first', async () => {
     const verify = {
       picks: [
         {
@@ -227,9 +227,23 @@ describe('PipelineEngine', () => {
       ideaId: 1,
       text: 'fan',
     })
-    expect(picks.map((p) => p.title)).toEqual(['Wahoo KICKR Headwind', 'Lasko fan'])
+    expect(picks.map((p) => p.title)).toEqual(['Wahoo KICKR Headwind'])
     expect(picks[0].suppliers.map((s) => s.shop)).toEqual(['bol', 'Bikeshop'])
     expect(picks[0]).toMatchObject({ shop: 'bol', price: 229 })
+  })
+
+  it('keeps sold-out products when nothing else is left', async () => {
+    const soldOut = { product: product({ availability: 'out_of_stock' }) }
+    pages({ 'https://bikeshop.be/headwind': soldOut, 'https://www.bol.com/be/nl/p/lasko/123': soldOut })
+    const { picks } = await engine(new StepModel({}), search(() => HITS)).research({ ideaId: 1, text: 'fan' })
+    expect(picks.map((p) => p.title)).toEqual(['Wahoo KICKR Headwind', 'Lasko fan'])
+  })
+
+  it('gives every model step the shop rules', async () => {
+    const model = new StepModel({})
+    await engine(model, search(() => HITS)).research({ ideaId: 1, text: 'fan' })
+    expect(model.systems).toHaveLength(3)
+    for (const system of model.systems) expect(system).toContain('deliver to Belgium')
   })
 
   it('drops dead offers and products left without one', async () => {

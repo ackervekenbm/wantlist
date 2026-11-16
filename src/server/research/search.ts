@@ -22,7 +22,7 @@ export class SerperProvider implements SearchProvider {
       res = await fetch('https://google.serper.dev/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-KEY': this.apiKey },
-        body: JSON.stringify({ q: query, gl: opts.region ?? 'be', hl: 'en', num: 10 }),
+        body: JSON.stringify({ q: query, gl: opts.region ?? 'be', hl: 'nl', num: 10 }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
     } catch (err) {

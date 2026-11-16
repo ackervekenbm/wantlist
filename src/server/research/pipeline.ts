@@ -259,8 +259,8 @@ export class PipelineEngine implements ResearchEngine {
    * Opens every offer's page once (pages already read for verification are
    * reused): dead links are dropped, and price, stock, photo and rating come
    * from the shop's own product data when it has some. A pick with no live
-   * offer left is dropped; picks that are out of stock everywhere sink to the
-   * end, otherwise the model's order stands.
+   * offer left is dropped; so are picks out of stock everywhere, unless
+   * nothing else is left. Otherwise the model's order stands.
    */
   private async checkOffers(picks: FinalPick[], cache: PageCache): Promise<FinalPick[]> {
     const urls = [...new Set(picks.flatMap((p) => p.suppliers.map((s) => s.url)))]
@@ -293,7 +293,8 @@ export class PipelineEngine implements ResearchEngine {
       checked.push({ ...pick, ...primaryFields(suppliers), suppliers, image, rating })
     }
     const soldOut = (p: FinalPick) => p.suppliers.every((s) => s.availability === 'out_of_stock')
-    return [...checked.filter((p) => !soldOut(p)), ...checked.filter(soldOut)]
+    const buyable = checked.filter((p) => !soldOut(p))
+    return buyable.length > 0 ? buyable : checked
   }
 
   private async withRetry<T>(fn: () => Promise<T>): Promise<T> {

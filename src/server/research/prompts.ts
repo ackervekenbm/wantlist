@@ -38,6 +38,23 @@ const BUDGET_RULE = `- When a budget is given, it is a ceiling: prefer products 
   and its "why" must say so.
 - User notes are hard requirements unless they say otherwise.`
 
+/** Where the owner can actually buy: every step sees these. */
+const SHOP_RULES = `Where to buy (the owner lives in Belgium):
+- Only shops that sell to private customers and deliver to Belgium. Prefer
+  Belgian shops and the Belgian storefront of big ones (bol.com/be,
+  coolblue.be, amazon.com.be, a brand's BE site), then shops in the
+  Netherlands, France, Germany or Luxembourg that clearly ship to Belgium.
+- Never: trade, B2B, horeca or wholesale shops (business accounts, prices
+  excl. VAT, e.g. HANOS, Makro, Frigohoreca, Bidfood); import or reseller
+  sites (Ubuy, Desertcart and the like); a shop's US, UK or other foreign
+  storefront when a Belgian or EU one exists.
+- An everyday product must come from a shop with normal delivery to Belgium:
+  a few days, ordinary shipping costs. A shop further away (Poland, the UK,
+  the US, Asia...) is only acceptable for a niche product no closer shop
+  sells, and then the "why" must say so.
+- Skip anything shown as unavailable, sold out or discontinued ("niet
+  leverbaar", "uitverkocht", "épuisé", "currently unavailable").`
+
 // ---------------------------------------------------------------------------
 // Preferences and earlier picks, as every step sees them
 // ---------------------------------------------------------------------------
@@ -119,14 +136,18 @@ Requirements:
 - Cover the whole market: the big players (bol, Coolblue, Amazon), specialist
   or smaller retailers, brand sites and EU shops with BE shipping. Do not stop
   at the big marketplaces - look beyond them too - but do not exclude them.
-- Only real search queries, in English, that a search engine can answer.
-  2 to 4 queries. Mix directions: product-oriented, review/community opinion
-  ("best ... for ...", "... reddit"), and a specialist or brand-store query.
+- Only real search queries that a search engine can answer, 2 to 4 of them.
+  Shopping queries in Dutch, the language Belgian shops use (e.g.
+  "pedaalemmer 10 liter kopen"); at most one review/opinion query may be in
+  English ("best ... for ..."). Mix directions: product-oriented, review, and
+  a specialist or brand-store query.
 - Keep queries specific enough to return product pages, not category homepages.
 - When a budget is given, steer queries toward that price range; fold the
   user's notes into the queries and the criteria.
 - Give it a title: a short, specific English name for what is being looked
-  for (e.g. "Quiet fan for indoor cycling"), at most 60 characters.`
+  for (e.g. "Quiet fan for indoor cycling"), at most 60 characters.
+
+${SHOP_RULES}`
 
 export const QUERY_SCHEMA = {
   type: 'object',
@@ -201,13 +222,19 @@ Preferences:
   short, specific, English, at most 60 characters.
 
 Queries:
-- 1 to 4 real search queries, in English, that a search engine can answer.
+- 1 to 4 real search queries that a search engine can answer; shopping
+  queries in Dutch, the language Belgian shops use.
 - Aim them at what is missing: the must-haves and likes, steered away from the
   avoid items. Phrase them so they do not resurface the rejected products
   (no rejected product names or model numbers).
 - Country Belgium, prices EUR. Cover the whole market, not only big marketplaces.
 - Keep queries specific enough to return product pages, not category homepages.
-${BUDGET_RULE}`
+- A reason about the shop ("they don't deliver to Belgium", "can't buy
+  this", "not a good shop") is about where to buy, not the product: steer
+  the queries toward Belgian consumer shops instead of adding it as a trait.
+${BUDGET_RULE}
+
+${SHOP_RULES}`
 
 export const LEARN_SCHEMA = {
   type: 'object',
@@ -283,9 +310,9 @@ shopping idea. Choose 3-5 candidate products the user could reasonably buy.
 
 Ground rules:
 - Belgium, EUR.
-- All shop types are legitimate: big marketplaces and brand stores when they
-  genuinely fit, specialist and smaller retailers too. The mix should reflect
-  the real market - never limit the list to one shop type.
+- Big marketplaces, brand stores, specialist and smaller retailers are all
+  fine when they follow the shop rules below. The mix should reflect the
+  real market - never limit the list to one shop type.
 - A candidate is a PRODUCT, not a shop. If the same product appears at several
   shops in the results, list it ONCE with its best offer (lowest price) - you
   cannot list the same product twice.
@@ -299,7 +326,9 @@ Ground rules:
   same URL, and never name a product the page is not about.
 - Respect every "Must have" and "Avoid" line; prefer products with the
   "Liked so far" traits.
-${BUDGET_RULE}`
+${BUDGET_RULE}
+
+${SHOP_RULES}`
 
 export const CANDIDATE_SCHEMA = {
   type: 'object',
@@ -399,10 +428,13 @@ Ground rules:
   offer as its suppliers (best price first). Do not emit the same product as
   separate picks - even if its names differ slightly (e.g. "Wahoo KICKR
   Headwind Smart Fan" vs "Wahoo KICKR Headwind").
-- All shop types are legitimate: big marketplaces, brand stores, specialist
-  and smaller retailers. Do not exclude marketplaces; do not fill the list
-  with only one shop type either.
+- Big marketplaces, brand stores, specialist and smaller retailers are all
+  fine when they follow the shop rules below; do not fill the list with only
+  one shop type.
 - Keep only products supported by the page text or clearly confirmed by it.
+- Be diligent: drop an offer whose page says it is unavailable, does not
+  deliver to Belgium, is for business customers only, or ships from far away
+  with high costs or weeks of delivery. Fewer good picks beat padding.
 - Respect every "Must have" and "Avoid" line; prefer products with the
   "Liked so far" traits.
 - Each pick: concrete product title, a one-line "why this fits" grounded in
@@ -421,7 +453,9 @@ Ground rules:
   When the page evidence shows a different product than the candidate title,
   use the product the page is about, or drop it.
 - Mention delivery/stock only if the page evidence states it.
-${BUDGET_RULE}`
+${BUDGET_RULE}
+
+${SHOP_RULES}`
 
 export function verifySchema(withRepeat: boolean) {
   return {
