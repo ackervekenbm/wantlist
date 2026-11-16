@@ -146,6 +146,10 @@ export function createWorker(opts: WorkerOptions): Worker {
           notes: idea.notes,
           title: idea.title,
           history: buildHistory(idea),
+          mode: idea.mode,
+          modeByOwner: idea.modeByOwner,
+          target: idea.target,
+          targetByOwner: idea.targetByOwner,
           onProgress: (step) => {
             if (state.current?.ideaId === id) state.current = { ideaId: id, step }
           },
