@@ -410,3 +410,24 @@ describe('html extraction', () => {
     expect(extractText(html)).not.toContain('doNotRead')
   })
 })
+describe('normalizePlan mode guess', () => {
+  it('keeps a hunt with a cleaned target and refill', () => {
+    const p = normalizePlan({
+      mode: 'hunt',
+      searchQueries: ['q'],
+      refill: true,
+      target: { product: ' Feliway ', variant: '48 ml', condition: 'odd', exclude: ['1', '2', '3', '4', '5', '6', '7'] },
+    })
+    expect(p.mode).toBe('hunt')
+    expect(p.target).toEqual({ product: 'Feliway', variant: '48 ml', condition: 'new', exclude: ['1', '2', '3', '4', '5', '6'], unit: null })
+    expect(p.refill).toBe(true)
+  })
+
+  it('falls back to explore without a valid mode or target', () => {
+    for (const raw of [{ searchQueries: ['q'] }, { mode: 'nope', searchQueries: ['q'] }, { mode: 'hunt', searchQueries: ['q'] }]) {
+      const p = normalizePlan(raw)
+      expect(p.mode).toBe('explore')
+      expect(p.target).toBeNull()
+    }
+  })
+})
