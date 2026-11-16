@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ResearchError } from '../src/server/research/errors'
-import { GeminiProvider, parseGoogleError } from '../src/server/research/gemini'
+import { ResearchError } from './errors'
+import { GeminiProvider, parseGoogleError } from './gemini'
 
 const ARGS = { systemInstruction: 'sys', contents: 'user', schema: { type: 'object' } }
 // 2026-11-07 12:00 UTC = 04:00 in Los Angeles: 20 h until the daily reset.

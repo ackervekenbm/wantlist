@@ -5,12 +5,12 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: false,
-    // Server and research tests run in node; client tests under src/client
-    // run in jsdom (see `projects`).
+    // Tests sit next to the code they test: server ones run in node, client
+    // ones in jsdom (see `projects`).
     projects: [
       {
         extends: true,
-        test: { name: 'server', environment: 'node', include: ['tests/**/*.test.ts'] },
+        test: { name: 'server', environment: 'node', include: ['src/server/**/*.test.ts'] },
       },
       {
         extends: true,

@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Page } from '../src/server/research/http'
-import type { ProductData } from '../src/server/research/product'
-import { NOTHING_NEW, ResearchError } from '../src/server/research/errors'
-import { ModelRouter, type GenerateArgs, type LlmProvider } from '../src/server/research/llm'
-import { PipelineEngine } from '../src/server/research/pipeline'
-import { SerperProvider, type SearchProvider, type SearchResult } from '../src/server/research/search'
-import type { HistoryPick, ResearchHistory } from '../src/types'
+import type { Page } from './http'
+import type { ProductData } from './product'
+import { NOTHING_NEW, ResearchError } from './errors'
+import { ModelRouter, type GenerateArgs, type LlmProvider } from './llm'
+import { PipelineEngine } from './pipeline'
+import { SerperProvider, type SearchProvider, type SearchResult } from './search'
+import type { HistoryPick, ResearchHistory } from '../../types'
 
-vi.mock('../src/server/research/http', () => ({ fetchPage: vi.fn() }))
+vi.mock('./http', () => ({ fetchPage: vi.fn() }))
 
-const http = await import('../src/server/research/http')
+const http = await import('./http')
 
 const HITS: SearchResult[] = [
   { title: 'Wahoo KICKR Headwind', url: 'https://bikeshop.be/headwind', snippet: '€229' },
