@@ -237,7 +237,11 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   404/410, a bounce to the home page, or a "not found" title count as
   **dead**; 401/403/429/5xx are bot walls or shop trouble and count as
   unknown, so big marketplaces are not dropped. Never throws.
-- `src/client/` — React UI, the "Quote Slip" design. `main.tsx` loads the
+- `src/client/` — React UI, the "Quote Slip" design. The app icon (a brass magnifier with a
+  price tag in its lens) is drawn once in `scripts/gen-icons.mjs`: `npm run icons`
+  writes `public/favicon.svg`, `apple-touch-icon.png` and `icons/` (192, 512,
+  maskable); commit the output. `public/manifest.webmanifest` names the app for a
+  home-screen install (no service worker). `main.tsx` loads the
   bundled Bricolage Grotesque variable font (`@fontsource-variable/bricolage-grotesque`,
   no CDN). `lib/route.ts` is a hash router (`parseHash` / `toHash` /
   `useRoute`, `navigate`, `goHome`): `#/` home, `#/idea/<id>`,
