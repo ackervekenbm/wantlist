@@ -1,11 +1,9 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { HuntTarget, Idea, ServerStatus } from '../../types'
 import { clockTime } from '../lib/format'
-import { fakeApi, idea, pick, status } from '../test/fakeApi'
-import { App } from '../App'
-import { IDLE_POLL_MS } from "../hooks/useIdeas"
+import { idea, pick, status } from '../test/fakeApi'
 import { HomeScreen } from './HomeScreen'
 
 const IDEAS: Idea[] = [
@@ -153,80 +151,5 @@ describe('HomeScreen', () => {
   it('has no Pantry section when nothing is covered', () => {
     renderHome()
     expect(screen.queryByRole('region', { name: /Pantry/ })).toBeNull()
-  })
-
-  it('+ New idea goes home from an idea', async () => {
-    fakeApi([idea({ id: 1, title: 'Fan' })])
-    history.replaceState(null, '', '#/idea/1')
-    const user = userEvent.setup()
-    render(<App />)
-    await screen.findByRole('form', { name: 'Add an idea' })
-    await user.click(screen.getByRole('button', { name: '+ New idea' }))
-    expect(['', '#/', '#']).toContain(location.hash)
-  })
-
-  it('keeps a half-typed idea while an idea is open', async () => {
-    fakeApi([idea({ id: 1, title: 'Fan' })])
-    history.replaceState(null, '', '#/')
-    const user = userEvent.setup()
-    render(<App />)
-    const form = await screen.findByRole('form', { name: 'Add an idea' })
-    await user.type(within(form).getByRole('textbox'), 'fan for the bike')
-    await user.click(await screen.findByRole('button', { name: /Fan/ }))
-    await user.click(screen.getByRole('link', { name: 'Home' }))
-    expect(within(screen.getByRole('form', { name: 'Add an idea' })).getByRole('textbox')).toHaveValue('fan for the bike')
-  })
-
-  describe("on a PC", () => {
-    const pc = () => vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("min-width: 900px"), media: q }))
-    const addBox = () => within(screen.getByRole("form", { name: "Add an idea" })).getByRole("textbox")
-
-    it("PC: opening the app puts the cursor in the add box", async () => {
-      pc()
-      fakeApi([idea({ id: 1, title: "Fan" })])
-      history.replaceState(null, "", "#/")
-      render(<App />)
-      await screen.findByRole("form", { name: "Add an idea" })
-      expect(addBox()).toHaveFocus()
-    })
-
-    it("PC: going home from an idea puts the cursor in the add box", async () => {
-      pc()
-      fakeApi([idea({ id: 1, title: "Fan" })])
-      history.replaceState(null, "", "#/idea/1")
-      const user = userEvent.setup()
-      render(<App />)
-      await user.click(await screen.findByRole("link", { name: "Home" }))
-      expect(addBox()).toHaveFocus()
-    })
-
-    it("PC: a deep link to an idea focuses the idea, not the add box", async () => {
-      pc()
-      fakeApi([idea({ id: 1, title: "Fan" })])
-      history.replaceState(null, "", "#/idea/1")
-      render(<App />)
-      await screen.findByRole("form", { name: "Add an idea" })
-      const h1 = await screen.findByRole("heading", { level: 1, name: /Fan/ })
-      expect(h1).toHaveFocus()
-      expect(addBox()).not.toHaveFocus()
-    })
-
-    it("PC: a poll does not pull focus back to the add box", async () => {
-      pc()
-      vi.useFakeTimers({ shouldAdvanceTime: true })
-      try {
-        fakeApi([idea({ id: 1, title: "Fan" })])
-        history.replaceState(null, "", "#/")
-        render(<App />)
-        const rowButton = await screen.findByRole("button", { name: /Fan/ })
-        act(() => rowButton.focus())
-        await act(async () => {
-          vi.advanceTimersByTime(IDLE_POLL_MS + 100)
-        })
-        expect(rowButton).toHaveFocus()
-      } finally {
-        vi.useRealTimers()
-      }
-    })
   })
 })

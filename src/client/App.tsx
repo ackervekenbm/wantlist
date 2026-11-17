@@ -120,14 +120,14 @@ export function App() {
   )
 }
 
+const onPc = (): boolean => window.matchMedia?.('(min-width: 900px)').matches ?? false
+
 /**
  * Opening an idea or the lists focuses that screen's h1 and scrolls to the
  * top; a tab switch on the lists leaves focus on the tab. Going back home
  * returns focus to the idea's row, else to home's h1; on a PC home
  * puts the cursor in the add box instead.
  */
-const onPc = (): boolean => window.matchMedia?.('(min-width: 900px)').matches ?? false
-
 function useRouteFocus(route: Route, loaded: boolean) {
   const previous = useRef(route)
   const first = useRef(true)

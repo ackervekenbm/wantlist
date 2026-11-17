@@ -54,7 +54,7 @@ button{cursor:pointer}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
-/* ---------- shell: one pane below 900 px, two from 900 px ---------- */
+/* ---------- shell: one pane below 900 px; from 900 px home alone, centred, else sidebar + pane ---------- */
 
 .shell{min-height:100vh;min-height:100dvh}
 .pane-right{min-width:0}
