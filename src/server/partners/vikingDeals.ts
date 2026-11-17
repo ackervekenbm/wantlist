@@ -59,7 +59,7 @@ export function parseListings(raw: unknown, today: string): PartnerShop[] {
       const live = (!start || start <= today) && (!end || end >= today)
       const v = live ? d.value : d.baseline_value
       if (v?.type !== 'percentage' || typeof v.amount !== 'number' || !(v.amount > 0)) return []
-      const scope = (str(d.description) ?? '').replace(/<[^>]*>/g, '').trim()
+      const scope = (str(d.description) ?? '').replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim()
       return [{ percent: v.amount, scope, until: live ? end : null }]
     })
     if (deals.length === 0) return []
