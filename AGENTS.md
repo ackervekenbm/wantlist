@@ -268,9 +268,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   `gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite`) → optional
   `GROQ_API_KEY` → optional `OPENROUTER_API_KEY`.
 - `src/server/research/product.ts` — structured product data from a shop page:
-  schema.org JSON-LD (`Product`, `@graph`, `ProductGroup` variants, `Offer` /
+  schema.org JSON-LD (`Product`, `@graph`, a `BuyAction`'s `object`, `ProductGroup` variants, `Offer` /
   `AggregateOffer`; EUR only; cheapest in-stock offer wins), OpenGraph /
-  `product:*` meta as the fallback. `parsePriceEur` reads Belgian formats
+  `product:*` meta and microdata `<meta>` / `<link itemprop>` as the fallback. `parsePriceEur` reads Belgian formats
   ("€ 1.299,00", "129,-"; a lone separator before exactly three digits is a
   thousands separator). Prices are numbers (EUR) everywhere from here on; rows
   stored before that still hold text and are parsed on read.
