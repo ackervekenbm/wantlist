@@ -1,4 +1,5 @@
 import type { UrlStatus } from '../../types'
+import { isListingUrl } from './offers'
 import { decodeEntities, extractProductData, type ProductData } from './product'
 
 const UA =
@@ -18,6 +19,8 @@ export interface Page {
   title: string
   text: string
   product: ProductData | null
+  /** Shop pages this page's affiliate links lead to (see `referralTargets`). */
+  referrals?: string[]
 }
 
 const UNKNOWN: Page = { status: 'unknown', title: '', text: '', product: null }
@@ -74,7 +77,48 @@ export async function fetchPage(url: string): Promise<Page> {
     title,
     text: extractText(html),
     product: extractProductData(html, res.url || url),
+    referrals: referralTargets(html, res.url || url),
   }
+}
+
+const MAX_REFERRALS = 3
+const IMAGE = /\.(jpe?g|png|gif|webp|avif|svg)$/i
+/** "www.shop.be" and "cdn.shop.be" are one site. */
+const siteOf = (host: string): string => host.toLowerCase().split('.').slice(-2).join('.')
+
+/**
+ * Product pages on other sites that this page's links carry in their query,
+ * the way affiliate links do (`partner.bol.com/click?…&url=https://www.bol.com/…/p/…`).
+ * Share buttons (they carry this page), images, listings and home pages are left out.
+ */
+export function referralTargets(html: string, pageUrl: string): string[] {
+  let site: string
+  try {
+    site = siteOf(new URL(pageUrl).hostname)
+  } catch {
+    return []
+  }
+  const out = new Set<string>()
+  for (const m of html.matchAll(/<a\s[^>]*href\s*=\s*["']([^"']+)["']/gi)) {
+    let link: URL
+    try {
+      link = new URL(decodeEntities(m[1]), pageUrl)
+    } catch {
+      continue
+    }
+    for (const value of link.searchParams.values()) {
+      if (!/^https?:\/\//i.test(value)) continue
+      try {
+        const to = new URL(value)
+        if (siteOf(to.hostname) === site || to.pathname.length <= 1 || IMAGE.test(to.pathname) || isListingUrl(to.href)) continue
+        out.add(to.href)
+      } catch {
+        // not a URL after all
+      }
+    }
+    if (out.size >= MAX_REFERRALS) break
+  }
+  return [...out].slice(0, MAX_REFERRALS)
 }
 
 /** A removed product often redirects to the shop's home page instead of 404ing. */

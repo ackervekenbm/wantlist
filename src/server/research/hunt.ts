@@ -36,6 +36,9 @@ export interface HuntPlan {
   searchQueries: string[]
 }
 
+/** Shop pages followed from referral links, on top of the selected ones. */
+const MAX_FOLLOWED = 3
+
 const nothing = () => new ResearchError(HUNT_NOTHING, { kind: 'no-results' })
 
 /** One exact product: find every shop's offer page, read the facts, rank by delivered price. */
@@ -65,6 +68,21 @@ export async function runHunt(deps: HuntDeps, req: ResearchRequest, plan: HuntPl
     page: await cache.get(s.url),
   }))
   const live = read.filter((r) => r.page.status !== 'dead')
+
+  // A referral site's buy link carries the shop page that really sells: read that one too.
+  const known = new Set(read.map((r) => normalizeUrl(r.s.url)))
+  const followed = live
+    .flatMap((r) => r.page.referrals ?? [])
+    .filter((url) => !known.has(normalizeUrl(url)) && known.add(normalizeUrl(url)))
+    .slice(0, MAX_FOLLOWED)
+  if (followed.length > 0) {
+    step(`reading ${followed.length} shop pages linked from comparison sites`)
+    const extra = await mapLimit(followed, PAGE_CONCURRENCY, async (url) => ({
+      s: { url, shop: new URL(url).hostname.replace(/^www\./, ''), title: '', price: null },
+      page: await cache.get(url),
+    }))
+    live.push(...extra.filter((r) => r.page.status !== 'dead'))
+  }
   if (live.length === 0) throw nothing()
 
   step('checking match, packs and delivery')
@@ -95,7 +113,8 @@ export async function runHunt(deps: HuntDeps, req: ResearchRequest, plan: HuntPl
   )
 
   const byUrl = new Map(live.map((r) => [normalizeUrl(r.s.url), r]))
-  const offers = facts.flatMap((f): FinalPick[] => {
+  // A page that only sends buyers elsewhere is not an offer; the shop it links to is.
+  const offers = facts.filter((f) => !f.referral).flatMap((f): FinalPick[] => {
     const hit = byUrl.get(normalizeUrl(f.url))
     const supplier = hit ? checkedSupplier(offer(hit.s.shop, hit.s.url, hit.s.price), hit.page) : null
     // A page that only states stock gave no shop price: the shown price is the snippet's, so not checked.

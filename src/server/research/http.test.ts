@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { extractText, fetchPage } from './http'
+import { extractText, fetchPage, referralTargets } from './http'
 
 const URL_ = 'https://shop.be/nl/p/fan/123'
 
@@ -79,6 +79,34 @@ describe('fetchPage', () => {
     const page = await fetchPage(URL_)
     expect(page.status).toBe('live')
     expect(page.text.length).toBeLessThanOrEqual(12_000)
+  })
+})
+
+describe('referralTargets', () => {
+  const PAGE = 'https://www.afvalbakkenwinkel.nl/product/brabantia-stepup-10l/'
+  const BOL = 'https://www.bol.com/nl/nl/p/brabantia-pedaalemmer-stepup-10-liter-dark-grey/9300000161151384/'
+
+  it('reads the shop page an affiliate link carries in its query', () => {
+    const href = `https://partner.bol.com/click/click?p=1&#038;t=url&#038;s=1115040&#038;url=${encodeURIComponent(BOL)}&#038;f=TXL`
+    expect(referralTargets(`<a class="button alt" href="${href}" target="_blank">Bekijk bij bol</a>`, PAGE)).toEqual([BOL])
+  })
+
+  it('ignores share buttons, its own site, images, listings and plain links', () => {
+    const html = [
+      `<a href="https://www.facebook.com/sharer.php?u=${encodeURIComponent(PAGE)}">share</a>`,
+      `<a href="https://pinterest.com/pin/create?url=x&media=${encodeURIComponent('https://cdn.shop.be/bin.jpg')}">pin</a>`,
+      `<a href="/login?redirect=${encodeURIComponent('https://www.afvalbakkenwinkel.nl/account')}">login</a>`,
+      `<a href="https://tt.example/c?r=${encodeURIComponent('https://www.shop.be/search?q=bin')}">search</a>`,
+      `<a href="https://tt.example/c?r=${encodeURIComponent('https://www.shop.be/')}">home</a>`,
+      '<a href="https://www.bol.com/nl/nl/p/x/1/">direct</a>',
+    ].join('')
+    expect(referralTargets(html, PAGE)).toEqual([])
+  })
+
+  it('keeps each destination once, at most three', () => {
+    const link = (u: string) => `<a href="https://aff.example/go?url=${encodeURIComponent(u)}">x</a>`
+    const html = [1, 1, 2, 3, 4].map((n) => link(`https://shop${n}.be/p/bin`)).join('')
+    expect(referralTargets(html, PAGE)).toEqual(['https://shop1.be/p/bin', 'https://shop2.be/p/bin', 'https://shop3.be/p/bin'])
   })
 })
 

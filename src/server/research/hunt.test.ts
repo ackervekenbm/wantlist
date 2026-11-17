@@ -132,3 +132,37 @@ describe('hunt', () => {
     expect(res.brief.target).toEqual(TARGET)
   })
 })
+
+describe('hunt: referral sites', () => {
+  const BOL = 'https://www.bol.com/be/nl/p/feliway-friends/9300000161151384/'
+
+  /** Flags shop a as a referral page; reads whatever pages it is given. */
+  class ReferralModel extends HuntModel {
+    seen: string[] = []
+    override async generate(args: GenerateArgs): Promise<unknown> {
+      if (!args.systemInstruction.includes('offer-reading')) return super.generate(args)
+      this.calls += 1
+      const urls = [...args.contents.matchAll(/--- PAGE: (\S+)/g)].map((m) => m[1] as string)
+      this.seen = urls
+      return { offers: urls.map((url) => ({ ...FACTS(url, 1), referral: url === SHOPS[0] })) }
+    }
+  }
+
+  it('reads the shop a referral page links to and offers that shop instead', async () => {
+    const referral: Page = { ...page(20), referrals: [BOL] }
+    pages({ [SHOPS[0]]: referral, [SHOPS[1]]: page(28), [SHOPS[2]]: page(50), [BOL]: page(25) })
+    const model = new ReferralModel()
+    const res = await engine(model).research({ ideaId: 1, text: 'feliway', mode: 'hunt', target: TARGET })
+    expect(model.seen).toContain(BOL)
+    const urls = res.picks.map((p) => p.url)
+    expect(urls).not.toContain(SHOPS[0])
+    expect(res.picks[0]).toMatchObject({ url: BOL, shop: 'bol.com', price: 25 })
+    expect(res.picks[0]?.offer?.group).toBe('best')
+  })
+
+  it('does not read a linked page twice when search found it too', async () => {
+    pages({ [SHOPS[0]]: { ...page(30), referrals: [SHOPS[1]] }, [SHOPS[1]]: page(28), [SHOPS[2]]: page(50) })
+    await engine(new ReferralModel()).research({ ideaId: 1, text: 'feliway', mode: 'hunt', target: TARGET })
+    expect(vi.mocked(http.fetchPage).mock.calls.filter((c) => c[0] === SHOPS[1])).toHaveLength(1)
+  })
+})

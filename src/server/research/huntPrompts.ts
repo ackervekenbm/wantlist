@@ -179,6 +179,9 @@ page return the facts of that shop's offer.
   cost; when it is not on the page the kind is "unknown" and cost is empty.
 - sellerNote: one short English line about the seller or offer worth knowing
   (marketplace seller, delivery time, subscription price), or leave out.
+- referral: true when the page does not sell the product itself but sends
+  buyers on to another shop (a comparison, review or referral site whose buy
+  button leads elsewhere); leave out otherwise.
 - Only return pages from the list, with the url verbatim.
 
 ${TARGET_RULE}
@@ -210,6 +213,7 @@ export const OFFER_SCHEMA = {
             required: ['kind'],
           },
           sellerNote: { type: 'string' },
+          referral: { type: 'boolean', description: 'The page only sends buyers to another shop' },
         },
         required: ['url', 'title', 'match', 'packs', 'delivery'],
       },
@@ -242,7 +246,7 @@ function cleanDelivery(raw: unknown): Delivery {
 export function normalizeOffers(
   raw: unknown,
   selected: Set<string>,
-): Array<{ url: string; title: string; facts: Omit<OfferFacts, 'delivered' | 'perUnit' | 'group'> }> {
+): Array<{ url: string; title: string; referral: boolean; facts: Omit<OfferFacts, 'delivered' | 'perUnit' | 'group'> }> {
   const selectedNorm = new Set([...selected].map(normalizeUrl))
   const offers = (raw as { offers?: unknown })?.offers
   const seen = new Set<string>()
@@ -263,6 +267,7 @@ export function normalizeOffers(
       return {
         url,
         title: String(o.title ?? '').trim(),
+        referral: o.referral === true,
         facts: {
           match,
           mismatch: match === 'mismatch' ? mismatch || 'not the target' : null,
