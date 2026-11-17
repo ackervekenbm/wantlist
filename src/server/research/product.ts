@@ -125,7 +125,8 @@ function collectProducts(node: unknown, out: Json[], depth: number): void {
       if (withOffers) out.push({ ...obj, offers: withOffers.offers })
     }
   }
-  for (const key of ['@graph', 'mainEntity', 'itemListElement', 'item']) {
+  // `object`: a BuyAction wrapping the product (MediaMarkt).
+  for (const key of ['@graph', 'mainEntity', 'itemListElement', 'item', 'object']) {
     if (key in obj) collectProducts(obj[key], out, depth + 1)
   }
 }
@@ -196,10 +197,11 @@ function str(value: unknown): string | null {
 
 function productFromMeta(html: string, pageUrl: string): ProductData | null {
   const meta = new Map<string, string>()
-  for (const m of html.matchAll(/<meta\s[^>]*>/gi)) {
+  // Microdata also states values as <link itemprop="availability" href="https://schema.org/InStock">.
+  for (const m of html.matchAll(/<(?:meta|link)\s[^>]*>/gi)) {
     const attrs = parseAttributes(m[0])
     const key = (attrs.property ?? attrs.name ?? attrs.itemprop)?.toLowerCase()
-    const content = attrs.content
+    const content = attrs.content ?? (attrs.itemprop ? attrs.href : undefined)
     if (key && content !== undefined && !meta.has(key)) meta.set(key, content)
   }
   const currency = meta.get('product:price:currency') ?? meta.get('og:price:currency') ?? meta.get('pricecurrency')

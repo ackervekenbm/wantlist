@@ -161,6 +161,28 @@ describe('extractProductData', () => {
     expect(extractProductData(ld({ '@type': 'Article', headline: 'x' }), PAGE)).toBeNull()
   })
 
+  it('finds a Product wrapped in a BuyAction (MediaMarkt)', () => {
+    const html = ld({
+      '@context': 'https://schema.org/',
+      '@type': 'BuyAction',
+      object: {
+        '@type': 'Product',
+        brand: { '@type': 'Brand', name: 'Brabantia' },
+        name: 'Brabantia StepUp Pedaalemmer 10 liter',
+        offers: [{ '@type': 'Offer', price: 34.95, priceCurrency: 'EUR', availability: 'https://schema.org/InStock' }],
+      },
+    })
+    expect(extractProductData(html, PAGE)).toMatchObject({ brand: 'Brabantia', price: 34.95, availability: 'in_stock' })
+  })
+
+  it('reads stock from a microdata link tag (Supra Bazar)', () => {
+    const html = `
+      <meta itemprop="price" content="32.99">
+      <meta itemprop="priceCurrency" content="EUR">
+      <link itemprop="availability" href="https://schema.org/InStock"/>`
+    expect(extractProductData(html, PAGE)).toMatchObject({ price: 32.99, availability: 'in_stock' })
+  })
+
   it('never returns a non-http image URL', () => {
     const html = ld({ '@type': 'Product', image: 'javascript:alert(1)', offers: { price: 5 } })
     expect(extractProductData(html, PAGE)?.image).toBeNull()
