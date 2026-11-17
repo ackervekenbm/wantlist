@@ -74,8 +74,8 @@ button{cursor:pointer}
   .shell[data-route="home"]{grid-template-columns:minmax(0,1fr)}
   .shell[data-route="home"] .pane-right{display:none}
   .shell[data-route="home"] .pane-left{border-right:0}
-  .shell[data-route="home"] .app{max-width:640px;margin:0 auto;padding-top:8vh}
-  .shell[data-route="home"] .capture{padding:10px 10px 6px 18px}
+  .shell[data-route="home"] .app{max-width:640px;margin:0 auto;padding-top:12px}
+  .shell[data-route="home"] .capture{padding:10px 10px 6px 18px;margin-top:24vh}
   .shell[data-route="home"] .cap-row textarea{font-size:17px}
 }
 .shell>.banner{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:30;width:min(560px,calc(100vw - 32px));background:var(--surface);box-shadow:0 10px 24px -8px var(--slip-shadow)}
@@ -84,7 +84,7 @@ button{cursor:pointer}
 
 /* top bar */
 .top{display:flex;align-items:center;gap:8px;padding:10px 0 6px;min-height:60px}
-.mark{font-weight:700;font-size:21px;letter-spacing:-.03em;display:flex;align-items:center;gap:6px;flex:none}
+.mark{font-weight:700;font-size:21px;letter-spacing:-.03em;display:flex;align-items:center;gap:6px;flex:none;min-height:44px;color:inherit;text-decoration:none}
 .mark svg{flex:none}
 .top .iconbtn{margin-left:auto}
 .chip{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:18px;background:var(--surface);border:1px solid var(--rule);font-size:13px;color:var(--ink-2)}
@@ -196,6 +196,7 @@ button{cursor:pointer}
 .listlinks button[aria-current="true"]{background:var(--surface-2);border-color:var(--accent)}
 .listlinks b{font:600 16px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--ink)}
 .back{display:inline-flex;align-items:center;gap:2px;min-height:44px;padding-right:10px;color:var(--ink-2);font-weight:500;text-decoration:none}
+@media (min-width:900px){.back{visibility:hidden}}
 
 /* ---------- idea screen ---------- */
 .bar{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:52px}

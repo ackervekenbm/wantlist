@@ -1,7 +1,7 @@
 import { goHome } from '../lib/route'
 import { BackIcon } from './icons'
 
-/** The way home, on a phone and a PC. */
+/** The way home on a phone; a PC has the sidebar's logo instead. */
 export function BackLink() {
   return (
     <a

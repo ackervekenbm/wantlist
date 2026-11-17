@@ -431,6 +431,14 @@ describe('App', () => {
     expect(['', '#/', '#']).toContain(location.hash)
   })
 
+  it('the wantlist logo goes home from an idea', async () => {
+    fakeApi([idea({ id: 1, title: 'Fan' })])
+    const user = await renderApp('#/idea/1')
+    expect(location.hash).toBe('#/idea/1')
+    await user.click(screen.getByRole('link', { name: 'wantlist, home' }))
+    expect(['', '#/', '#']).toContain(location.hash)
+  })
+
   it('keeps a half-typed idea while an idea is open', async () => {
     fakeApi([idea({ id: 1, title: 'Fan' })])
     const user = await renderApp()
