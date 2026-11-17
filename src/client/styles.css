@@ -74,8 +74,8 @@ button{cursor:pointer}
   .shell[data-route="home"]{grid-template-columns:minmax(0,1fr)}
   .shell[data-route="home"] .pane-right{display:none}
   .shell[data-route="home"] .pane-left{border-right:0}
-  .shell[data-route="home"] .app{max-width:640px;margin:0 auto;padding-top:8vh}
-  .shell[data-route="home"] .capture{padding:10px 10px 6px 18px}
+  .shell[data-route="home"] .app{max-width:640px;margin:0 auto;padding-top:12px}
+  .shell[data-route="home"] .capture{padding:10px 10px 6px 18px;margin-top:24vh}
   .shell[data-route="home"] .cap-row textarea{font-size:17px}
 }
 .shell>.banner{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:30;width:min(560px,calc(100vw - 32px));background:var(--surface);box-shadow:0 10px 24px -8px var(--slip-shadow)}
