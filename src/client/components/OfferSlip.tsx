@@ -1,8 +1,9 @@
 import type { Availability, Idea, Pick } from '../../types'
-import { clockTime, deliveryText, eurTight, perUnitText, shortDate } from '../lib/format'
+import { clockTime, eurTight, perUnitText, shortDate } from '../lib/format'
 import { figureOf, offersOf, packText, versusLast } from '../lib/hunt'
 import { ExternalIcon } from './icons'
 import { Leader } from './Leader'
+import { DeliveryButton, deliveryFig } from './OfferList'
 import { PartnerNote } from './PartnerNote'
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   /** The unit offers are compared per, or null for delivered totals. */
   unit: string | null
   onBought: (offer: Pick) => void
+  onDelivery: (offer: Pick) => void
 }
 
 export const STOCK: Record<Availability, string> = {
@@ -26,7 +28,7 @@ export function figureText(amount: number, unit: string | null): string {
 }
 
 /** The best real offer on a perforated slip: shop, the receipt lines, the price you compare on, and buying. */
-export function OfferSlip({ idea, best, unit, onBought }: Props) {
+export function OfferSlip({ idea, best, unit, onBought, onDelivery }: Props) {
   const f = best.offer
   if (!f) return null
   const fig = figureOf(best, unit)
@@ -60,7 +62,9 @@ export function OfferSlip({ idea, best, unit, onBought }: Props) {
             </li>
           )}
           <li>
-            <Leader fig={deliveryText(f.delivery, best.price)}>Delivery</Leader>
+            <Leader fig={deliveryFig(f, best.price)}>
+              <DeliveryButton offer={best} onDelivery={onDelivery} />
+            </Leader>
           </li>
         </ul>
         {fig !== null && (

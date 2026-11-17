@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { isCovered, type Idea, type IdeaPatch, type NewPurchase, type Pick, type PickPatch, type Purchase, type ServerStatus } from '../../types'
+import { isCovered, type Idea, type IdeaPatch, type NewPurchase, type OfferFacts, type Pick, type PickPatch, type Purchase, type ServerStatus } from '../../types'
 
 /** A pick with sensible defaults; override what the test is about. */
 export function pick(over: Partial<Pick> = {}): Pick {
@@ -85,6 +85,14 @@ export function status(over: Partial<ServerStatus> = {}): ServerStatus {
  * An in-memory stand-in for the server behind `fetch`. Records every
  * request so tests can assert on what the UI sent.
  */
+/** The server's delivery override, without re-ranking. */
+function ownDelivery(o: OfferFacts, price: number | null, cost: number | null): OfferFacts {
+  const { foundDelivery, ...rest } = o
+  const found = foundDelivery ?? o.delivery
+  if (cost === null) return { ...rest, delivery: found, delivered: found.kind === 'free' ? price : null }
+  return { ...rest, foundDelivery: found, delivery: { kind: cost === 0 ? 'free' : 'paid', cost, threshold: null }, delivered: price === null ? null : price + cost }
+}
+
 export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = status()) {
   let ideas = [...initial]
   let nextId = Math.max(0, ...initial.map((i) => i.id)) + 1
@@ -128,7 +136,8 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
           if (x.id !== pickId) return x
           const reaction = p.reaction !== undefined ? p.reaction : x.reaction
           const reason = reaction === null ? null : p.reason !== undefined ? p.reason?.trim() || null : x.reason
-          return { ...x, reaction, reason }
+          const offer = p.delivery === undefined || !x.offer ? x.offer : ownDelivery(x.offer, x.price, p.delivery)
+          return { ...x, reaction, reason, offer }
         }),
       }
       ideas = ideas.map((i) => (i.id === owner.id ? updated : i))

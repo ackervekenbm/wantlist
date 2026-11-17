@@ -28,7 +28,11 @@ const GROUP_ORDER: OfferGroup[] = ['best', 'exact', 'unavailable', 'mismatch']
  * Offers compare on what they cost after a partner discount (`saving`).
  * Pure: returns new objects.
  */
-export function rankOffers(offers: FinalPick[], target: HuntTarget, saving: PartnerSaving = () => 0): FinalPick[] {
+export function rankOffers<P extends Pick<FinalPick, 'suppliers'> & { offer?: OfferFacts | null; rank: number }>(
+  offers: P[],
+  target: HuntTarget,
+  saving: PartnerSaving = () => 0,
+): P[] {
   const rows = offers.flatMap((p) => {
     if (!p.offer) return []
     const s = p.suppliers[0]
@@ -62,7 +66,7 @@ export function rankOffers(offers: FinalPick[], target: HuntTarget, saving: Part
   const best = eligible.find((r) => r.delivered === null && (!floor || cmp(r) < cmp(floor))) ?? floor ?? eligible[0]
 
   const grouped = sorted.map((r) => ({ r, group: r === best ? 'best' : groupOf(r) }))
-  return GROUP_ORDER.flatMap((g) => grouped.filter((x) => x.group === g)).map(({ r, group }, i): FinalPick => {
+  return GROUP_ORDER.flatMap((g) => grouped.filter((x) => x.group === g)).map(({ r, group }, i): P => {
     const offer: OfferFacts = {
       ...r.offer,
       delivered: r.delivered,

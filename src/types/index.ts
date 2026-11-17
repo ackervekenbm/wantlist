@@ -113,6 +113,8 @@ export interface OfferFacts {
   packs: number
   unitsPerPack: number | null
   delivery: Delivery
+  /** What the shop page said, kept while the owner's own cost stands in `delivery`. */
+  foundDelivery?: Delivery
   /** Item price plus delivery, when known. */
   delivered: number | null
   perUnit: number | null
@@ -374,4 +376,6 @@ export interface IdeaPatch {
 export interface PickPatch {
   reaction?: Reaction | null
   reason?: string | null
+  /** Hunt offers only: what delivery costs you, in euros (0 = free); null brings back what the shop page said. */
+  delivery?: number | null
 }

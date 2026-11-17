@@ -119,7 +119,10 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   every `/api/*` route, JSON 404s/400s/500s, and the built client
   (`/assets/*` immutable, the shell `no-cache`, SPA fallback). Route tests drive
   it with supertest (`app.test.ts`), no listening socket.
-  Reactions and rounds: `PATCH /api/picks/:id` (`reaction`, `reason`);
+  Reactions and rounds: `PATCH /api/picks/:id` (`reaction`, `reason`; on a hunt
+  offer also `delivery`, your own cost in euros or null to clear: `setOfferDelivery`
+  keeps the shop page's in `OfferFacts.foundDelivery` and re-ranks that hunt round
+  with `rankOffers`);
   `PATCH /api/ideas/:id` also takes `title` (null hands naming back to the
   model) and `preferences`; `POST /api/ideas/:id/refine` needs a reaction or an
   edited preference (400 otherwise), `POST …/rerun` does not. Both answer 202,
@@ -343,7 +346,8 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   idea's top bar; `HuntView` composes `TargetPlate` (product, variant,
   condition, exclusions; edit in a `Sheet`), `OfferSlip` (best offer: delivered
   price, per unit, "x% less than last time"), `OfferList` (other shops and the
-  folded unavailable / mismatch groups), `BoughtSheet` (paid, "Will you buy this
+  folded unavailable / mismatch groups; every offer has **Delivery**, opening
+  `DeliverySheet` for your own cost), `BoughtSheet` (paid, "Will you buy this
   again?", undo toast) and `CoveredStub` (covered since, what you paid, Running
   low). `lib/hunt.ts`: `offersOf` (newest hunt round), `exploreRounds`,
   `bestOffer`, `versusLast`. Hunt offers stay out of Keepers, earlier rounds and

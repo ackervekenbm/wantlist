@@ -13,6 +13,7 @@ import {
   getIdea,
   listIdeas,
   reactToPick,
+  setOfferDelivery,
   recordPurchase,
   requeueIdea,
   runningLow,
@@ -21,6 +22,7 @@ import {
   updateIdea,
 } from './db'
 import type { Partners } from './partners'
+import { rankOffers } from './research/rank'
 import type { Worker } from './worker'
 
 /** Longest idea text the API accepts (the capture box enforces the same). */
@@ -38,7 +40,7 @@ export interface AppOptions {
   /** Model chain standing for /api/status; empty when no model is configured. */
   modelHealth?: () => ModelHealth[]
   /** The owner's partner programs, filled into every shop offer served. */
-  partners?: Pick<Partners, 'withPartners'>
+  partners?: Pick<Partners, 'withPartners'> & Partial<Pick<Partners, 'saving'>>
   /** Built client to serve; omitted (or missing on disk) serves the API only. */
   clientDist?: string
 }
@@ -121,7 +123,14 @@ export function createApp(opts: AppOptions): express.Express {
     if (id === null) return
     const patch = parsePickPatch(req.body)
     if (typeof patch === 'string') return badRequest(res, patch)
-    const idea = reactToPick(db, id, patch)
+    const { delivery, ...reaction } = patch
+    if (delivery !== undefined) {
+      const saving = (url: string, price: number) => opts.partners?.saving?.(url, price) ?? 0
+      const out = setOfferDelivery(db, id, delivery, (offers, idea) => rankOffers(offers, idea.target ?? ANY_TARGET, saving))
+      if (out === null) return notFound(res)
+      if (out === 'not-offer') return badRequest(res, 'delivery is only for hunt offers')
+    }
+    const idea = reactToPick(db, id, reaction)
     if (!idea) return notFound(res)
     res.json(show(idea))
   })
@@ -331,6 +340,12 @@ function parsePatch(body: unknown): IdeaPatch | string {
   return patch
 }
 
+/** A delivery cost above this is a typo. */
+const DELIVERY_MAX = 1000
+
+/** Ranking needs only the unit and condition; an idea without a target compares any condition on totals. */
+const ANY_TARGET: HuntTarget = { product: '', variant: '', condition: 'any', exclude: [], unit: null }
+
 const MODES: readonly IdeaMode[] = ['explore', 'hunt']
 const CONDITIONS: readonly Condition[] = ['new', 'refurbished', 'used', 'any']
 const TARGET_TEXT_MAX = 120
@@ -374,6 +389,14 @@ function parsePickPatch(body: unknown): PickPatch | string {
       return `reason is longer than ${REASON_MAX} characters`
     }
     patch.reason = typeof b.reason === 'string' ? b.reason.trim() || null : null
+  }
+  if (b.delivery !== undefined) {
+    const d = b.delivery
+    const cents = typeof d === 'number' ? d * 100 : NaN
+    if (d !== null && !(cents >= 0 && cents <= DELIVERY_MAX * 100 && Math.abs(cents - Math.round(cents)) < 1e-6)) {
+      return `delivery must be euros from 0 to ${DELIVERY_MAX}, in cents, or null`
+    }
+    patch.delivery = d === null ? null : Math.round(cents) / 100
   }
   if (Object.keys(patch).length === 0) return 'nothing to change'
   return patch
