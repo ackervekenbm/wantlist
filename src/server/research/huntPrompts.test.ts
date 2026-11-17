@@ -79,6 +79,14 @@ describe('normalizeOffers', () => {
     expect(normalizeOffers({ offers: [{ url: 'https://a.be/x', title: 't' }] }, sel)[0]?.referral).toBe(false)
   })
 
+  it('reads stock as the page states it, unknown otherwise', () => {
+    const stock = (v: unknown) => normalizeOffers({ offers: [{ url: 'https://a.be/x', title: 't', stock: v }] }, sel)[0]?.stock
+    expect(stock('in_stock')).toBe('in_stock')
+    expect(stock('out_of_stock')).toBe('out_of_stock')
+    expect(stock('plenty')).toBe('unknown')
+    expect(stock(undefined)).toBe('unknown')
+  })
+
   it('drops urls that were not selected', () => {
     expect(normalizeOffers({ offers: [{ url: 'https://z.be', title: 't', match: 'exact' }] }, sel)).toEqual([])
   })

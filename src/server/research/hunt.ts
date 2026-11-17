@@ -164,6 +164,8 @@ export async function runHunt(deps: HuntDeps, req: ResearchRequest, plan: HuntPl
     // A page that only states stock gave no shop price: the shown price is the snippet's, so not checked.
     if (supplier && hit?.page.product?.price == null) supplier.checked = false
     if (!hit || !supplier) return []
+    // bol and others publish a price but no stock in their product data; the page text says it.
+    if (supplier.availability === 'unknown') supplier.availability = f.stock
     return [
       {
         rank: 0,

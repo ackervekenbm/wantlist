@@ -194,3 +194,33 @@ describe('hunt: the shop it started from', () => {
     expect(res.picks[0]?.url).not.toBe(OWN)
   })
 })
+
+describe('hunt: stock from the page text', () => {
+  /** States stock per page as the offer step would read it from the text. */
+  class StockModel extends HuntModel {
+    constructor(private readonly stock: Record<string, string>) {
+      super()
+    }
+    override async generate(args: GenerateArgs): Promise<unknown> {
+      if (!args.systemInstruction.includes('offer-reading')) return super.generate(args)
+      this.calls += 1
+      return { offers: SHOPS.slice(0, 3).map((url) => ({ ...FACTS(url, 1), stock: this.stock[url] })) }
+    }
+  }
+  const priceOnly = (price: number): Page => ({ ...page(price), product: product({ price }) })
+
+  it('uses the stock the page text states when the product data has none', async () => {
+    pages({ [SHOPS[0]]: priceOnly(20), [SHOPS[1]]: page(28), [SHOPS[2]]: page(50) })
+    const res = await engine(new StockModel({ [SHOPS[0]]: 'in_stock' })).research({ ideaId: 1, text: 'x', mode: 'hunt', target: TARGET })
+    expect(res.picks[0]).toMatchObject({ url: SHOPS[0], price: 20 })
+    expect(res.picks[0]?.suppliers[0]?.availability).toBe('in_stock')
+    expect(res.picks[0]?.offer?.group).toBe('best')
+  })
+
+  it('keeps the product data stock over the text', async () => {
+    const soldOut: Page = { ...page(20), product: product({ price: 20, availability: 'out_of_stock' }) }
+    pages({ [SHOPS[0]]: soldOut, [SHOPS[1]]: page(28), [SHOPS[2]]: page(50) })
+    const res = await engine(new StockModel({ [SHOPS[0]]: 'in_stock' })).research({ ideaId: 1, text: 'x', mode: 'hunt', target: TARGET })
+    expect(res.picks.find((p) => p.url === SHOPS[0])?.suppliers[0]?.availability).toBe('out_of_stock')
+  })
+})

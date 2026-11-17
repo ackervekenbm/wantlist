@@ -177,6 +177,9 @@ page return the facts of that shop's offer.
   free_over (with threshold in EUR, and cost when stated), pickup_only,
   no_be (does not deliver to Belgium), else "unknown". Never guess a shipping
   cost; when it is not on the page the kind is "unknown" and cost is empty.
+- stock: what the page states for this offer: "in_stock" (op voorraad, en
+  stock, morgen in huis, direct leverbaar), "out_of_stock" (uitverkocht,
+  niet leverbaar), else "unknown". Never guess.
 - sellerNote: one short English line about the seller or offer worth knowing
   (marketplace seller, delivery time, subscription price), or leave out.
 - referral: true when the page does not sell the product itself but sends
@@ -214,6 +217,7 @@ export const OFFER_SCHEMA = {
           },
           sellerNote: { type: 'string' },
           referral: { type: 'boolean', description: 'The page only sends buyers to another shop' },
+          stock: { type: 'string', enum: ['in_stock', 'out_of_stock', 'unknown'] },
         },
         required: ['url', 'title', 'match', 'packs', 'delivery'],
       },
@@ -246,7 +250,14 @@ function cleanDelivery(raw: unknown): Delivery {
 export function normalizeOffers(
   raw: unknown,
   selected: Set<string>,
-): Array<{ url: string; title: string; referral: boolean; facts: Omit<OfferFacts, 'delivered' | 'perUnit' | 'group'> }> {
+): Array<{
+  url: string
+  title: string
+  referral: boolean
+  /** Stock as the page text states it; the shop's product data wins over it. */
+  stock: 'in_stock' | 'out_of_stock' | 'unknown'
+  facts: Omit<OfferFacts, 'delivered' | 'perUnit' | 'group'>
+}> {
   const selectedNorm = new Set([...selected].map(normalizeUrl))
   const offers = (raw as { offers?: unknown })?.offers
   const seen = new Set<string>()
@@ -268,6 +279,7 @@ export function normalizeOffers(
         url,
         title: String(o.title ?? '').trim(),
         referral: o.referral === true,
+        stock: o.stock === 'in_stock' || o.stock === 'out_of_stock' ? o.stock : 'unknown',
         facts: {
           match,
           mismatch: match === 'mismatch' ? mismatch || 'not the target' : null,
