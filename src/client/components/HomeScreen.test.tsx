@@ -27,6 +27,7 @@ function renderHome(over: { ideas?: Idea[]; status?: ServerStatus | null; select
     onLists: vi.fn(),
     onRunningLow: vi.fn(),
     onAdd: vi.fn(async () => {}),
+    onNewIdea: vi.fn(),
     ...over,
   }
   render(<HomeScreen {...props} />)

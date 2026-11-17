@@ -20,6 +20,8 @@ interface Props {
   onLists: (tab: ListTab) => void
   onRunningLow: (id: number) => void
   onAdd: (idea: NewIdea) => Promise<void>
+  /** Back to the empty home, so a PC sidebar can start a fresh idea. */
+  onNewIdea: () => void
   /** False until the first fetch answers: capture works, the sections wait. */
   loaded?: boolean
 }
@@ -27,7 +29,7 @@ interface Props {
 const NEED_ORDER: Need[] = ['react', 'offer', 'nothing-new', 'stopped']
 
 /** Capture, what needs you, what the researcher is on, and the list tiles. */
-export function HomeScreen({ ideas, status, selectedId, selectedList = null, onOpen, onLists, onRunningLow, onAdd, loaded = true }: Props) {
+export function HomeScreen({ ideas, status, selectedId, selectedList = null, onOpen, onLists, onRunningLow, onAdd, onNewIdea, loaded = true }: Props) {
   // React first, then nothing new, then stopped; sort is stable, so server order holds within a group.
   const needs = ideas
     .flatMap((i) => {
@@ -48,6 +50,9 @@ export function HomeScreen({ ideas, status, selectedId, selectedList = null, onO
 
   return (
     <>
+      <button type="button" className="btn newidea" onClick={onNewIdea}>
+        + New idea
+      </button>
       <IdeaForm compact submitLabel="Add" placeholder="What do you want?" onSubmit={(idea) => onAdd(idea)} />
 
       {status && !status.researchEnabled ? (

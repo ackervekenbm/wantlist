@@ -18,11 +18,11 @@ describe('Shell', () => {
     expect(screen.getAllByText('a toast')).toHaveLength(1)
   })
 
-  it('shows the empty state in the right pane on home, the screen elsewhere', () => {
-    const { rerender, container } = render(<Shell route={{ name: 'home' }} left={null} right={<p>idea screen</p>} />)
-    expect(container.querySelector('.pane-right')).toHaveTextContent('Pick an idea on the left, or add one')
+  it('renders the right pane as given on every route', () => {
+    const { rerender, container } = render(<Shell route={{ name: 'home' }} left={null} right={null} />)
+    expect(container.querySelector('.pane-right')).toBeEmptyDOMElement()
+    expect(screen.queryByText('Pick an idea on the left, or add one')).not.toBeInTheDocument()
     rerender(<Shell route={{ name: 'idea', id: 1 }} left={null} right={<p>idea screen</p>} />)
     expect(container.querySelector('.pane-right')).toHaveTextContent('idea screen')
-    expect(screen.queryByText('Pick an idea on the left, or add one')).not.toBeInTheDocument()
   })
 })
