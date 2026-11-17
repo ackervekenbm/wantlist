@@ -472,6 +472,18 @@ describe('App', () => {
       expect(addBox()).toHaveFocus()
     })
 
+    it('PC: + New idea on home puts the cursor in the add box', async () => {
+      pc()
+      fakeApi([idea({ id: 1, title: 'Fan' })])
+      history.replaceState(null, '', '#/')
+      const user = userEvent.setup()
+      render(<App />)
+      const row = await screen.findByRole('button', { name: /Fan/ })
+      act(() => row.focus())
+      await user.click(screen.getByRole('button', { name: '+ New idea' }))
+      expect(addBox()).toHaveFocus()
+    })
+
     it('PC: a deep link to an idea focuses the idea, not the add box', async () => {
       pc()
       fakeApi([idea({ id: 1, title: 'Fan' })])
