@@ -4,6 +4,7 @@ import { figureOf, packText } from '../lib/hunt'
 import { ChevronIcon, ExternalIcon } from './icons'
 import { Leader, Section } from './Leader'
 import { figureText, STOCK } from './OfferSlip'
+import { PartnerNote } from './PartnerNote'
 
 interface Props {
   idea: Idea
@@ -54,6 +55,7 @@ function OfferRow({ idea, offer, unit, onBought }: { idea: Idea; offer: Pick; un
       <p className="osub">
         {apart ? <span className="flag">{sub[0]}</span> : <>{s?.checked ? <span className="ok">✓</span> : '≈'} {sub.join(' · ')}</>}
       </p>
+      {!apart && <PartnerNote partner={s?.partner} pay={f?.delivered ?? offer.price} />}
       <div className="erow-acts">
         <a className="linkish" href={offer.url} target="_blank" rel="noreferrer noopener">
           Open shop <ExternalIcon />

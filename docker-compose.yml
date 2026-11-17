@@ -18,6 +18,7 @@ services:
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
       WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-}
       WORKER_QUEUE_CAP: ${WORKER_QUEUE_CAP:-}
+      PARTNER_PROGRAMS: ${PARTNER_PROGRAMS:-}
     volumes:
       - wantlist-data:/app/data
     logging:

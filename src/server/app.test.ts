@@ -2,9 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_IDEA_LENGTH, createApp } from './app'
+import { MAX_IDEA_LENGTH, createApp, type AppOptions } from './app'
 import { REASON_MAX } from '../types/limits'
 import { claimIdea, completeIdea, createIdea, failIdea, getIdea, requeueIdea, type WlDb } from './db'
+import type { Idea } from '../types'
 import type { Worker } from './worker'
 import { researchResult, tempDb, tempDir } from './test/helpers'
 
@@ -18,10 +19,10 @@ function fakeWorker() {
   } satisfies Worker
 }
 
-function setup(opts: { missingKeys?: string[]; clientDist?: string } = {}) {
+function setup(opts: { missingKeys?: string[]; clientDist?: string; partners?: AppOptions['partners'] } = {}) {
   const { db } = tempDb()
   const worker = fakeWorker()
-  const app = createApp({ db, worker, missingKeys: opts.missingKeys ?? [], clientDist: opts.clientDist })
+  const app = createApp({ db, worker, missingKeys: opts.missingKeys ?? [], clientDist: opts.clientDist, partners: opts.partners })
   return { db, worker, api: request(app) }
 }
 
@@ -343,5 +344,20 @@ describe('hunt routes', () => {
     expect((await api.patch(`/api/ideas/${id}`).send({ mode: 'hunt' }).expect(200)).body.mode).toBe('hunt')
     claimIdea(db, id)
     await api.patch(`/api/ideas/${id}`).send({ mode: 'explore' }).expect(409)
+  })
+})
+
+describe('partner deals', () => {
+  it('fills each shop offer with its partner deal in the list and the single idea', async () => {
+    const partner = { program: 'Viking Deals', percent: 2, percentMax: 2, saving: 1, scope: null, until: null, link: 'https://p/' }
+    const partners = {
+      withPartners: (idea: Idea) => ({ ...idea, picks: idea.picks.map((p) => ({ ...p, suppliers: p.suppliers.map((s) => ({ ...s, partner })) })) }),
+    }
+    const { db, api } = setup({ partners })
+    const id = seedDone(db)
+    const list = await api.get('/api/ideas').expect(200)
+    expect(list.body[0].picks[0].suppliers[0].partner).toEqual(partner)
+    const one = await api.get(`/api/ideas/${id}`).expect(200)
+    expect(one.body.picks[0].suppliers[0].partner).toEqual(partner)
   })
 })

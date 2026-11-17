@@ -41,6 +41,30 @@ export interface PickSupplier {
   availability: Availability
   /** Price and stock were read from the shop page's own product data. */
   checked: boolean
+  /** A bill-discount partner deal at this shop; added when the API serves the idea. */
+  partner?: PartnerOffer | null
+}
+
+/**
+ * A partner program (Viking Deals, ...) gives part of the price back when the
+ * purchase starts from its page. Percentages differ by category or customer,
+ * so the lowest and highest are both kept.
+ */
+export interface PartnerOffer {
+  /** "Viking Deals". */
+  program: string
+  /** Lowest share of the item price back, in percent. */
+  percent: number
+  /** Highest; equals `percent` when the shop has one deal. */
+  percentMax: number
+  /** EUR back at `percent`; null without a price. */
+  saving: number | null
+  /** What the deal covers when the shop has one; null when it depends on what you buy. */
+  scope: string | null
+  /** Last day of a promotion (YYYY-MM-DD), or null. */
+  until: string | null
+  /** Start the purchase here, or it is not counted. */
+  link: string
 }
 
 export interface Rating {

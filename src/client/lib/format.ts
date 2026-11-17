@@ -65,3 +65,10 @@ export function deliveryText(d: Delivery, price: number | null): string {
       return 'delivery not shown'
   }
 }
+
+const pct = new Intl.NumberFormat('nl-BE', { maximumFractionDigits: 2 })
+
+/** "2%", or "1,5–2,5%" when the rate depends on what you buy. */
+export function percentText(min: number, max: number): string {
+  return max > min ? `${pct.format(min)}–${pct.format(max)}%` : `${pct.format(min)}%`
+}

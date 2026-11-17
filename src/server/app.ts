@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express'
-import type { Condition, HuntTarget, IdeaList, IdeaMode, IdeaPatch, ModelHealth, NewIdea, PickPatch, Preferences, Reaction, ServerStatus } from '../types'
+import type { Condition, HuntTarget, Idea, IdeaList, IdeaMode, IdeaPatch, ModelHealth, NewIdea, PickPatch, Preferences, Reaction, ServerStatus } from '../types'
 import { PREF_ITEMS_MAX, PREF_ITEM_CHARS, PREF_SUMMARY_CHARS, REASON_MAX, TITLE_MAX } from '../types/limits'
 import type { WlDb } from './db'
 import {
@@ -20,6 +20,7 @@ import {
   undoPurchase,
   updateIdea,
 } from './db'
+import type { Partners } from './partners'
 import type { Worker } from './worker'
 
 /** Longest idea text the API accepts (the capture box enforces the same). */
@@ -36,6 +37,8 @@ export interface AppOptions {
   missingKeys: string[]
   /** Model chain standing for /api/status; empty when no model is configured. */
   modelHealth?: () => ModelHealth[]
+  /** The owner's partner programs, filled into every shop offer served. */
+  partners?: Pick<Partners, 'withPartners'>
   /** Built client to serve; omitted (or missing on disk) serves the API only. */
   clientDist?: string
 }
@@ -44,6 +47,7 @@ export function createApp(opts: AppOptions): express.Express {
   const { db, worker } = opts
   const app = express()
   app.disable('x-powered-by')
+  const show = <T extends Idea | null>(idea: T): T => (idea && opts.partners ? (opts.partners.withPartners(idea) as T) : idea)
   app.use(express.json({ limit: '16kb' }))
 
   app.get('/api/health', (_req, res) => {
@@ -68,7 +72,7 @@ export function createApp(opts: AppOptions): express.Express {
   })
 
   app.get('/api/ideas', (_req, res) => {
-    res.json(listIdeas(db))
+    res.json(listIdeas(db).map(show))
   })
 
   app.get('/api/ideas/:id', (req, res) => {
@@ -76,7 +80,7 @@ export function createApp(opts: AppOptions): express.Express {
     if (id === null) return
     const idea = getIdea(db, id)
     if (!idea) return notFound(res)
-    res.json(idea)
+    res.json(show(idea))
   })
 
   app.post('/api/ideas', (req, res) => {
@@ -84,7 +88,7 @@ export function createApp(opts: AppOptions): express.Express {
     if (typeof parsed === 'string') return badRequest(res, parsed)
     const id = createIdea(db, parsed)
     worker.kick()
-    res.status(201).json(getIdea(db, id))
+    res.status(201).json(show(getIdea(db, id)))
   })
 
   app.patch('/api/ideas/:id', (req, res) => {
@@ -97,7 +101,7 @@ export function createApp(opts: AppOptions): express.Express {
       if (!idea) return notFound(res)
       // Back on the wanted list with research still pending: pick it up.
       if (idea.list === 'wanted' && idea.status === 'queued') worker.kick()
-      res.json(idea)
+      res.json(show(idea))
     } catch (err) {
       if (err instanceof PatchError) return badRequest(res, err.message)
       if (err instanceof BusyError) return busy(res)
@@ -119,7 +123,7 @@ export function createApp(opts: AppOptions): express.Express {
     if (typeof patch === 'string') return badRequest(res, patch)
     const idea = reactToPick(db, id, patch)
     if (!idea) return notFound(res)
-    res.json(idea)
+    res.json(show(idea))
   })
 
   const requeue = (requireSignal: boolean) => (req: Request, res: Response) => {
@@ -130,7 +134,7 @@ export function createApp(opts: AppOptions): express.Express {
     if (outcome === 'busy') return busy(res)
     if (outcome === 'nothing') return badRequest(res, 'react to a pick or edit the preferences first')
     worker.kick()
-    res.status(202).json(getIdea(db, id))
+    res.status(202).json(show(getIdea(db, id)))
   }
   app.post('/api/ideas/:id/refine', requeue(true))
   app.post('/api/ideas/:id/rerun', requeue(false))
@@ -145,7 +149,7 @@ export function createApp(opts: AppOptions): express.Express {
     if (idea === 'busy') return busy(res)
     if (idea === 'bad-pick') return badRequest(res, 'that pick is not part of this idea')
     worker.kick()
-    res.status(202).json(idea)
+    res.status(202).json(show(idea))
   })
 
   app.post('/api/ideas/:id/purchases', (req, res) => {
@@ -161,7 +165,7 @@ export function createApp(opts: AppOptions): express.Express {
     const idea = recordPurchase(db, id, { pickId: pickId as number | null, paid, refill })
     if (idea === null) return notFound(res)
     if (idea === 'bad-pick') return badRequest(res, 'that pick is not part of this idea')
-    res.status(201).json(idea)
+    res.status(201).json(show(idea))
   })
 
   app.post('/api/ideas/:id/running-low', (req, res) => {
@@ -171,7 +175,7 @@ export function createApp(opts: AppOptions): express.Express {
     if (idea === null) return notFound(res)
     if (idea === 'not-covered' || idea === 'busy') return busy(res)
     worker.kick()
-    res.status(202).json(idea)
+    res.status(202).json(show(idea))
   })
 
   app.delete('/api/purchases/:id', (req, res) => {
@@ -179,7 +183,7 @@ export function createApp(opts: AppOptions): express.Express {
     if (id === null) return
     const idea = undoPurchase(db, id)
     if (!idea) return notFound(res)
-    res.json(idea)
+    res.json(show(idea))
   })
 
   /** Debug: run a worker pass now and wait for it. */
