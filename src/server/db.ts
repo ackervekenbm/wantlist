@@ -658,6 +658,37 @@ export function reactToPick(db: WlDb, pickId: number, patch: PickPatch): Idea | 
 }
 
 /**
+ * The owner's delivery cost on one hunt offer (0 = free), or null to bring
+ * back what the shop page said; then that hunt's offers are ranked again by
+ * `rank` (the route supplies target and partner discount). 'not-offer' for an
+ * Explore pick, null for an unknown pick.
+ */
+export function setOfferDelivery(
+  db: WlDb,
+  pickId: number,
+  cost: number | null,
+  rank: (offers: Pick[], idea: Idea) => Pick[],
+): Idea | 'not-offer' | null {
+  return db.transaction(() => {
+    const row = db.prepare('SELECT idea_id AS ideaId FROM picks WHERE id = ?').get(pickId) as { ideaId: number } | undefined
+    if (!row) return null
+    const idea = getIdea(db, row.ideaId)!
+    const pick = idea.picks.find((p) => p.id === pickId)!
+    if (pick.kind !== 'offer' || !pick.offer) return 'not-offer'
+    const { foundDelivery, ...rest } = pick.offer
+    const found = foundDelivery ?? pick.offer.delivery
+    const offer: OfferFacts =
+      cost === null
+        ? { ...rest, delivery: found }
+        : { ...rest, foundDelivery: found, delivery: { kind: cost === 0 ? 'free' : 'paid', cost, threshold: null } }
+    const round = idea.picks.filter((p) => p.kind === 'offer' && p.round === pick.round).map((p) => (p.id === pickId ? { ...p, offer } : p))
+    const save = db.prepare('UPDATE picks SET rank = ?, offer = ? WHERE id = ?')
+    for (const p of rank(round, idea)) save.run(p.rank, JSON.stringify(p.offer), p.id)
+    return getIdea(db, row.ideaId)
+  })()
+}
+
+/**
  * After a crash or restart nothing is researching: anything left in that
  * state was interrupted, so it goes back to the queue.
  */

@@ -130,11 +130,12 @@ describe('Hunt: the best offer slip', () => {
     expect(within(slip).getByRole('link', { name: /Open shop/ })).toHaveAttribute('href', 'https://zooplus.be/feliway')
   })
 
-  it('says once that delivery is not shown, and that the total leaves it out', async () => {
+  it('says on its own Delivery line that delivery is not shown, and that the total leaves it out', async () => {
     const unknown = { delivery: { kind: 'unknown' as const, cost: null, threshold: null }, delivered: null, group: 'best' as const }
     await open([feliway({ target: { ...target, unit: null }, picks: [offer(11, 'Delta Bikes', 41.75, unknown)] })])
     const slip = pane().getByRole('group', { name: 'Best real offer' })
-    expect(slip.textContent?.match(/delivery not shown/g)).toHaveLength(1)
+    expect(slip).toHaveTextContent(/Delivery\s*not shown/)
+    expect(slip.textContent).not.toMatch(/delivery not shown/)
     expect(slip).toHaveTextContent(/You pay\s*without delivery\s*€41,75/)
   })
 
@@ -166,13 +167,46 @@ describe('Hunt: other shops', () => {
     expect(list.getAllByRole('listitem')).toHaveLength(2)
     expect(list.getByText('Bol')).toBeInTheDocument()
     expect(list.getByText('€20,82/vial')).toBeInTheDocument()
-    expect(list.getByText(/delivery not shown/)).toBeInTheDocument()
+    expect(list.getByText('not shown')).toBeInTheDocument()
+    expect(list.getAllByRole('listitem')[0]).toHaveTextContent('✓ checked · 6 × 48 ml vial €124,90 · in stock')
 
     const groups = others.querySelectorAll('details')
     expect(groups).toHaveLength(2)
     for (const g of groups) expect(g).not.toHaveAttribute('open')
     expect(groups[0].querySelector('summary')).toHaveTextContent('Pick-up only or no delivery to Belgium 1')
     expect(groups[1].querySelector('summary')).toHaveTextContent('Not the exact product 2')
+  })
+})
+
+describe('Hunt: your own delivery cost', () => {
+  it('takes what delivery costs from the cart, says you checked it, and Clear brings back the shop page', async () => {
+    const { api, user } = await open([feliway()])
+    const list = () => within(pane().getByRole('list', { name: 'Other shops' }))
+    await user.click(list().getByRole('button', { name: 'Delivery at 24PHARMA' }))
+    const sheet = within(await screen.findByRole('dialog', { name: 'Delivery from 24PHARMA' }))
+    expect(sheet.getByText(/The shop page said: delivery not shown/)).toBeInTheDocument()
+    expect(sheet.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument()
+    await user.type(sheet.getByRole('textbox', { name: /Delivery cost/ }), '3,95')
+    await user.click(sheet.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.writes().at(-1)).toEqual({ method: 'PATCH', path: '/api/picks/13', body: { delivery: 3.95 } }))
+    await waitFor(() => expect(list().getByText('€3,95, you checked')).toBeInTheDocument())
+
+    await user.click(list().getByRole('button', { name: 'Delivery at 24PHARMA' }))
+    const again = within(await screen.findByRole('dialog', { name: 'Delivery from 24PHARMA' }))
+    expect(again.getByRole('textbox', { name: /Delivery cost/ })).toHaveValue('3,95')
+    await user.click(again.getByRole('button', { name: 'Clear' }))
+    await waitFor(() => expect(api.writes().at(-1)).toEqual({ method: 'PATCH', path: '/api/picks/13', body: { delivery: null } }))
+    await waitFor(() => expect(list().getByText('not shown')).toBeInTheDocument())
+  })
+
+  it('takes 0 as free, and is offered on the best offer too', async () => {
+    const { api, user } = await open([feliway()])
+    const slip = pane().getByRole('group', { name: 'Best real offer' })
+    await user.click(within(slip).getByRole('button', { name: 'Delivery at Zooplus' }))
+    const sheet = within(await screen.findByRole('dialog', { name: 'Delivery from Zooplus' }))
+    await user.type(sheet.getByRole('textbox', { name: /Delivery cost/ }), '0')
+    await user.click(sheet.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.writes().at(-1)).toEqual({ method: 'PATCH', path: '/api/picks/11', body: { delivery: 0 } }))
   })
 })
 

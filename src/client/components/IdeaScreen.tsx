@@ -25,7 +25,7 @@ interface Props {
   status: ServerStatus | null
   /** Back home, after Archive or Remove. */
   onBack: () => void
-  actions: Pick<IdeasActions, 'patch' | 'rerun' | 'remove' | 'react' | 'refine' | 'switchMode' | 'huntPick' | 'buy' | 'runningLow'>
+  actions: Pick<IdeasActions, 'patch' | 'rerun' | 'remove' | 'react' | 'refine' | 'switchMode' | 'huntPick' | 'buy' | 'runningLow' | 'setDelivery'>
 }
 
 /** One idea: header with the mode switch, where research stands, then Explore (learned, picks, refine) or the hunt. */

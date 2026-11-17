@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { MAX_IDEA_LENGTH, createApp, type AppOptions } from './app'
 import { REASON_MAX } from '../types/limits'
 import { claimIdea, completeIdea, createIdea, failIdea, getIdea, requeueIdea, type WlDb } from './db'
-import type { Idea } from '../types'
+import type { Delivery, FinalPick, Idea } from '../types'
+import { rankOffers } from './research/rank'
 import type { Worker } from './worker'
 import { researchResult, tempDb, tempDir } from './test/helpers'
 
@@ -331,6 +332,54 @@ describe('hunt routes', () => {
     expect(worker.kick).toHaveBeenCalledOnce()
     await api.post(`/api/ideas/${id}/running-low`).expect(409)
     await api.post('/api/ideas/99/running-low').expect(404)
+  })
+
+  it('PATCH a hunt offer with your delivery cost re-ranks the hunt, and null clears it', async () => {
+    const { db, api } = setup()
+    const id = createIdea(db, 'pedals')
+    claimIdea(db, id)
+    const offer = (shop: string, price: number, delivery: Delivery): FinalPick => ({
+      rank: 0,
+      title: 'Shimano PD-RS500',
+      shop,
+      url: `https://${shop}.be/pd-rs500`,
+      price,
+      why: '',
+      caveat: null,
+      image: null,
+      rating: null,
+      sourceUrls: [],
+      suppliers: [{ shop, url: `https://${shop}.be/pd-rs500`, price, availability: 'in_stock', checked: true }],
+      kind: 'offer',
+      offer: { match: 'exact', mismatch: null, packs: 1, unitsPerPack: 1, delivery, delivered: null, perUnit: null, condition: 'new', sellerNote: null, group: 'exact' },
+    })
+    const hunt = { ...target, product: 'Shimano PD-RS500' }
+    const offers = rankOffers(
+      [offer('delta', 40, { kind: 'free_over', cost: null, threshold: 49 }), offer('mantel', 43, { kind: 'free', cost: null, threshold: null })],
+      { ...hunt, condition: 'new' },
+    )
+    completeIdea(db, id, { ...researchResult(offers), brief: { ...researchResult().brief, mode: 'hunt', target: { ...hunt, condition: 'new' } } })
+    const delta = getIdea(db, id)!.picks.find((p) => p.shop === 'delta')!
+    expect(delta.offer?.group).toBe('best') // an unknown delivery wins on its lower item price
+
+    const res = await api.patch(`/api/picks/${delta.id}`).send({ delivery: 4.95 }).expect(200)
+    const after = (shop: string) => (res.body as Idea).picks.find((p) => p.shop === shop)!
+    expect(after('delta').offer).toMatchObject({ delivery: { kind: 'paid', cost: 4.95 }, delivered: 44.95, group: 'exact', foundDelivery: { kind: 'free_over', threshold: 49 } })
+    expect(after('mantel').offer).toMatchObject({ delivered: 43, group: 'best' })
+    expect(after('mantel').rank).toBeLessThan(after('delta').rank)
+
+    const free = await api.patch(`/api/picks/${delta.id}`).send({ delivery: 0 }).expect(200)
+    expect((free.body as Idea).picks.find((p) => p.shop === 'delta')!.offer).toMatchObject({ delivery: { kind: 'free' }, delivered: 40, group: 'best' })
+
+    const cleared = await api.patch(`/api/picks/${delta.id}`).send({ delivery: null }).expect(200)
+    const back = (cleared.body as Idea).picks.find((p) => p.shop === 'delta')!.offer!
+    expect(back.delivery).toEqual({ kind: 'free_over', cost: null, threshold: 49 })
+    expect(back).not.toHaveProperty('foundDelivery')
+
+    for (const bad of [-1, 1001, 'x', 4.951]) await api.patch(`/api/picks/${delta.id}`).send({ delivery: bad }).expect(400)
+    const explore = seedDone(db)
+    await api.patch(`/api/picks/${pickOf(db, explore)}`).send({ delivery: 5 }).expect(400)
+    await api.patch('/api/picks/9999').send({ delivery: 5 }).expect(404)
   })
 
   it('PATCH takes mode and target and validates them', async () => {

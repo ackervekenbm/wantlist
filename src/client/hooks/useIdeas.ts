@@ -36,6 +36,8 @@ export interface IdeasActions {
   /** Switches to Hunt, drafting the target from this pick. */
   huntPick(id: number, pickId: number): Promise<void>
   buy(id: number, input: NewPurchase): Promise<void>
+  /** Your own delivery cost on a hunt offer (0 = free), or null for what the shop page said; the server re-ranks. */
+  setDelivery(pickId: number, cost: number | null): Promise<void>
   runningLow(id: number): Promise<void>
   /** Takes back the purchase in the toast. */
   undoBuy(): Promise<void>
@@ -201,6 +203,11 @@ export function useIdeas(): IdeasState & IdeasActions {
         if (boughtTimer.current) clearTimeout(boughtTimer.current)
         boughtTimer.current = setTimeout(() => setBought(null), UNDO_MS)
         setBought({ ideaId: id, purchaseId: updated.purchases[0].id, title: shownTitle(updated), covered: isCovered(updated) })
+      }),
+    setDelivery: (pickId, cost) =>
+      run(async () => {
+        writeSeq.current++
+        replace(await api.patchPick(pickId, { delivery: cost }))
       }),
     runningLow: (id) =>
       run(async () => {

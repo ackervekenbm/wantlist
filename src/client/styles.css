@@ -362,6 +362,7 @@ button.plate:hover{border-color:var(--ink-3)}
 .qlines{margin:10px 0 0;padding:0;list-style:none;font-size:14px;line-height:1.2}
 .qlines li{padding:5px 0;color:var(--ink-2)}
 .qlines .f{font-weight:600;color:var(--ink)}
+.qlines .linkish{margin:-14px 0 -14px -4px;font-size:inherit}
 .total{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:8px;padding-top:12px;border-top:1.5px solid var(--ink)}
 .total .lab{font-size:13px;color:var(--ink-2);flex:1;min-width:0;line-height:1.3}
 .big{font:650 38px/1 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.02em;white-space:nowrap}
@@ -384,6 +385,9 @@ button.plate:hover{border-color:var(--ink-3)}
 .off .erow-acts{margin:-6px 0 0 -4px}
 .osub{margin:3px 0 0;font-size:12.5px;color:var(--ink-2)}
 .osub .ok{color:var(--accent);font-weight:600}
+.odel{margin:6px 0 0;font-size:13px;color:var(--ink-2)}
+.odel .f{color:var(--ink);font-weight:500}
+.odel .linkish{margin:-14px 0 -14px -4px;font-size:inherit}
 .flag{display:inline-block;font:600 12.5px/1.3 var(--sans);padding:3px 7px;border-radius:5px;background:var(--warn-soft);color:var(--warn)}
 details.apart{margin-top:10px}
 details.apart summary{list-style:none;display:flex;align-items:center;gap:8px;min-height:48px;padding:0 14px;cursor:pointer;font-size:14px;color:var(--ink-2)}
