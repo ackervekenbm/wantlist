@@ -10,6 +10,8 @@ interface Props {
   budget: number | null
   /** Shown on the wanted list: records this pick as the one you bought. */
   onBought?: () => void
+  /** Hunts this exact product. */
+  onHunt?: () => void
 }
 
 const STOCK: Record<Availability, string | null> = {
@@ -20,7 +22,7 @@ const STOCK: Record<Availability, string | null> = {
 }
 
 /** What's on a deck card: photo, rank, your stamp, price, why, caveat and other shops. Keyed by pick by its parent. */
-export function PickCard({ pick, budget, onBought }: Props) {
+export function PickCard({ pick, budget, onBought, onHunt }: Props) {
   const [broken, setBroken] = useState(false)
   const [best, ...others] = pick.suppliers
   const stock = best && STOCK[best.availability]
@@ -95,13 +97,18 @@ export function PickCard({ pick, budget, onBought }: Props) {
         )}
       </div>
       <div className="pick-foot">
-        {onBought ? (
-          <button type="button" className="linkish" onClick={onBought}>
-            I bought this
-          </button>
-        ) : (
-          <span />
-        )}
+        <span>
+          {onBought && (
+            <button type="button" className="linkish" onClick={onBought}>
+              I bought this
+            </button>
+          )}
+          {onHunt && (
+            <button type="button" className="linkish" onClick={onHunt}>
+              Hunt this one
+            </button>
+          )}
+        </span>
         <a className="linkish" href={pick.url} target="_blank" rel="noreferrer noopener">
           Open shop <ExternalIcon />
         </a>

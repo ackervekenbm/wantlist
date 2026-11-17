@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { Idea, IdeaPatch, NewIdea, Pick, PickPatch, ServerStatus } from '../../types'
+import { isCovered, type Idea, type IdeaMode, type IdeaPatch, type NewIdea, type NewPurchase, type Pick, PickPatch, type ServerStatus } from '../../types'
 import * as api from '../api'
+import { shownTitle } from '../lib/triage'
 
 /** Poll this often while research is queued or running... */
 export const BUSY_POLL_MS = 5_000
@@ -16,6 +17,8 @@ export interface IdeasState {
   error: string | null
   /** The idea removed last, while it can still be undone. */
   removed: Idea | null
+  /** The purchase saved last, while it can still be undone. Never shown together with `removed`. */
+  bought: { ideaId: number; purchaseId: number; title: string; covered: boolean } | null
 }
 
 export interface IdeasActions {
@@ -29,6 +32,13 @@ export interface IdeasActions {
   /** Hides the idea now and deletes it once the undo window has passed. */
   remove(id: number): void
   undoRemove(): void
+  switchMode(id: number, mode: IdeaMode): Promise<void>
+  /** Switches to Hunt, drafting the target from this pick. */
+  huntPick(id: number, pickId: number): Promise<void>
+  buy(id: number, input: NewPurchase): Promise<void>
+  runningLow(id: number): Promise<void>
+  /** Takes back the purchase in the toast. */
+  undoBuy(): Promise<void>
   dismissError(): void
 }
 
@@ -43,6 +53,8 @@ export function useIdeas(): IdeasState & IdeasActions {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [removed, setRemoved] = useState<Idea | null>(null)
+  const [bought, setBought] = useState<IdeasState['bought']>(null)
+  const boughtTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ideasRef = useRef<Idea[]>([])
   // Layout effect: a tap right after new data must see that data, or a failed save has nothing to roll back to.
   useLayoutEffect(() => {
@@ -122,6 +134,7 @@ export function useIdeas(): IdeasState & IdeasActions {
     loaded,
     error,
     removed,
+    bought,
     add: async (idea) => {
       // The capture box shows its own error, so this one stays quiet.
       writeSeq.current++
@@ -167,8 +180,46 @@ export function useIdeas(): IdeasState & IdeasActions {
           throw err
         }
       }),
+    switchMode: (id, mode) =>
+      run(async () => {
+        writeSeq.current++
+        replace(await api.patchIdea(id, { mode }))
+        void refresh(true)
+      }),
+    huntPick: (id, pickId) =>
+      run(async () => {
+        writeSeq.current++
+        replace(await api.huntPick(id, pickId))
+        void refresh(true)
+      }),
+    buy: (id, input) =>
+      run(async () => {
+        writeSeq.current++
+        const updated = await api.buy(id, input)
+        replace(updated)
+        flushDelete()
+        if (boughtTimer.current) clearTimeout(boughtTimer.current)
+        boughtTimer.current = setTimeout(() => setBought(null), UNDO_MS)
+        setBought({ ideaId: id, purchaseId: updated.purchases[0].id, title: shownTitle(updated), covered: isCovered(updated) })
+      }),
+    runningLow: (id) =>
+      run(async () => {
+        writeSeq.current++
+        replace(await api.runningLow(id))
+        void refresh(true)
+      }),
+    undoBuy: () =>
+      run(async () => {
+        if (!bought) return
+        if (boughtTimer.current) clearTimeout(boughtTimer.current)
+        setBought(null)
+        writeSeq.current++
+        replace(await api.undoPurchase(bought.purchaseId))
+      }),
     remove: (id) => {
       flushDelete()
+      if (boughtTimer.current) clearTimeout(boughtTimer.current)
+      setBought(null)
       const idea = ideas.find((i) => i.id === id) ?? null
       setIdeas((list) => list.filter((i) => i.id !== id))
       setRemoved(idea)

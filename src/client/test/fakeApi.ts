@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import type { Idea, IdeaPatch, Pick, PickPatch, ServerStatus } from '../../types'
+import { isCovered, type Idea, type IdeaPatch, type NewPurchase, type Pick, type PickPatch, type Purchase, type ServerStatus } from '../../types'
 
 /** A pick with sensible defaults; override what the test is about. */
 export function pick(over: Partial<Pick> = {}): Pick {
@@ -10,6 +10,8 @@ export function pick(over: Partial<Pick> = {}): Pick {
     reason: null,
     ideaId: 1,
     rank: 1,
+    kind: 'pick',
+    offer: null,
     title: 'Wahoo KICKR Headwind',
     shop: 'Bikeshop',
     url: 'https://bikeshop.be/headwind',
@@ -54,6 +56,12 @@ export function idea(over: Partial<Idea> = {}): Idea {
     },
     preferencesEdited: false,
     freshSinceRound: null,
+    mode: 'explore',
+    modeByOwner: false,
+    target: null,
+    targetByOwner: false,
+    refill: null,
+    purchases: [],
     picks: [pick()],
     ...over,
   }
@@ -80,6 +88,7 @@ export function status(over: Partial<ServerStatus> = {}): ServerStatus {
 export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = status()) {
   let ideas = [...initial]
   let nextId = Math.max(0, ...initial.map((i) => i.id)) + 1
+  let nextPurchaseId = 1
   let failPickOnce = false
   let heldList: Promise<void> | null = null
   const calls: Array<{ method: string; path: string; body: unknown }> = []
@@ -91,7 +100,7 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
     const method = init.method ?? 'GET'
     const body: unknown = init.body ? JSON.parse(String(init.body)) : undefined
     calls.push({ method, path: input, body })
-    const m = /^\/api\/ideas\/(\d+)(?:\/(rerun|refine))?$/.exec(input)
+    const m = /^\/api\/ideas\/(\d+)(?:\/(rerun|refine|hunt|purchases|running-low))?$/.exec(input)
     const id = m ? Number(m[1]) : null
     const found = id !== null ? ideas.find((i) => i.id === id) : undefined
 
@@ -143,6 +152,20 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
       ideas = [created, ...ideas]
       return json(created, 201)
     }
+    const pu = /^\/api\/purchases\/(\d+)$/.exec(input)
+    if (pu && method === 'DELETE') {
+      const purchaseId = Number(pu[1])
+      const owner = ideas.find((i) => i.purchases.some((x) => x.id === purchaseId))
+      if (!owner) return json({ error: 'not found' }, 404)
+      const newest = owner.purchases[0].id === purchaseId
+      const updated: Idea = {
+        ...owner,
+        purchases: owner.purchases.filter((x) => x.id !== purchaseId),
+        ...(newest && { list: 'wanted' as const, bought: null }),
+      }
+      ideas = ideas.map((i) => (i.id === owner.id ? updated : i))
+      return json(updated)
+    }
     if (!found) return json({ error: 'not found' }, 404)
     if (method === 'DELETE') {
       ideas = ideas.filter((i) => i.id !== id)
@@ -151,12 +174,20 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
     if (method === 'PATCH') {
       if (found.text === 'broken') return json({ error: 'database is locked' }, 500)
       const p = body as IdeaPatch
+      if ((p.mode !== undefined || p.target !== undefined) && found.status === 'researching') {
+        return json({ error: 'being researched right now' }, 409)
+      }
+      // A mode without picks of its kind has to be researched first.
+      const needsRun = p.mode !== undefined && !found.picks.some((x) => x.kind === (p.mode === 'hunt' ? 'offer' : 'pick'))
       const chosen = p.boughtPickId != null ? found.picks.find((x) => x.id === p.boughtPickId) : null
       const updated: Idea = {
         ...found,
         ...(p.text !== undefined && { text: p.text }),
         ...(p.budget !== undefined && { budget: p.budget }),
         ...(p.notes !== undefined && { notes: p.notes }),
+        ...(p.mode !== undefined && { mode: p.mode, modeByOwner: true }),
+        ...(p.target !== undefined && { target: p.target, targetByOwner: p.target !== null }),
+        ...(needsRun && { status: 'queued' as const, list: 'wanted' as const, bought: null }),
         ...(p.title !== undefined && { title: p.title, titleByOwner: p.title !== null }),
         ...(p.preferences !== undefined && { preferences: p.preferences, preferencesEdited: true }),
         ...(p.list !== undefined && {
@@ -169,6 +200,49 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
       }
       ideas = ideas.map((i) => (i.id === id ? updated : i))
       return json(updated)
+    }
+    if (m?.[2] === 'hunt' && method === 'POST') {
+      if (found.status === 'researching') return json({ error: 'being researched right now' }, 409)
+      const { pickId } = body as { pickId: number }
+      if (!found.picks.some((x) => x.id === pickId)) return json({ error: 'no such pick' }, 400)
+      const updated: Idea = { ...found, mode: 'hunt', modeByOwner: true, status: 'queued', list: 'wanted', bought: null }
+      ideas = ideas.map((i) => (i.id === id ? updated : i))
+      return json(updated, 202)
+    }
+    if (m?.[2] === 'purchases' && method === 'POST') {
+      const b = body as NewPurchase
+      const chosen = b.pickId !== null ? found.picks.find((x) => x.id === b.pickId) : undefined
+      if (b.pickId !== null && !chosen) return json({ error: 'no such pick' }, 400)
+      const purchase: Purchase = {
+        id: nextPurchaseId++,
+        ideaId: found.id,
+        at: '2026-11-07T10:00:00.000Z',
+        shop: chosen?.shop ?? null,
+        url: chosen?.url ?? null,
+        title: chosen?.title ?? found.title ?? found.text,
+        packs: chosen?.offer?.packs ?? 1,
+        unitsPerPack: chosen?.offer?.unitsPerPack ?? null,
+        unitLabel: found.target?.unit ?? null,
+        paid: b.paid,
+        perUnit: chosen?.offer?.perUnit ?? null,
+      }
+      const updated: Idea = {
+        ...found,
+        list: 'bought',
+        refill: b.refill,
+        purchases: [purchase, ...found.purchases],
+        bought: chosen
+          ? { title: chosen.title, shop: chosen.shop, url: chosen.url, price: b.paid, at: purchase.at }
+          : null,
+      }
+      ideas = ideas.map((i) => (i.id === id ? updated : i))
+      return json(updated, 201)
+    }
+    if (m?.[2] === 'running-low' && method === 'POST') {
+      if (!isCovered(found)) return json({ error: 'not covered' }, 409)
+      const updated: Idea = { ...found, status: 'queued', list: 'wanted', bought: null }
+      ideas = ideas.map((i) => (i.id === id ? updated : i))
+      return json(updated, 202)
     }
     if (m?.[2] === 'refine' && method === 'POST') {
       if (!found.picks.some((x) => x.reaction) && !found.preferencesEdited) {

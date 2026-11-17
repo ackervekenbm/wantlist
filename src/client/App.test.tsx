@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import { UNDO_MS } from './hooks/useIdeas'
-import { fakeApi, idea, status } from './test/fakeApi'
+import { fakeApi, idea, pick, status } from './test/fakeApi'
 
 /** Renders the app on a route (`#/idea/1`, `#/lists/wanted`, …) once the ideas have loaded. */
 async function renderApp(hash = '#/') {
@@ -218,6 +218,32 @@ describe('App', () => {
     expect(await screen.findByText(/^Wahoo KICKR Headwind · Bikeshop · €\s249,99/)).toBeInTheDocument()
   })
 
+  it('covers a hunt on purchase and Undo puts it back in Needs you', async () => {
+    const offer = pick({
+      id: 5,
+      kind: 'offer',
+      offer: {
+        match: 'exact', mismatch: null, packs: 1, unitsPerPack: 3,
+        delivery: { kind: 'free', cost: null, threshold: null },
+        delivered: 59.95, perUnit: 19.98, condition: 'new', sellerNote: null, group: 'best',
+      },
+    })
+    const api = fakeApi([idea({ mode: 'hunt', title: 'Feliway refill', refill: true, target: { product: 'Feliway', variant: '', condition: 'new', exclude: [], unit: 'vial' }, picks: [offer] })])
+    const user = await renderApp('#/idea/1')
+    await user.click(within(screen.getByRole('group', { name: 'Best real offer' })).getByRole('button', { name: 'Bought here' }))
+    await user.click(within(await screen.findByRole('dialog', { name: /^Bought at/ })).getByRole('button', { name: 'Save purchase' }))
+    expect(api.writes()).toEqual([{ method: 'POST', path: '/api/ideas/1/purchases', body: { pickId: 5, paid: 59.95, refill: true } }])
+    expect(await screen.findByText("Covered. Feliway refill sleeps in the Pantry until you're running low.")).toBeInTheDocument()
+    expect(api.ideas()[0]).toMatchObject({ list: 'bought', refill: true })
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(screen.queryByText(/^Covered\./)).not.toBeInTheDocument())
+    expect(api.ideas()[0]).toMatchObject({ list: 'wanted', bought: null, purchases: [] })
+    const needs = await screen.findByRole('region', { name: /^Needs you/ })
+    expect(within(needs).getByText(/Feliway refill/)).toBeInTheDocument()
+    expect(within(needs).getByText('€19,98/vial')).toBeInTheDocument()
+  })
+
   it('archives an idea and brings it back', async () => {
     const api = fakeApi([idea()])
     const user = await renderApp('#/lists/wanted')
@@ -385,5 +411,16 @@ describe('App', () => {
     await waitFor(() => expect(location.hash).toBe('#/'))
     expect(history.length).toBe(entries)
     expect(screen.getByText('Pick an idea on the left, or add one')).toBeInTheDocument()
+  })
+
+  it('Running low on a pantry row posts and moves the hunt to With the researcher', async () => {
+    const api = fakeApi([idea({ id: 5, mode: 'hunt', list: 'bought', refill: true, title: 'Cat litter', picks: [] })])
+    const user = await renderApp()
+    const pantry = screen.getByRole('region', { name: /^Pantry/ })
+    await user.click(within(pantry).getByRole('button', { name: 'Running low on Cat litter' }))
+    const researcher = await screen.findByRole('region', { name: /^With the researcher/ })
+    expect(within(researcher).getByRole('button', { name: /Cat litter/ })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /^Pantry/ })).not.toBeInTheDocument()
+    expect(api.writes().map((w) => [w.method, w.path])).toContainEqual(['POST', '/api/ideas/5/running-low'])
   })
 })

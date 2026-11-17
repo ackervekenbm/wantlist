@@ -1,4 +1,4 @@
-import type { Idea, IdeaPatch, NewIdea, PickPatch, ServerStatus } from '../types'
+import type { Idea, IdeaPatch, NewIdea, NewPurchase, PickPatch, ServerStatus } from '../types'
 
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
@@ -50,4 +50,20 @@ export function patchPick(id: number, patch: PickPatch): Promise<Idea> {
 
 export function getStatus(): Promise<ServerStatus> {
   return req('/api/status')
+}
+
+export function huntPick(id: number, pickId: number): Promise<Idea> {
+  return req(`/api/ideas/${id}/hunt`, json('POST', { pickId }))
+}
+
+export function buy(id: number, input: NewPurchase): Promise<Idea> {
+  return req(`/api/ideas/${id}/purchases`, json('POST', input))
+}
+
+export function runningLow(id: number): Promise<Idea> {
+  return req(`/api/ideas/${id}/running-low`, { method: 'POST' })
+}
+
+export function undoPurchase(purchaseId: number): Promise<Idea> {
+  return req(`/api/purchases/${purchaseId}`, { method: 'DELETE' })
 }

@@ -8,18 +8,15 @@ import type {
   ResearchResult,
 } from '../../types'
 import { NOTHING_NEW, ResearchError } from './errors'
-import { fetchPage, type Page } from './http'
 import type { ModelRouter } from './llm'
 import {
   exclusionOf,
   isExcluded,
-  isListingUrl,
   mergePicksByProduct,
   mergeSuppliers,
   normalizeUrl,
   primaryFields,
   rankPicks,
-  type Exclusion,
 } from './offers'
 import {
   buildCandidateUser,
@@ -42,8 +39,10 @@ import {
   shownForPrompt,
   verifySchema,
   VERIFY_SYSTEM,
-  type CandidateInputRow,
 } from './prompts'
+import { runHunt } from './hunt'
+import { buildHuntPlanUser, HUNT_PLAN_SCHEMA, HUNT_PLAN_SYSTEM, normalizeHuntPlan } from './huntPrompts'
+import { checkedSupplier, mapLimit, PAGE_CONCURRENCY, PageCache, searchAll } from './shared'
 import type { SearchProvider } from './search'
 
 export interface PipelineEngineOptions {
@@ -55,12 +54,6 @@ export interface PipelineEngineOptions {
   sleep?: (ms: number) => Promise<void>
 }
 
-const BACKOFF_BASE_MS = 3000
-const MAX_TRANSIENT_RETRIES = 3
-const MAX_SEARCH_ROWS = 24
-/** Shop pages fetched at once while checking offers. */
-const PAGE_CONCURRENCY = 6
-
 export class PipelineEngine implements ResearchEngine {
   constructor(private readonly opts: PipelineEngineOptions) {}
 
@@ -69,6 +62,29 @@ export class PipelineEngine implements ResearchEngine {
     const progress = (msg: string) => log(`#${request.ideaId} ${msg}`)
     const step = request.onProgress ?? (() => {})
     const router = this.opts.router
+
+    const huntDeps = () => ({
+      router,
+      search: this.opts.search,
+      cache: new PageCache(),
+      step,
+      log: progress,
+      sleep: this.opts.sleep,
+    })
+    if (request.mode === 'hunt') {
+      step('working out what to look for')
+      progress('hunt: planning')
+      const hp = await router.generate(
+        {
+          systemInstruction: HUNT_PLAN_SYSTEM,
+          contents: buildHuntPlanUser(request),
+          schema: HUNT_PLAN_SCHEMA,
+          temperature: 0.3,
+        },
+        (raw) => normalizeHuntPlan(raw, request.target ?? null, !!request.targetByOwner),
+      )
+      return runHunt(huntDeps(), request, hp)
+    }
 
     const history = request.history ?? null
     const ex = exclusionOf(history?.picks ?? [])
@@ -102,6 +118,10 @@ export class PipelineEngine implements ResearchEngine {
         },
         normalizePlan,
       )
+      // Round 1 may turn out to be a hunt, unless the owner chose the mode.
+      if (!request.modeByOwner && p.mode === 'hunt' && p.target) {
+        return runHunt(huntDeps(), request, { target: p.target, refill: p.refill, title: p.title, searchQueries: p.searchQueries })
+      }
       const preferences = capPreferences({ summary: p.summary, mustHaves: p.criteria, avoid: [], likes: [] })
       plan = { title: p.title, preferences, searchQueries: p.searchQueries }
     }
@@ -109,7 +129,7 @@ export class PipelineEngine implements ResearchEngine {
     const preferences = plan.preferences
 
     step('searching shops and reviews')
-    const { rows: results, excludedAny } = await this.searchAll(plan.searchQueries, progress, ex)
+    const { rows: results, excludedAny } = await searchAll(this.opts.search, plan.searchQueries, progress, ex, this.opts.sleep)
     if (results.length === 0 && excludedAny) throw nothingNew()
     progress(`step 2: ${results.length} search hits`)
 
@@ -189,53 +209,6 @@ export class PipelineEngine implements ResearchEngine {
     }
   }
 
-  /**
-   * Runs every query, de-duplicating hits. One failed query is tolerated;
-   * when every query fails, the most telling error is rethrown (a refused key
-   * beats a flaky network), so the idea shows why instead of "no results".
-   * Hits the owner already saw, and category or search pages, are dropped
-   * before the row cap counts them.
-   */
-  private async searchAll(
-    queries: string[],
-    progress: (msg: string) => void,
-    ex: Exclusion,
-  ): Promise<{ rows: CandidateInputRow[]; excludedAny: boolean }> {
-    const rows: CandidateInputRow[] = []
-    const seen = new Set<string>()
-    const errors: ResearchError[] = []
-    let excludedAny = false
-    for (const q of queries) {
-      try {
-        const hits = await this.withRetry(() => this.opts.search.search(q))
-        progress(`step 2: searched "${q}" -> ${hits.length} hits`)
-        for (const h of hits) {
-          const key = normalizeUrl(h.url)
-          if (seen.has(key) || isListingUrl(h.url)) continue
-          seen.add(key)
-          // By URL only: a hit's title is the page title, not a product name to compare.
-          if (ex.urls.has(key)) {
-            excludedAny = true
-            continue
-          }
-          rows.push({ title: h.title, url: h.url, snippet: h.snippet })
-        }
-      } catch (err) {
-        progress(`step 2: search "${q}" failed: ${(err as Error).message}`)
-        errors.push(
-          err instanceof ResearchError ? err : new ResearchError((err as Error).message, { kind: 'transient' }),
-        )
-        if (errors.at(-1)?.kind === 'unavailable') break
-      }
-      if (rows.length >= MAX_SEARCH_ROWS) break
-    }
-    if (rows.length > 0 || excludedAny) return { rows, excludedAny }
-    if (errors.length > 0) throw errors.find((e) => e.kind === 'unavailable') ?? errors[errors.length - 1]
-    throw new ResearchError('The searches found nothing to buy. Try describing the idea differently.', {
-      kind: 'no-results',
-    })
-  }
-
   private fallbackFromPass1(candidates: ResearchCandidate[]): FinalPick[] {
     return mergePicksByProduct(
       candidates.map((c) => {
@@ -273,20 +246,11 @@ export class PipelineEngine implements ResearchEngine {
       let rating = pick.rating
       for (const s of pick.suppliers) {
         const page = await cache.get(s.url)
-        if (page.status === 'dead') continue
-        const product = page.product
-        if (!product) {
-          offers.push(s)
-          continue
-        }
-        offers.push({
-          ...s,
-          price: product.price ?? s.price,
-          availability: product.availability,
-          checked: product.price !== null || product.availability !== 'unknown',
-        })
-        image ??= product.image
-        rating ??= product.rating
+        const supplier = checkedSupplier(s, page)
+        if (!supplier) continue
+        offers.push(supplier)
+        image ??= page.product?.image ?? null
+        rating ??= page.product?.rating ?? null
       }
       if (offers.length === 0) continue
       const suppliers = mergeSuppliers(offers)
@@ -296,49 +260,4 @@ export class PipelineEngine implements ResearchEngine {
     const buyable = checked.filter((p) => !soldOut(p))
     return buyable.length > 0 ? buyable : checked
   }
-
-  private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
-    const sleep = this.opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        return await fn()
-      } catch (err) {
-        if (err instanceof ResearchError && err.kind === 'transient' && attempt < MAX_TRANSIENT_RETRIES) {
-          const base = err.retryAfterMs ?? BACKOFF_BASE_MS * 2 ** attempt
-          await sleep(Math.round(base * (0.8 + Math.random() * 0.4)))
-          continue
-        }
-        throw err
-      }
-    }
-  }
-}
-
-/** Each URL is fetched at most once per research run. */
-class PageCache {
-  private readonly pages = new Map<string, Promise<Page>>()
-
-  get(url: string): Promise<Page> {
-    const key = normalizeUrl(url)
-    let page = this.pages.get(key)
-    if (!page) {
-      page = fetchPage(url)
-      this.pages.set(key, page)
-    }
-    return page
-  }
-}
-
-/** Promise.all with at most `limit` tasks in flight, results in input order. */
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length)
-  let next = 0
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++
-      results[i] = await fn(items[i])
-    }
-  })
-  await Promise.all(workers)
-  return results
 }

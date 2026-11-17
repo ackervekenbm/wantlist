@@ -10,10 +10,12 @@ interface Props {
   onReact?: (pickId: number, patch: PickPatch) => Promise<void>
   /** Records this pick as the one you bought (wanted ideas). */
   onBought?: (pick: Pick) => void
+  /** Hunts this pick's exact product. */
+  onHunt?: (pick: Pick) => void
 }
 
 /** A compact pick: title and price on a dotted leader, the shop, and its own keycaps. */
-export function PickRow({ pick, onReact, onBought }: Props) {
+export function PickRow({ pick, onReact, onBought, onHunt }: Props) {
   return (
     <li className="erow">
       <Leader fig={pick.price === null ? '–' : priceText(pick.price, pick.suppliers[0]?.checked ?? false)}>
@@ -26,6 +28,11 @@ export function PickRow({ pick, onReact, onBought }: Props) {
         {onBought && (
           <button type="button" className="linkish" onClick={() => onBought(pick)}>
             I bought this
+          </button>
+        )}
+        {onHunt && (
+          <button type="button" className="linkish" onClick={() => onHunt(pick)}>
+            Hunt this one
           </button>
         )}
       </div>

@@ -6,7 +6,7 @@ const prefs = { summary: 's', mustHaves: [], avoid: [], likes: [] }
 
 function pick(round: number, title: string, reaction: Reaction | null, extra: Partial<Pick> = {}): Pick {
   return {
-    id: 0, ideaId: 1, rank: 1, round, reaction, reason: null, title, shop: 'Shop', url: `https://s.be/${title}`,
+    id: 0, ideaId: 1, rank: 1, kind: 'pick', offer: null, round, reaction, reason: null, title, shop: 'Shop', url: `https://s.be/${title}`,
     price: 10, why: 'w', caveat: null, image: null, rating: null, sourceUrls: [], fetchedAt: null,
     suppliers: [], ...extra,
   }
@@ -17,6 +17,7 @@ function idea(extra: Partial<Idea>): Idea {
     id: 1, text: 'fan', budget: null, notes: null, list: 'wanted', bought: null, status: 'done',
     createdAt: '', researchedAt: null, error: null, errorKind: null, attempts: 0, nextAttemptAt: null, title: null,
     titleByOwner: false, round: 1, preferences: prefs, preferencesEdited: false, freshSinceRound: null,
+    mode: 'explore', modeByOwner: false, target: null, targetByOwner: false, refill: null, purchases: [],
     picks: [], ...extra,
   }
 }
@@ -68,5 +69,12 @@ describe('buildHistory', () => {
     )!
     expect(h.mode).toBe('learn')
     expect(h.picks.map((p) => p.title).sort()).toEqual(['m', 'n'])
+  })
+
+  it('ignores hunt offers: null when only offers exist, else only the picks', () => {
+    const o = (title: string) => pick(2, title, null, { kind: 'offer' })
+    expect(buildHistory(idea({ round: 2, picks: [o('x')] }))).toBeNull()
+    const h = buildHistory(idea({ round: 3, picks: [pick(1, 'a', null), o('x'), o('y')] }))!
+    expect(h.picks.map((p) => p.title)).toEqual(['a'])
   })
 })

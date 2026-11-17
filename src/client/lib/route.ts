@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react'
 import type { IdeaList } from '../../types'
 
-// A hash router: #/, #/idea/<id>, #/lists/<wanted|bought|archived>.
+// A hash router: #/, #/idea/<id>, #/lists/<wanted|bought|archived|pantry>.
 
-export type Route = { name: 'home' } | { name: 'idea'; id: number } | { name: 'lists'; tab: IdeaList }
+/** Pantry is a filter over bought ideas (the covered hunts), not a stored list. */
+export type ListTab = IdeaList | 'pantry'
 
-const LISTS: readonly IdeaList[] = ['wanted', 'bought', 'archived']
+export type Route = { name: 'home' } | { name: 'idea'; id: number } | { name: 'lists'; tab: ListTab }
+
+const LISTS: readonly ListTab[] = ['wanted', 'bought', 'archived', 'pantry']
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, '')
   const idea = /^\/idea\/([1-9]\d*)$/.exec(path)
   if (idea) return { name: 'idea', id: Number(idea[1]) }
   const lists = /^\/lists\/(\w+)$/.exec(path)
-  if (lists && (LISTS as readonly string[]).includes(lists[1])) return { name: 'lists', tab: lists[1] as IdeaList }
+  if (lists && (LISTS as readonly string[]).includes(lists[1])) return { name: 'lists', tab: lists[1] as ListTab }
   return { name: 'home' }
 }
 

@@ -1,11 +1,12 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { Idea, IdeaList } from '../../types'
+import type { Idea } from '../../types'
+import type { ListTab } from '../lib/route'
 import { idea } from '../test/fakeApi'
 import { ListsScreen } from './ListsScreen'
 
-function setup(ideas: Idea[], tab: IdeaList = 'wanted') {
+function setup(ideas: Idea[], tab: ListTab = 'wanted') {
   const h = {
     onTab: vi.fn(),
     onOpen: vi.fn(),
@@ -74,5 +75,17 @@ describe('ListsScreen', () => {
     const rows = screen.getAllByRole('button', { name: /^Want / })
     expect(rows).toHaveLength(2)
     expect(within(document.body).getByText('Bought something else')).toBeInTheDocument()
+  })
+
+  it('Pantry shows only covered hunts, while Bought keeps every bought idea', () => {
+    const ideas = [
+      idea({ id: 1, mode: 'hunt', list: 'bought', refill: true, title: 'Cat litter' }),
+      idea({ id: 2, list: 'bought', title: 'Bought thing' }),
+    ]
+    setup(ideas, 'pantry')
+    expect(screen.getByRole('button', { name: /^Pantry\s*1$/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^Cat litter/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Bought thing/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /^Bought\s*2$/ })).toBeInTheDocument()
   })
 })

@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
-import type { Idea, IdeaList, NewIdea, ServerStatus } from '../../types'
-import { clockTime } from '../lib/format'
-import { isWorking, latestPicks, needOf, quotaResetAt, shownTitle, stepOf, type Need } from '../lib/triage'
-import { ChevronRightIcon, ExploreIcon } from './icons'
+import type { Idea, NewIdea, ServerStatus } from '../../types'
+import { clockTime, formatEur, perUnitText } from '../lib/format'
+import { bestOffer } from '../lib/hunt'
+import { isWorking, latestPicks, needOf, pantryOf, quotaResetAt, shownTitle, stepOf, type Need } from '../lib/triage'
+import { ChevronRightIcon, ExploreIcon, HuntIcon } from './icons'
 import { IdeaForm } from './IdeaForm'
 import { Leader, Section } from './Leader'
+import type { ListTab } from '../lib/route'
 import { TABS } from './ListsScreen'
 
 interface Props {
@@ -13,18 +15,19 @@ interface Props {
   /** The idea open in the right pane, highlighted on a PC. */
   selectedId: number | null
   /** The list open in the right pane, marked on its tile on a PC. */
-  selectedList?: IdeaList | null
+  selectedList?: ListTab | null
   onOpen: (id: number) => void
-  onLists: (tab: IdeaList) => void
+  onLists: (tab: ListTab) => void
+  onRunningLow: (id: number) => void
   onAdd: (idea: NewIdea) => Promise<void>
   /** False until the first fetch answers: capture works, the sections wait. */
   loaded?: boolean
 }
 
-const NEED_ORDER: Need[] = ['react', 'nothing-new', 'stopped']
+const NEED_ORDER: Need[] = ['react', 'offer', 'nothing-new', 'stopped']
 
 /** Capture, what needs you, what the researcher is on, and the list tiles. */
-export function HomeScreen({ ideas, status, selectedId, selectedList = null, onOpen, onLists, onAdd, loaded = true }: Props) {
+export function HomeScreen({ ideas, status, selectedId, selectedList = null, onOpen, onLists, onRunningLow, onAdd, loaded = true }: Props) {
   // React first, then nothing new, then stopped; sort is stable, so server order holds within a group.
   const needs = ideas
     .flatMap((i) => {
@@ -33,7 +36,8 @@ export function HomeScreen({ ideas, status, selectedId, selectedList = null, onO
     })
     .sort((a, b) => NEED_ORDER.indexOf(a.need) - NEED_ORDER.indexOf(b.need))
   const working = ideas.filter(isWorking)
-  const count = (list: IdeaList) => ideas.filter((i) => i.list === list).length
+  const pantry = pantryOf(ideas)
+  const count = (list: ListTab) => ideas.filter((i) => i.list === list).length
   const reset = status && quotaResetAt(status)
   const rowProps = (idea: Idea) => ({
     type: 'button' as const,
@@ -77,8 +81,8 @@ export function HomeScreen({ ideas, status, selectedId, selectedList = null, onO
               <div className="card rows">
                 {needs.map(({ idea, need }) => (
                   <button key={idea.id} className="row" {...rowProps(idea)}>
-                    <span className="glyph explore">
-                      <ExploreIcon />
+                    <span className={`glyph ${idea.mode === 'hunt' ? 'hunt' : 'explore'}`}>
+                      {idea.mode === 'hunt' ? <HuntIcon /> : <ExploreIcon />}
                     </span>
                     <span className="row-main">
                       <span className="row-title t1">{shownTitle(idea)}</span>
@@ -115,8 +119,36 @@ export function HomeScreen({ ideas, status, selectedId, selectedList = null, onO
             </Section>
           )}
 
+          {pantry.length > 0 && (
+            <Section title="Pantry" count={pantry.length}>
+              <div className="card rows">
+                {pantry.map((idea) => (
+                  <div key={idea.id} className="lrow">
+                    <button className="row" {...rowProps(idea)}>
+                      <span className="glyph hunt">
+                        <HuntIcon />
+                      </span>
+                      <span className="row-main">
+                        <span className="row-title t1">{shownTitle(idea)}</span>
+                        <span className="row-sub">Covered</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn small quiet"
+                      aria-label={`Running low on ${shownTitle(idea)}`}
+                      onClick={() => onRunningLow(idea.id)}
+                    >
+                      Running low
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
           <nav className="listlinks" aria-label="Lists">
-            {TABS.map(({ list, label }) => (
+            {TABS.filter(({ list }) => list !== 'pantry').map(({ list, label }) => (
               <button
                 key={list}
                 type="button"
@@ -139,6 +171,17 @@ function NeedLine({ idea, need }: { idea: Idea; need: Need }) {
     return (
       <Leader className="row-sub" fig={`${left} new pick${left === 1 ? '' : 's'}`}>
         <span className="act">React</span> · round {idea.round}
+      </Leader>
+    )
+  }
+  if (need === 'offer') {
+    const best = bestOffer(idea)
+    const unit = idea.target?.unit
+    const perUnit = best?.offer?.perUnit
+    const price = perUnit != null && unit ? perUnitText(perUnit, unit) : best?.offer?.delivered != null ? formatEur(best.offer.delivered) : ''
+    return (
+      <Leader className="row-sub" fig={price}>
+        <span className="act">Best offer</span>
       </Leader>
     )
   }

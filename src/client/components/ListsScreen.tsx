@@ -1,24 +1,31 @@
 import { useState } from 'react'
-import type { Idea, IdeaList, IdeaPatch } from '../../types'
+import { isCovered, type Idea, type IdeaPatch } from '../../types'
+import type { ListTab } from '../lib/route'
 import { boughtLine } from '../lib/format'
 import { matches } from '../lib/filter'
 import { isWorking, needOf, shownTitle } from '../lib/triage'
 import { BackLink } from './BackLink'
-import { ExploreIcon, SearchIcon } from './icons'
+import { ExploreIcon, HuntIcon, SearchIcon } from './icons'
 
-export const TABS: Array<{ list: IdeaList; label: string }> = [
+export const TABS: Array<{ list: ListTab; label: string }> = [
   { list: 'wanted', label: 'Wanted' },
   { list: 'bought', label: 'Bought' },
   { list: 'archived', label: 'Archived' },
+  { list: 'pantry', label: 'Pantry' },
 ]
+
+/** Pantry is the bought hunts you are covered on; every other tab is its stored list. */
+function inTabOf(idea: Idea, tab: ListTab): boolean {
+  return tab === 'pantry' ? isCovered(idea) : idea.list === tab
+}
 
 /** Above this many ideas in a list, a filter box appears. */
 const FILTER_FROM = 8
 
 interface Props {
   ideas: Idea[]
-  tab: IdeaList
-  onTab: (tab: IdeaList) => void
+  tab: ListTab
+  onTab: (tab: ListTab) => void
   onOpen: (id: number) => void
   onPatch: (id: number, patch: IdeaPatch) => void
   onRemove: (id: number) => void
@@ -33,8 +40,8 @@ export function ListsScreen({ ideas, tab, onTab, onOpen, onPatch, onRemove }: Pr
     setShownTab(tab)
     setFilter('')
   }
-  const count = (list: IdeaList) => ideas.filter((i) => i.list === list).length
-  const inTab = ideas.filter((i) => i.list === tab)
+  const count = (list: ListTab) => ideas.filter((i) => inTabOf(i, list)).length
+  const inTab = ideas.filter((i) => inTabOf(i, tab))
   const visible = filter.trim() ? inTab.filter((i) => matches(i, filter)) : inTab
 
   return (
@@ -72,8 +79,8 @@ export function ListsScreen({ ideas, tab, onTab, onOpen, onPatch, onRemove }: Pr
             return (
               <div key={idea.id} className="lrow">
                 <button type="button" className="row" data-idea-id={idea.id} onClick={() => onOpen(idea.id)}>
-                  <span className="glyph explore">
-                    <ExploreIcon />
+                  <span className={`glyph ${idea.mode === 'hunt' ? 'hunt' : 'explore'}`}>
+                    {idea.mode === 'hunt' ? <HuntIcon /> : <ExploreIcon />}
                   </span>
                   <span className="row-main">
                     <span className="row-title t1">{title}</span>
@@ -133,12 +140,13 @@ function subLine(idea: Idea): string {
   return `Resting · round ${idea.round}`
 }
 
-function Empty({ list, filtered }: { list: IdeaList; filtered: boolean }) {
+function Empty({ list, filtered }: { list: ListTab; filtered: boolean }) {
   if (filtered) return <div className="empty">Nothing matches that filter.</div>
   const text = {
     wanted: 'Nothing on the list.',
     bought: 'Nothing bought yet. When you buy one of the picks, press “I bought this” and it lands here.',
     archived: 'Nothing archived. Ideas you no longer want go here, out of the way but not forgotten.',
+    pantry: 'Nothing covered. Buy a hunted item and mark it covered, and it waits here until you run low.',
   }[list]
   return <div className="empty">{text}</div>
 }

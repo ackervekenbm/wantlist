@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { Idea, ServerStatus } from '../../types'
+import type { HuntTarget, Idea, ServerStatus } from '../../types'
 import { clockTime } from '../lib/format'
 import { idea, pick, status } from '../test/fakeApi'
 import { HomeScreen } from './HomeScreen'
@@ -25,6 +25,7 @@ function renderHome(over: { ideas?: Idea[]; status?: ServerStatus | null; select
     selectedId: null,
     onOpen: vi.fn(),
     onLists: vi.fn(),
+    onRunningLow: vi.fn(),
     onAdd: vi.fn(async () => {}),
     ...over,
   }
@@ -121,5 +122,33 @@ describe('HomeScreen', () => {
     renderHome({ ideas: [] })
     expect(screen.getByText('Nothing on the list.')).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Lists' })).not.toBeInTheDocument()
+  })
+
+  it('shows a done hunt under Needs you with its per-unit best offer and the Hunt glyph', () => {
+    const best = pick({
+      id: 50,
+      kind: 'offer',
+      offer: { match: 'exact', mismatch: null, packs: 3, unitsPerPack: 1, delivery: { kind: 'free', cost: null, threshold: null }, delivered: 59.95, perUnit: 19.98, condition: 'new', sellerNote: null, group: 'best' },
+    })
+    const target: HuntTarget = { product: 'Feliway', variant: '', condition: 'new', exclude: [], unit: 'vial' }
+    renderHome({ ideas: [idea({ id: 20, mode: 'hunt', title: 'Feliway refill', target, picks: [best] })] })
+    expect(row(20)).toHaveTextContent(/Feliway refill.*Best offer.*19,98.*vial/)
+    expect(row(20).querySelector('.glyph.hunt')).not.toBeNull()
+  })
+
+  it('lists covered hunts under Pantry and Running low calls back', async () => {
+    const { user, onRunningLow } = renderHome({
+      ideas: [idea({ id: 21, mode: 'hunt', list: 'bought', refill: true, title: 'Cat litter', picks: [] }), idea({ id: 22, list: 'bought', title: 'Bought thing' })],
+    })
+    const pantry = screen.getByRole('region', { name: /Pantry/ })
+    expect(within(pantry).getAllByRole('button', { name: /Cat litter/ })).toHaveLength(2)
+    expect(within(pantry).queryByText('Bought thing')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Running low on Cat litter' }))
+    expect(onRunningLow).toHaveBeenCalledWith(21)
+  })
+
+  it('has no Pantry section when nothing is covered', () => {
+    renderHome()
+    expect(screen.queryByRole('region', { name: /Pantry/ })).toBeNull()
   })
 })

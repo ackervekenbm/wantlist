@@ -284,3 +284,64 @@ describe('API: refine rounds', () => {
     await api.post(`/api/ideas/${id}/rerun`).expect(202)
   })
 })
+
+describe('hunt routes', () => {
+  const target = { product: 'Feliway refill', variant: '48 ml', condition: 'new', exclude: [], unit: null }
+  const pickOf = (db: WlDb, id: number) => getIdea(db, id)!.picks[0].id
+
+  it('starts a hunt from a pick: 202, kicks, and maps errors', async () => {
+    const { db, api, worker } = setup()
+    const id = seedDone(db)
+    const res = await api.post(`/api/ideas/${id}/hunt`).send({ pickId: pickOf(db, id) }).expect(202)
+    expect(res.body).toMatchObject({ mode: 'hunt', status: 'queued' })
+    expect(worker.kick).toHaveBeenCalledOnce()
+    await api.post(`/api/ideas/${id}/hunt`).send({ pickId: 9999 }).expect(400)
+    await api.post(`/api/ideas/${id}/hunt`).send({}).expect(400)
+    await api.post('/api/ideas/99/hunt').send({ pickId: 1 }).expect(404)
+    claimIdea(db, id)
+    await api.post(`/api/ideas/${id}/hunt`).send({ pickId: 1 }).expect(409)
+  })
+
+  it('records a purchase (201), validates it, and undoes it', async () => {
+    const { db, api } = setup()
+    const id = seedDone(db)
+    const pickId = pickOf(db, id)
+    const res = await api.post(`/api/ideas/${id}/purchases`).send({ pickId, paid: 59.95, refill: false }).expect(201)
+    expect(res.body).toMatchObject({ list: 'bought', purchases: [{ paid: 59.95 }] })
+    await api.post(`/api/ideas/${id}/purchases`).send({ pickId: null, paid: 5, refill: false }).expect(201)
+    for (const bad of [{ pickId, paid: 0, refill: true }, { pickId, paid: 2_000_000, refill: true }, { pickId, paid: 5 }, { paid: 5, refill: true }, { pickId: 9999, paid: 5, refill: true }])
+      await api.post(`/api/ideas/${id}/purchases`).send(bad).expect(400)
+    await api.post('/api/ideas/99/purchases').send({ pickId: null, paid: 5, refill: true }).expect(404)
+    const undone = await api.delete(`/api/purchases/${res.body.purchases[0].id}`).expect(200)
+    expect(undone.body.id).toBe(id)
+    await api.delete('/api/purchases/9999').expect(404)
+  })
+
+  it('running low queues a covered idea once, then 409', async () => {
+    const { db, api, worker } = setup()
+    const id = seedDone(db)
+    await api.post(`/api/ideas/${id}/running-low`).expect(409)
+    await api.post(`/api/ideas/${id}/hunt`).send({ pickId: pickOf(db, id) }).expect(202)
+    claimIdea(db, id)
+    completeIdea(db, id, researchResult())
+    await api.post(`/api/ideas/${id}/purchases`).send({ pickId: null, paid: 5, refill: true }).expect(201)
+    worker.kick.mockClear()
+    await api.post(`/api/ideas/${id}/running-low`).expect(202)
+    expect(worker.kick).toHaveBeenCalledOnce()
+    await api.post(`/api/ideas/${id}/running-low`).expect(409)
+    await api.post('/api/ideas/99/running-low').expect(404)
+  })
+
+  it('PATCH takes mode and target and validates them', async () => {
+    const { db, api } = setup()
+    const id = seedDone(db)
+    const res = await api.patch(`/api/ideas/${id}`).send({ target }).expect(200)
+    expect(res.body.target).toEqual(target)
+    await api.patch(`/api/ideas/${id}`).send({ target: { ...target, exclude: Array(7).fill('x') } }).expect(400)
+    await api.patch(`/api/ideas/${id}`).send({ target: { ...target, condition: 'broken' } }).expect(400)
+    await api.patch(`/api/ideas/${id}`).send({ mode: 'nope' }).expect(400)
+    expect((await api.patch(`/api/ideas/${id}`).send({ mode: 'hunt' }).expect(200)).body.mode).toBe('hunt')
+    claimIdea(db, id)
+    await api.patch(`/api/ideas/${id}`).send({ mode: 'explore' }).expect(409)
+  })
+})

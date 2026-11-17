@@ -17,10 +17,16 @@ import {
   nextScheduledAttempt,
   openDb,
   reactToPick,
+  recordPurchase,
   recoverInterrupted,
   requeueIdea,
+  runningLow,
+  startHunt,
+  undoPurchase,
   updateIdea,
 } from './db'
+import { isCovered } from '../types'
+import type { FinalPick, HuntTarget, OfferFacts } from '../types'
 import { finalPicks, researchResult, tempDb, tempDir } from './test/helpers'
 
 const NO_SIGNAL = { requireSignal: false }
@@ -445,5 +451,155 @@ describe('migrations', () => {
     const db = openDb(dir)
     expect(db.pragma('user_version', { simple: true })).toBe(SCHEMA_VERSION)
     db.close()
+  })
+})
+
+const TARGET: HuntTarget = { product: 'Feliway Friends refill', variant: '48 ml', condition: 'new', exclude: [], unit: 'vial' }
+const OFFER: OfferFacts = {
+  match: 'exact', mismatch: null, packs: 3, unitsPerPack: 1,
+  delivery: { kind: 'free', cost: 0, threshold: null }, delivered: 59.95, perUnit: 19.98,
+  condition: 'new', sellerNote: null, group: 'best',
+}
+const offerPick = (): FinalPick => ({ ...finalPicks()[0], kind: 'offer', offer: OFFER })
+const huntResult = (over: Partial<ReturnType<typeof researchResult>['brief']> = {}) => {
+  const r = researchResult([offerPick()])
+  return { ...r, brief: { ...r.brief, mode: 'hunt' as const, target: TARGET, refill: true, ...over } }
+}
+
+describe('hunt mode', () => {
+  it('migration 7 reads an older database as Explore', () => {
+    const dir = tempDir()
+    const old = new Database(path.join(dir, 'wantlist.db'))
+    old.exec(`
+      CREATE TABLE ideas (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', created_at TEXT NOT NULL DEFAULT (datetime('now')), researched_at TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, summary TEXT, criteria TEXT, budget REAL, notes TEXT, list TEXT NOT NULL DEFAULT 'wanted', bought TEXT, round INTEGER NOT NULL DEFAULT 0, preferences TEXT, preferences_edited INTEGER NOT NULL DEFAULT 0, title TEXT, title_by_owner INTEGER NOT NULL DEFAULT 0, fresh_since_round INTEGER, error_kind TEXT);
+      CREATE TABLE picks (id INTEGER PRIMARY KEY AUTOINCREMENT, idea_id INTEGER NOT NULL REFERENCES ideas(id) ON DELETE CASCADE, rank INTEGER NOT NULL, round INTEGER NOT NULL DEFAULT 1, reaction TEXT, reason TEXT, title TEXT NOT NULL, shop TEXT, url TEXT NOT NULL, price TEXT, why TEXT, source_urls TEXT, fetched_at TEXT, suppliers TEXT, caveat TEXT, image TEXT, rating TEXT);
+      INSERT INTO ideas (text, status) VALUES ('fan', 'done');
+      INSERT INTO picks (idea_id, rank, title, url) VALUES (1, 1, 'P1', 'https://a.be');
+      PRAGMA user_version = 6;
+    `)
+    old.close()
+    const db = openDb(dir)
+    expect(SCHEMA_VERSION).toBe(7)
+    const idea = getIdea(db, 1)!
+    expect(idea).toMatchObject({ mode: 'explore', modeByOwner: false, target: null, targetByOwner: false, refill: null, purchases: [] })
+    expect(idea.picks[0]).toMatchObject({ kind: 'pick', offer: null })
+    db.close()
+  })
+
+  it('completeIdea stores a hunt round', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'Feliway refill')
+    completeIdea(db, id, researchResult())
+    updateIdea(db, id, { preferences: PREFS })
+    const before = getIdea(db, id)!
+    completeIdea(db, id, huntResult())
+    const idea = getIdea(db, id)!
+    expect(idea).toMatchObject({ mode: 'hunt', target: TARGET, refill: true, preferences: PREFS, preferencesEdited: before.preferencesEdited })
+    expect(idea.picks[0]).toMatchObject({ kind: 'offer', offer: OFFER, round: 2 })
+  })
+
+  it("completeIdea keeps the owner's mode and target", () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'x')
+    const mine = { ...TARGET, product: 'Mine' }
+    updateIdea(db, id, { mode: 'hunt', target: mine })
+    completeIdea(db, id, huntResult({ mode: 'explore', target: TARGET, refill: false }))
+    expect(getIdea(db, id)).toMatchObject({ mode: 'hunt', target: mine, refill: false })
+    completeIdea(db, id, huntResult({ refill: true }))
+    expect(getIdea(db, id)?.refill).toBe(false)
+  })
+
+  it('startHunt drafts the target from a pick', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'refurbished Herman Miller chair')
+    completeIdea(db, id, researchResult([{ ...finalPicks()[0], title: 'Herman Miller Aeron size B' }]))
+    const pick = getIdea(db, id)!.picks[0]
+    const other = createIdea(db, 'other')
+    completeIdea(db, other, researchResult())
+    expect(startHunt(db, id, getIdea(db, other)!.picks[0].id)).toBe('bad-pick')
+    expect(startHunt(db, id, pick.id)).toMatchObject({
+      mode: 'hunt', modeByOwner: true, status: 'queued', list: 'wanted', targetByOwner: false,
+      target: { product: 'Herman Miller Aeron size B', variant: '', condition: 'refurbished', exclude: [], unit: null },
+    })
+    claimIdea(db, id)
+    expect(startHunt(db, id, pick.id)).toBe('busy')
+    expect(startHunt(db, 999, null)).toBeNull()
+  })
+
+  it('startHunt reads condition words, not word fragments', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'a focused, unused-looking desk lamp')
+    completeIdea(db, id, researchResult())
+    const idea = startHunt(db, id, getIdea(db, id)!.picks[0].id)
+    expect(idea).toMatchObject({ target: { condition: 'new' } })
+  })
+
+  it('recordPurchase from a hunt offer', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'Feliway refill')
+    completeIdea(db, id, huntResult())
+    const pickId = getIdea(db, id)!.picks[0].id
+    expect(recordPurchase(db, id, { pickId: 999, paid: 1, refill: true })).toBe('bad-pick')
+    const idea = recordPurchase(db, id, { pickId, paid: 59.95, refill: true }, new Date('2026-11-16T10:00:00Z')) as NonNullable<ReturnType<typeof getIdea>>
+    expect(idea.purchases).toHaveLength(1)
+    expect(idea.purchases[0]).toMatchObject({
+      packs: 3, unitsPerPack: 1, unitLabel: 'vial', paid: 59.95, perUnit: 19.98, at: '2026-11-16T10:00:00.000Z',
+    })
+    expect(idea).toMatchObject({ list: 'bought', refill: true })
+    expect(idea.bought?.title).toBe('A fan')
+    expect(isCovered(idea)).toBe(true)
+  })
+
+  it('Explore "I bought this" also writes a purchase', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'fan')
+    completeIdea(db, id, researchResult())
+    const [priced, unpriced] = getIdea(db, id)!.picks
+    updateIdea(db, id, { list: 'bought', boughtPickId: priced.id })
+    expect(getIdea(db, id)!.purchases).toMatchObject([{ paid: 89, packs: 1, perUnit: null, title: 'A fan' }])
+    const id2 = createIdea(db, 'fan 2')
+    completeIdea(db, id2, researchResult())
+    updateIdea(db, id2, { list: 'bought', boughtPickId: getIdea(db, id2)!.picks[1].id })
+    expect(unpriced.price).toBeNull()
+    expect(getIdea(db, id2)!.purchases).toEqual([])
+  })
+
+  it('runningLow', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'Feliway refill')
+    completeIdea(db, id, huntResult())
+    expect(runningLow(db, id)).toBe('not-covered')
+    recordPurchase(db, id, { pickId: getIdea(db, id)!.picks[0].id, paid: 59.95, refill: true })
+    expect(runningLow(db, id)).toMatchObject({ list: 'wanted', status: 'queued', attempts: 0 })
+    expect(runningLow(db, id)).toBe('not-covered')
+    expect(runningLow(db, 999)).toBeNull()
+  })
+
+  it('undoPurchase', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'Feliway refill')
+    completeIdea(db, id, huntResult())
+    const pickId = getIdea(db, id)!.picks[0].id
+    recordPurchase(db, id, { pickId, paid: 50, refill: true })
+    recordPurchase(db, id, { pickId, paid: 60, refill: true })
+    const [newest, older] = getIdea(db, id)!.purchases
+    expect(undoPurchase(db, older.id)).toMatchObject({ list: 'bought', purchases: [{ id: newest.id }] })
+    expect(undoPurchase(db, newest.id)).toMatchObject({ list: 'wanted', bought: null, purchases: [] })
+    expect(undoPurchase(db, newest.id)).toBeNull()
+  })
+
+  it('PATCH mode into a mode without picks of that kind queues a run', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'fan')
+    completeIdea(db, id, researchResult())
+    updateIdea(db, id, { list: 'bought' })
+    expect(updateIdea(db, id, { mode: 'hunt' })).toMatchObject({ mode: 'hunt', modeByOwner: true, status: 'queued', list: 'wanted' })
+    completeIdea(db, id, huntResult())
+    expect(updateIdea(db, id, { mode: 'hunt', target: TARGET })).toMatchObject({ status: 'done', targetByOwner: true })
+    expect(updateIdea(db, id, { target: null })).toMatchObject({ target: null, targetByOwner: false })
+    requeueIdea(db, id, NO_SIGNAL)
+    claimIdea(db, id)
+    expect(() => updateIdea(db, id, { mode: 'explore' })).toThrow(BusyError)
+    expect(() => updateIdea(db, id, { target: TARGET })).toThrow(BusyError)
   })
 })

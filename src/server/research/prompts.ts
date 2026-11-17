@@ -1,6 +1,9 @@
 import type {
+  Condition,
   FinalPick,
   HistoryPick,
+  HuntTarget,
+  IdeaMode,
   Pass1Result,
   PickSupplier,
   Preferences,
@@ -39,7 +42,7 @@ const BUDGET_RULE = `- When a budget is given, it is a ceiling: prefer products 
 - User notes are hard requirements unless they say otherwise.`
 
 /** Where the owner can actually buy: every step sees these. */
-const SHOP_RULES = `Where to buy (the owner lives in Belgium):
+export const SHOP_RULES = `Where to buy (the owner lives in Belgium):
 - Only shops that sell to private customers and deliver to Belgium.
 - Belgian shops and Dutch shops that deliver to Belgium are equally good:
   never rank a Dutch shop lower for being Dutch. When one shop has a Belgian
@@ -126,7 +129,7 @@ export function describeShown(shown: HistoryPick[]): string {
   return shown.map((p, i) => `${i + 1}. ${p.title}${p.shop ? ` | ${p.shop}` : ''}`).join('\n')
 }
 
-function cleanQueries(raw: unknown, what: string): string[] {
+export function cleanQueries(raw: unknown, what: string): string[] {
   const queries = (Array.isArray(raw) ? raw : [])
     .map((q) => String(q).trim())
     .filter(Boolean)
@@ -140,6 +143,40 @@ function cleanQueries(raw: unknown, what: string): string[] {
 // ---------------------------------------------------------------------------
 // Step 1 - research plan (no browsing: the app does the searching)
 // ---------------------------------------------------------------------------
+
+export const TARGET_SCHEMA = {
+  type: 'object',
+  description: 'The exact product a hunt looks for (hunt mode only)',
+  properties: {
+    product: { type: 'string', description: 'Brand and product name, e.g. "Feliway Classic"' },
+    variant: { type: 'string', description: 'Size, model or pack, e.g. "48 ml refill"; empty if none' },
+    condition: { type: 'string', enum: ['new', 'refurbished', 'used', 'any'] },
+    exclude: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Lines or variants that are NOT wanted, e.g. "Optimum"',
+    },
+    unit: { type: 'string', description: 'What packs are counted in ("vial", "kg"); empty when packs never differ' },
+  },
+  required: ['product', 'variant', 'condition'],
+} as const
+
+const CONDITIONS: Condition[] = ['new', 'refurbished', 'used', 'any']
+
+/** A hunt target from model output; null when it names no product. */
+export function cleanTarget(raw: unknown): HuntTarget | null {
+  const t = (raw ?? {}) as Record<string, unknown>
+  const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+  const product = text(t.product)
+  if (!product) return null
+  return {
+    product,
+    variant: text(t.variant),
+    condition: CONDITIONS.includes(t.condition as Condition) ? (t.condition as Condition) : 'new',
+    exclude: (Array.isArray(t.exclude) ? t.exclude : []).map(text).filter(Boolean).slice(0, 6),
+    unit: text(t.unit) || null,
+  }
+}
 
 export const QUERY_SYSTEM = `You are the planning step of a shopping-research bot that has NO internet access itself.
 A user describes a vague buying idea in plain words. Determine what they really
@@ -161,6 +198,14 @@ Requirements:
   user's notes into the queries and the criteria.
 - Give it a title: a short, specific English name for what is being looked
   for (e.g. "Quiet fan for indoor cycling"), at most 60 characters.
+- Also decide the mode. "hunt" when the text names ONE exact product to buy
+  (a model, a size, a refill: "Feliway Classic refill 48 ml"), where the
+  owner wants the best shop for exactly that. "explore" when they want ideas
+  or a choice between products. For a hunt, fill "target" (product, variant,
+  condition, things to exclude, unit if pack sizes differ) and say whether it
+  will be bought again ("refill"); the searchQueries then look for shops that
+  sell exactly the target. Refurbished is a valid target condition when the
+  text asks for it. For explore leave "target" out.
 
 ${SHOP_RULES}`
 
@@ -185,6 +230,13 @@ export const QUERY_SCHEMA = {
       items: { type: 'string' },
       description: '2-4 real search queries',
     },
+    mode: {
+      type: 'string',
+      enum: ['explore', 'hunt'],
+      description: 'hunt when the text names one exact product to buy, e.g. a model, size or refill',
+    },
+    target: TARGET_SCHEMA,
+    refill: { type: 'boolean', description: 'Will this be bought again when it runs out?' },
   },
   required: ['title', 'summary', 'criteria', 'searchQueries'],
 } as const
@@ -194,6 +246,9 @@ export interface ResearchPlan {
   summary: string
   criteria: string[]
   searchQueries: string[]
+  mode: IdeaMode
+  target: HuntTarget | null
+  refill: boolean | null
 }
 
 export function buildQueryUser(idea: IdeaInput): string {
@@ -203,11 +258,17 @@ export function buildQueryUser(idea: IdeaInput): string {
 export function normalizePlan(raw: unknown): ResearchPlan {
   const obj = raw as Partial<ResearchPlan>
   const queries = cleanQueries(obj.searchQueries, 'plan')
+  // A hunt without a usable target has nothing to hunt for.
+  const target = obj.mode === 'hunt' ? cleanTarget(obj.target) : null
+  const mode: IdeaMode = target ? 'hunt' : 'explore'
   return {
     title: String(obj.title ?? '').trim().slice(0, TITLE_MAX),
     summary: String(obj.summary ?? '').trim(),
     criteria: Array.isArray(obj.criteria) ? obj.criteria.map(String).filter(Boolean) : [],
     searchQueries: queries,
+    mode,
+    target,
+    refill: mode === 'hunt' && typeof obj.refill === 'boolean' ? obj.refill : null,
   }
 }
 

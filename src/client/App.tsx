@@ -46,6 +46,7 @@ export function App() {
         selectedList={route.name === 'lists' ? route.tab : null}
         onOpen={(id) => navigate({ name: 'idea', id })}
         onLists={(tab) => navigate({ name: 'lists', tab })}
+        onRunningLow={(id) => void state.runningLow(id).catch(() => {})}
         onAdd={state.add}
       />
     </div>
@@ -92,13 +93,26 @@ export function App() {
         )
       }
       toast={
-        state.removed && (
+        state.bought ? (
+          <div className="toast" role="status">
+            <span>
+              {state.bought.covered
+                ? `Covered. ${state.bought.title} sleeps in the Pantry until you're running low.`
+                : `Bought. ${state.bought.title} moved to Bought.`}
+            </span>
+            <button type="button" onClick={() => void state.undoBuy().catch(() => {})}>
+              Undo
+            </button>
+          </div>
+        ) : (
+          state.removed && (
           <div className="toast" role="status">
             <span>Removed “{truncate(state.removed.text, 40)}”</span>
             <button type="button" onClick={state.undoRemove}>
               Undo
             </button>
           </div>
+          )
         )
       }
     />

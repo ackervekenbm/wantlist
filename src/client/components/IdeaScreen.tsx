@@ -1,29 +1,34 @@
 import { Fragment, useState } from 'react'
-import type { Idea, Pick as PickT, ServerStatus } from '../../types'
+import { isCovered, type Idea, type Pick as PickT, type ServerStatus } from '../../types'
 import type { IdeasActions } from '../hooks/useIdeas'
 import { boughtLine, formatEur } from '../lib/format'
+import { exploreRounds, huntEyebrow } from '../lib/hunt'
 import { latestPicks, shownTitle } from '../lib/triage'
 import { BackLink } from './BackLink'
-import { ExploreIcon, ExternalIcon, MoreIcon } from './icons'
+import { ExploreIcon, ExternalIcon, HuntIcon, MoreIcon } from './icons'
 import { IdeaForm } from './IdeaForm'
 import { IdeaTitle } from './IdeaTitle'
 import { EarlierRounds } from './EarlierRounds'
+import { HuntView } from './HuntView'
 import { Keepers } from './Keepers'
+import { ModeSwitch } from './ModeSwitch'
+import { EarlierHunts } from './OfferList'
 import { PickDeck } from './PickDeck'
 import { PreferencesPanel } from './PreferencesPanel'
 import { RefineBar } from './RefineBar'
 import { Sheet } from './Sheet'
 import { Card, StatusCard } from './StatusCard'
+import { TargetPlate } from './TargetPlate'
 
 interface Props {
   idea: Idea
   status: ServerStatus | null
   /** Back home, after Archive or Remove. */
   onBack: () => void
-  actions: Pick<IdeasActions, 'patch' | 'rerun' | 'remove' | 'react' | 'refine'>
+  actions: Pick<IdeasActions, 'patch' | 'rerun' | 'remove' | 'react' | 'refine' | 'switchMode' | 'huntPick' | 'buy' | 'runningLow'>
 }
 
-/** One Explore idea: header, where research stands, what was learned, the picks and refine. */
+/** One idea: header with the mode switch, where research stands, then Explore (learned, picks, refine) or the hunt. */
 export function IdeaScreen({ idea, status, onBack, actions }: Props) {
   const [sheet, setSheet] = useState<'menu' | 'edit' | null>(null)
   const [editRequest, setEditRequest] = useState(0)
@@ -31,12 +36,15 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
   const busy = idea.status === 'researching'
   const pending = busy || idea.status === 'queued'
   const wanted = idea.list === 'wanted'
+  const hunt = idea.mode === 'hunt'
   const close = () => setSheet(null)
   const latest = latestPicks(idea)
-  const earlier = idea.picks.filter((p) => p.round !== latest[0]?.round)
+  const explore = exploreRounds(idea)
+  const earlier = explore.filter((p) => p.round !== latest[0]?.round)
   const bought = (pick: PickT) => fire(patch({ list: 'bought', boughtPickId: pick.id }))
   const patch = (p: Parameters<typeof actions.patch>[1]) => actions.patch(id, p)
   const rerun = () => fire(actions.rerun(id))
+  const huntPick = wanted && !pending ? (pick: PickT) => fire(actions.huntPick(id, pick.id)) : undefined
   /** Closes the menu, then runs the action. */
   const item = (label: string, run: () => void, danger = false) => (
     <li>
@@ -68,6 +76,7 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
     <div className="screen idea-screen">
       <div className="bar">
         <BackLink />
+        <ModeSwitch mode={idea.mode} disabled={busy} onSwitch={(mode) => fire(actions.switchMode(id, mode))} />
         <button type="button" className="iconbtn more" aria-label="Idea actions" onClick={() => setSheet('menu')}>
           <MoreIcon width={20} height={20} />
         </button>
@@ -75,7 +84,15 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
 
       <header className="head">
         <p className="kicker">
-          <ExploreIcon width={18} height={18} /> Explore · {idea.round > 0 ? `round ${idea.round}` : 'first round'}
+          {hunt ? (
+            <>
+              <HuntIcon width={18} height={18} /> {huntEyebrow(idea)}
+            </>
+          ) : (
+            <>
+              <ExploreIcon width={18} height={18} /> Explore · {idea.round > 0 ? `round ${idea.round}` : 'first round'}
+            </>
+          )}
         </p>
         <IdeaTitle idea={idea} onRename={(title) => patch({ title })} />
         {yours.length > 0 && (
@@ -90,7 +107,19 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
         )}
       </header>
 
-      {idea.list === 'bought' ? (
+      {hunt && idea.target && (
+        <TargetPlate
+          target={idea.target}
+          editable={!busy}
+          editRequest={editRequest}
+          onSave={async (target, again) => {
+            await patch({ target })
+            if (again) await actions.rerun(id)
+          }}
+        />
+      )}
+
+      {isCovered(idea) ? null : idea.list === 'bought' ? (
         <Card title="Bought">
           {idea.bought ? (
             <p>
@@ -112,41 +141,50 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
           idea={idea}
           status={status}
           onRerun={rerun}
-          onLoosen={idea.preferences ? () => setEditRequest((n) => n + 1) : undefined}
+          onLoosen={(hunt ? idea.target : idea.preferences) ? () => setEditRequest((n) => n + 1) : undefined}
           onReword={() => setSheet('edit')}
         />
       )}
 
-      <PickDeck key={`${id}-${latest[0]?.round}`} idea={idea} onReact={actions.react} onBought={bought} />
+      {hunt ? (
+        <HuntView idea={idea} actions={actions} />
+      ) : (
+        <>
+          <PickDeck key={`${id}-${latest[0]?.round}`} idea={idea} onReact={actions.react} onBought={bought} onHunt={huntPick} />
 
-      {idea.preferences && (
-        <PreferencesPanel
-          preferences={idea.preferences}
-          editable={!pending}
-          editRequest={editRequest}
-          onSave={(preferences) => patch({ preferences })}
-        />
-      )}
+          {idea.preferences && (
+            <PreferencesPanel
+              preferences={idea.preferences}
+              editable={!pending}
+              editRequest={editRequest}
+              onSave={(preferences) => patch({ preferences })}
+            />
+          )}
 
-      <Keepers
-        picks={earlier.filter((p) => p.reaction === 'yes')}
-        onReact={wanted ? actions.react : undefined}
-        onBought={wanted ? bought : undefined}
-      />
-      <EarlierRounds
-        picks={earlier}
-        onReact={wanted ? actions.react : undefined}
-        onBought={wanted ? bought : undefined}
-      />
+          <Keepers
+            picks={earlier.filter((p) => p.reaction === 'yes')}
+            onReact={wanted ? actions.react : undefined}
+            onBought={wanted ? bought : undefined}
+            onHunt={huntPick}
+          />
+          <EarlierRounds
+            picks={earlier}
+            onReact={wanted ? actions.react : undefined}
+            onBought={wanted ? bought : undefined}
+          />
 
-      {wanted && !pending && idea.picks.length > 0 && (
-        <RefineBar
-          reactions={latest.filter((p) => p.reaction).length}
-          round={idea.round}
-          anyReaction={idea.picks.some((p) => p.reaction)}
-          preferencesEdited={idea.preferencesEdited}
-          onRefine={() => actions.refine(id)}
-        />
+          <EarlierHunts idea={idea} />
+
+          {wanted && !pending && explore.length > 0 && (
+            <RefineBar
+              reactions={latest.filter((p) => p.reaction).length}
+              round={idea.round}
+              anyReaction={explore.some((p) => p.reaction)}
+              preferencesEdited={idea.preferencesEdited}
+              onRefine={() => actions.refine(id)}
+            />
+          )}
+        </>
       )}
 
       <Sheet open={sheet === 'menu'} onClose={close} title={shownTitle(idea)}>

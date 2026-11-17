@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createIdea, getIdea, reactToPick, requeueIdea } from './db'
+import { createIdea, getIdea, reactToPick, requeueIdea, updateIdea } from './db'
 import { ResearchError, type FailureKind } from './research/errors'
 import { DEFAULT_RETRY, createWorker, retryAt, type WorkerOptions } from './worker'
 import type { ResearchEngine, ResearchRequest, ResearchResult } from '../types'
@@ -232,5 +232,17 @@ describe('worker history', () => {
     expect(engine.calls[1].title).toBe('Quiet fan')
     expect(engine.calls[1].history?.mode).toBe('learn')
     expect(engine.calls[1].history?.picks.find((p) => p.reaction === 'no')).toBeDefined()
+  })
+})
+
+describe('worker hunt request', () => {
+  it('passes the idea mode and target to the engine', async () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'feliway')
+    const target = { product: 'Feliway', variant: '', condition: 'new' as const, exclude: [], unit: null }
+    updateIdea(db, id, { mode: 'hunt', target })
+    const engine = engineOf(async () => researchResult())
+    await makeWorker({ db, engine }).runOnce()
+    expect(engine.calls[0]).toMatchObject({ mode: 'hunt', modeByOwner: true, target, targetByOwner: true })
   })
 })

@@ -8,6 +8,8 @@ interface Props {
   idea: Idea
   onReact: (pickId: number, patch: PickPatch) => Promise<void>
   onBought: (pick: Pick) => void
+  /** Hunts this pick's exact product; absent while research runs. */
+  onHunt?: (pick: Pick) => void
 }
 
 const ADVANCE_MS = 250
@@ -24,7 +26,7 @@ function nextUnreacted(picks: Pick[], fromId: number): number | 'end' {
  * The newest round, one card at a time. The parent keys it by idea and round,
  * so a new round starts at its first unreacted pick.
  */
-export function PickDeck({ idea, onReact, onBought }: Props) {
+export function PickDeck({ idea, onReact, onBought, onHunt }: Props) {
   const picks = latestPicks(idea)
   const wanted = idea.list === 'wanted'
   // A pick id, not an index, so a poll can't move it.
@@ -127,7 +129,12 @@ export function PickDeck({ idea, onReact, onBought }: Props) {
             className={`card pick in${live?.id === pick.id ? ` out-${live.reaction === 'yes' ? 'r' : 'l'}` : ''}`}
             aria-label={`Pick ${n + 1} of ${picks.length}`}
           >
-            <PickCard pick={pick} budget={idea.budget} onBought={wanted ? () => onBought(pick) : undefined} />
+            <PickCard
+              pick={pick}
+              budget={idea.budget}
+              onBought={wanted ? () => onBought(pick) : undefined}
+              onHunt={wanted && onHunt ? () => onHunt(pick) : undefined}
+            />
           </article>
         ) : (
           <section className="card endcard" ref={cardRef} tabIndex={-1}>
