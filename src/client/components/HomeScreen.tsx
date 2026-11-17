@@ -20,7 +20,7 @@ interface Props {
   onLists: (tab: ListTab) => void
   onRunningLow: (id: number) => void
   onAdd: (idea: NewIdea) => Promise<void>
-  /** Back to the empty home, so a PC sidebar can start a fresh idea. */
+  /** Start a fresh idea: home, with the cursor in the add box on a PC. */
   onNewIdea: () => void
   /** False until the first fetch answers: capture works, the sections wait. */
   loaded?: boolean

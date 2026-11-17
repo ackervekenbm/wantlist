@@ -48,12 +48,13 @@ export function App() {
         onLists={(tab) => navigate({ name: 'lists', tab })}
         onRunningLow={(id) => void state.runningLow(id).catch(() => {})}
         onAdd={state.add}
-        onNewIdea={goHome}
+        onNewIdea={() => (route.name === 'home' ? focusAddBox() : goHome())}
       />
     </div>
   )
 
-  const right = !state.loaded ? (
+  // Home's main area holds only the add box (a PC shows it there), so no skeleton.
+  const right = !state.loaded && route.name !== 'home' ? (
     <div className="screen" aria-busy="true">
       <Skeleton />
     </div>
@@ -122,6 +123,8 @@ export function App() {
 
 const onPc = (): boolean => window.matchMedia?.('(min-width: 900px)').matches ?? false
 
+const focusAddBox = () => document.querySelector<HTMLElement>('.pane-left form[aria-label="Add an idea"] textarea')?.focus()
+
 /**
  * Opening an idea or the lists focuses that screen's h1 and scrolls to the
  * top; a tab switch on the lists leaves focus on the tab. Going back home
@@ -138,7 +141,7 @@ function useRouteFocus(route: Route, loaded: boolean) {
     first.current = false
     if (route.name === 'home') {
       if (onPc() && (isFirst || prev.name !== 'home')) {
-        document.querySelector<HTMLElement>('.pane-left form[aria-label="Add an idea"] textarea')?.focus()
+        focusAddBox()
         return
       }
       if (prev.name === 'home') return

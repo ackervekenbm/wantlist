@@ -116,7 +116,7 @@ The models run on free tiers, so wantlist routes around their limits: several Ge
 <details>
 <summary><strong>Phone and desktop</strong></summary>
 
-The home screen sorts ideas into *Needs you* (picks to react to, a hunt's best offer, nothing new found, stopped), *With the researcher*, and the *Pantry* of covered hunts with their **Running low** buttons. On a phone you see one screen at a time; on a PC (900 px wide or more) home is a centred add box with what needs you below it, and the cursor is already in the box. Open an idea and the list stays beside it as a sidebar with a **+ New idea** button; click the wantlist logo to get back home. Light, dark or system theme is one tap in the top bar, and a removed idea can be undone for a few seconds.
+The home screen sorts ideas into *Needs you* (picks to react to, a hunt's best offer, nothing new found, stopped), *With the researcher*, and the *Pantry* of covered hunts with their **Running low** buttons. On a phone you see one screen at a time; on a PC (900 px wide or more) the top bar and the list on the left stay put on every screen. Home puts the add box in the middle with the cursor already in it; open an idea and it takes that space. **+ New idea** or the wantlist logo brings the add box back. Light, dark or system theme is one tap in the top bar, and a removed idea can be undone for a few seconds.
 
 </details>
 
