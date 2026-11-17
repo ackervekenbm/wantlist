@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { HuntTarget, Idea, ServerStatus } from '../../types'
 import { clockTime } from '../lib/format'
-import { idea, pick, status } from '../test/fakeApi'
+import { fakeApi, idea, pick, status } from '../test/fakeApi'
+import { App } from '../App'
 import { HomeScreen } from './HomeScreen'
 
 const IDEAS: Idea[] = [
@@ -27,6 +28,7 @@ function renderHome(over: { ideas?: Idea[]; status?: ServerStatus | null; select
     onLists: vi.fn(),
     onRunningLow: vi.fn(),
     onAdd: vi.fn(async () => {}),
+    onNewIdea: vi.fn(),
     ...over,
   }
   render(<HomeScreen {...props} />)
@@ -150,5 +152,27 @@ describe('HomeScreen', () => {
   it('has no Pantry section when nothing is covered', () => {
     renderHome()
     expect(screen.queryByRole('region', { name: /Pantry/ })).toBeNull()
+  })
+
+  it('+ New idea goes home from an idea', async () => {
+    fakeApi([idea({ id: 1, title: 'Fan' })])
+    history.replaceState(null, '', '#/idea/1')
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('form', { name: 'Add an idea' })
+    await user.click(screen.getByRole('button', { name: '+ New idea' }))
+    expect(['', '#/', '#']).toContain(location.hash)
+  })
+
+  it('keeps a half-typed idea while an idea is open', async () => {
+    fakeApi([idea({ id: 1, title: 'Fan' })])
+    history.replaceState(null, '', '#/')
+    const user = userEvent.setup()
+    render(<App />)
+    const form = await screen.findByRole('form', { name: 'Add an idea' })
+    await user.type(within(form).getByRole('textbox'), 'fan for the bike')
+    await user.click(await screen.findByRole('button', { name: /Fan/ }))
+    await user.click(screen.getByRole('link', { name: 'Home' }))
+    expect(within(screen.getByRole('form', { name: 'Add an idea' })).getByRole('textbox')).toHaveValue('fan for the bike')
   })
 })

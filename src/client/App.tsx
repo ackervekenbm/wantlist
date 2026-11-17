@@ -48,6 +48,7 @@ export function App() {
         onLists={(tab) => navigate({ name: 'lists', tab })}
         onRunningLow={(id) => void state.runningLow(id).catch(() => {})}
         onAdd={state.add}
+        onNewIdea={goHome}
       />
     </div>
   )
