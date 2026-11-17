@@ -130,6 +130,14 @@ describe('Hunt: the best offer slip', () => {
     expect(within(slip).getByRole('link', { name: /Open shop/ })).toHaveAttribute('href', 'https://zooplus.be/feliway')
   })
 
+  it('says once that delivery is not shown, and that the total leaves it out', async () => {
+    const unknown = { delivery: { kind: 'unknown' as const, cost: null, threshold: null }, delivered: null, group: 'best' as const }
+    await open([feliway({ target: { ...target, unit: null }, picks: [offer(11, 'Delta Bikes', 41.75, unknown)] })])
+    const slip = pane().getByRole('group', { name: 'Best real offer' })
+    expect(slip.textContent?.match(/delivery not shown/g)).toHaveLength(1)
+    expect(slip).toHaveTextContent(/You pay\s*without delivery\s*€41,75/)
+  })
+
   it('notes a cheaper search price under the slip, never on it', async () => {
     await open([
       feliway({

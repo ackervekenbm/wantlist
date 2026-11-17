@@ -80,7 +80,7 @@ export function OfferSlip({ idea, best, unit, onBought }: Props) {
                 <>
                   You pay
                   <br />
-                  {f.delivered === null ? 'delivery not shown' : 'delivery included'}
+                  {f.delivered === null ? 'without delivery' : 'delivery included'}
                 </>
               )}
             </span>
