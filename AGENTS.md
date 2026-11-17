@@ -305,7 +305,8 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   left pane alone, centred, and any other route is a 340 px sidebar with
   `+ New idea` (the add box is hidden there) beside the right pane;
   `useRouteFocus` focuses the add box on a PC home,
-  with slots for a banner and the undo toast. `TopBar` holds the researcher
+  with slots for a banner and the undo toast. `TopBar` holds the logo (a link
+  home; on a PC it replaces `BackLink`, which is phone-only), the researcher
   chip (researching / queue / out of quota until… / research off) and the
   theme toggle (`lib/theme.ts`: system / light / dark, `data-theme` on
   `<html>` and the `theme-color` metas, stored in localStorage when available).

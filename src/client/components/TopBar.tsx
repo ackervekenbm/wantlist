@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { ServerStatus } from '../../types'
 import { clockTime } from '../lib/format'
+import { goHome } from '../lib/route'
 import { nextTheme, type Theme } from '../lib/theme'
 import { quotaResetAt } from '../lib/triage'
 import { LogoMark, MoonIcon, SunIcon, SystemThemeIcon } from './icons'
@@ -24,10 +25,18 @@ export function TopBar({ status, currentTitle, theme, onTheme }: TopBarProps) {
       <h1 className="sr" tabIndex={-1}>
         wantlist
       </h1>
-      <div className="mark" aria-hidden="true">
+      <a
+        className="mark"
+        href="#/"
+        aria-label="wantlist, home"
+        onClick={(e) => {
+          e.preventDefault()
+          goHome()
+        }}
+      >
         <LogoMark />
         <span>wantlist</span>
-      </div>
+      </a>
       <ResearcherChip status={status} currentTitle={currentTitle} />
       <button
         type="button"
