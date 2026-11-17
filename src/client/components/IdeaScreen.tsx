@@ -74,38 +74,41 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
 
   return (
     <div className="screen idea-screen">
-      <div className="bar">
-        <BackLink />
-        <ModeSwitch mode={idea.mode} disabled={busy} onSwitch={(mode) => fire(actions.switchMode(id, mode))} />
-        <button type="button" className="iconbtn more" aria-label="Idea actions" onClick={() => setSheet('menu')}>
-          <MoreIcon width={20} height={20} />
-        </button>
-      </div>
+      {/* Pinned while the picks or offers scroll under it. */}
+      <div className="idea-top">
+        <div className="bar">
+          <BackLink />
+          <ModeSwitch mode={idea.mode} disabled={busy} onSwitch={(mode) => fire(actions.switchMode(id, mode))} />
+          <button type="button" className="iconbtn more" aria-label="Idea actions" onClick={() => setSheet('menu')}>
+            <MoreIcon width={20} height={20} />
+          </button>
+        </div>
 
-      <header className="head">
-        <p className="kicker">
-          {hunt ? (
-            <>
-              <HuntIcon width={18} height={18} /> {huntEyebrow(idea)}
-            </>
-          ) : (
-            <>
-              <ExploreIcon width={18} height={18} /> Explore · {idea.round > 0 ? `round ${idea.round}` : 'first round'}
-            </>
-          )}
-        </p>
-        <IdeaTitle idea={idea} onRename={(title) => patch({ title })} />
-        {yours.length > 0 && (
-          <p className="yours">
-            {yours.map((part, i) => (
-              <Fragment key={i}>
-                {i > 0 && ' · '}
-                {part}
-              </Fragment>
-            ))}
+        <header className="head">
+          <p className="kicker">
+            {hunt ? (
+              <>
+                <HuntIcon width={18} height={18} /> {huntEyebrow(idea)}
+              </>
+            ) : (
+              <>
+                <ExploreIcon width={18} height={18} /> Explore · {idea.round > 0 ? `round ${idea.round}` : 'first round'}
+              </>
+            )}
           </p>
-        )}
-      </header>
+          <IdeaTitle idea={idea} onRename={(title) => patch({ title })} />
+          {yours.length > 0 && (
+            <p className="yours">
+              {yours.map((part, i) => (
+                <Fragment key={i}>
+                  {i > 0 && ' · '}
+                  {part}
+                </Fragment>
+              ))}
+            </p>
+          )}
+        </header>
+      </div>
 
       {hunt && idea.target && (
         <TargetPlate
