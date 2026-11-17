@@ -2,6 +2,7 @@ import path from 'node:path'
 import { createApp } from './app'
 import { openDb, recoverInterrupted } from './db'
 import { env, envInt, loadEnv } from './env'
+import { Partners } from './partners'
 import { buildModelRouter } from './research/chain'
 import { PipelineEngine } from './research/pipeline'
 import { SerperProvider } from './research/search'
@@ -12,6 +13,8 @@ loadEnv()
 const db = openDb(env('DATA_DIR', path.join(process.cwd(), 'data')))
 const recovered = recoverInterrupted(db)
 if (recovered > 0) console.log(`[worker] requeued ${recovered} idea(s) interrupted by a restart`)
+
+const partners = Partners.fromEnv(process.env.PARTNER_PROGRAMS, { log: (msg) => console.log(`[partners] ${msg}`) })
 
 const serperKey = process.env.SERPER_API_KEY
 const router = buildModelRouter(process.env, (msg) => console.log(`[llm] ${msg}`))
@@ -26,6 +29,7 @@ const engine =
         router,
         search: new SerperProvider(serperKey),
         onProgress: (msg) => console.log(`[research] ${msg}`),
+        partnerSaving: (url, price) => partners.saving(url, price),
       })
     : null
 
@@ -41,6 +45,7 @@ const app = createApp({
   worker,
   missingKeys,
   modelHealth: () => router?.health() ?? [],
+  partners,
   clientDist: path.join(process.cwd(), 'dist'),
 })
 
@@ -54,6 +59,7 @@ const server = app.listen(port, host, () => {
     console.log(`warning: ${missingKeys.join(' + ')} not set - research is disabled`)
   }
   worker.start()
+  partners.start()
   // Clear anything left queued by a restart.
   worker.kick()
 })
@@ -65,6 +71,7 @@ function shutdown(signal: string): void {
   shuttingDown = true
   console.log(`${signal} received, shutting down`)
   worker.stop()
+  partners.stop()
   server.close(() => {
     // An idea still mid-research stays `researching`; the next boot requeues it.
     db.close()

@@ -41,6 +41,7 @@ import {
   VERIFY_SYSTEM,
 } from './prompts'
 import { runHunt } from './hunt'
+import type { PartnerSaving } from './rank'
 import { buildHuntPlanUser, HUNT_PLAN_SCHEMA, HUNT_PLAN_SYSTEM, normalizeHuntPlan } from './huntPrompts'
 import { checkedSupplier, mapLimit, PAGE_CONCURRENCY, PageCache, searchAll } from './shared'
 import type { SearchProvider } from './search'
@@ -52,6 +53,8 @@ export interface PipelineEngineOptions {
   onProgress?: (message: string) => void
   /** Injectable sleep for tests (search retries). */
   sleep?: (ms: number) => Promise<void>
+  /** EUR back from the owner's partner programs, counted when ranking hunt offers. */
+  partnerSaving?: PartnerSaving
 }
 
 export class PipelineEngine implements ResearchEngine {
@@ -70,6 +73,7 @@ export class PipelineEngine implements ResearchEngine {
       step,
       log: progress,
       sleep: this.opts.sleep,
+      partnerSaving: this.opts.partnerSaving,
     })
     if (request.mode === 'hunt') {
       step('working out what to look for')

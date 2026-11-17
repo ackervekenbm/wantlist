@@ -13,7 +13,7 @@ import {
 import type { ModelRouter } from './llm'
 import { exclusionOf, normalizeUrl } from './offers'
 import { offer } from './prompts'
-import { rankOffers } from './rank'
+import { rankOffers, type PartnerSaving } from './rank'
 import type { SearchProvider } from './search'
 import { checkedSupplier, mapLimit, PAGE_CONCURRENCY, searchAll, type PageCache, type Sleep } from './shared'
 
@@ -26,6 +26,7 @@ export interface HuntDeps {
   step: (s: string) => void
   log: (s: string) => void
   sleep?: Sleep
+  partnerSaving?: PartnerSaving
 }
 
 export interface HuntPlan {
@@ -120,7 +121,7 @@ export async function runHunt(deps: HuntDeps, req: ResearchRequest, plan: HuntPl
   })
 
   step('ranking by delivered price')
-  const picks = rankOffers(offers, target)
+  const picks = rankOffers(offers, target, deps.partnerSaving)
   if (!picks.some((p) => p.offer?.group === 'best')) throw nothing()
   return {
     brief: {

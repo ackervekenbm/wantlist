@@ -341,6 +341,25 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   preferences; moving to bought with `boughtPickId` stores a snapshot of that
   pick, `boughtPickId: null` = bought something else. Budget and notes reach
   every prompt (`describeIdea` in `prompts.ts`).
+- `src/server/partners/` — bill-discount partner programs, opt-in with
+  `PARTNER_PROGRAMS` (comma-separated ids). `index.ts`: the `PartnerProgram`
+  interface (`id`, `name`, `load(fetch, today)` → `PartnerShop`s: `hosts`,
+  `names`, percentage `deals` with scope and promo end, the tracked-purchase
+  `link`), the `PROGRAMS` registry and `Partners`: loads each program at boot
+  and once a day, in memory only; a failed load keeps the last list (or none)
+  and only logs. A shop URL matches by host (or subdomain), else when a name
+  equals the bare host or its first label (`bol-com` ~ `bol.com`, `coolblue`
+  ~ `coolblue.be`). `offerFor` gives the `PartnerOffer` (lowest and highest
+  percent, EUR `saving` at the lowest, scope and end date only for a single
+  deal); with two programs the higher guaranteed rate wins. `app.ts` fills
+  `supplier.partner` on every idea it serves (`withPartners`), never stored;
+  the engine gets `partnerSaving`, which `rankOffers` subtracts from the
+  delivered price when ordering hunt offers. `vikingDeals.ts`: Viking Deals
+  from its public, unofficial listings endpoint: `affiliate` percentage deals
+  only, a promo outside its dates falls back to its baseline, 0% rows dropped.
+  New program: a loader file plus one entry in `PROGRAMS`. Client:
+  `PartnerNote` (≈ price after the discount, rate, **Open via …**) on the
+  pick card, the offer slip and other-shop rows.
 - `scripts/spike.ts` — run the research engine against a real key without the
   UI: `npm run spike "some idea"`.
 

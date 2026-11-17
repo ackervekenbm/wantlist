@@ -233,3 +233,16 @@ describe('Hunt: the mode switch', () => {
     expect(within(pane().getByRole('group', { name: 'Mode' })).getByRole('button', { name: 'Explore' })).toBeDisabled()
   })
 })
+
+describe('Hunt: partner deals', () => {
+  it('shows the price after the partner discount and links through the partner page', async () => {
+    const partner = { program: 'Viking Deals', percent: 2, percentMax: 2, saving: 1.2, scope: 'All purchases', until: '2026-11-30', link: 'https://mobilevikings.be/en/viking-deals/partners/zooplus/' }
+    const [best, ...rest] = offers
+    const withDeal = { ...best!, suppliers: best!.suppliers.map((s) => ({ ...s, partner })) }
+    await open([feliway({ picks: [withDeal, ...rest] })])
+    const slip = pane().getByRole('group', { name: 'Best real offer' })
+    expect(slip).toHaveTextContent('≈ € 58,75 after Viking Deals · 2% back on all purchases, until 30 Nov')
+    expect(within(slip).getByRole('link', { name: /Open via Viking Deals/ })).toHaveAttribute('href', partner.link)
+    expect(pane().getAllByRole('link', { name: /Open via/ })).toHaveLength(1)
+  })
+})

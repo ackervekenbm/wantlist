@@ -1,5 +1,8 @@
 import type { Delivery, FinalPick, HuntTarget, OfferFacts, OfferGroup } from '../../types'
 
+/** EUR a partner program gives back on a price at a shop URL; 0 when none. */
+export type PartnerSaving = (url: string, price: number) => number
+
 const cents = (n: number): number => Math.round(n * 100) / 100
 
 /** Item price plus delivery; null when either is not known. */
@@ -22,20 +25,22 @@ const GROUP_ORDER: OfferGroup[] = ['best', 'exact', 'unavailable', 'mismatch']
 
 /**
  * Fills delivered / perUnit / group and rank (1..n in display order).
+ * Offers compare on what they cost after a partner discount (`saving`).
  * Pure: returns new objects.
  */
-export function rankOffers(offers: FinalPick[], target: HuntTarget): FinalPick[] {
+export function rankOffers(offers: FinalPick[], target: HuntTarget, saving: PartnerSaving = () => 0): FinalPick[] {
   const rows = offers.flatMap((p) => {
     if (!p.offer) return []
     const s = p.suppliers[0]
     const price = s?.price ?? null
     const delivered = deliveredPrice(price, p.offer.delivery)
     const units = p.offer.packs * (p.offer.unitsPerPack ?? 1)
-    return [{ p, offer: p.offer, price, delivered, units, inStock: s?.availability === 'in_stock', checked: !!s?.checked }]
+    const back = s && price !== null ? saving(s.url, price) : 0
+    return [{ p, offer: p.offer, price, delivered, back, units, inStock: s?.availability === 'in_stock', checked: !!s?.checked }]
   })
   const perUnitMode = target.unit !== null && new Set(rows.map((r) => r.units)).size > 1
   const cmp = (r: (typeof rows)[number]): number =>
-    (r.delivered ?? r.price ?? Infinity) / (perUnitMode ? r.units || 1 : 1)
+    ((r.delivered ?? r.price ?? Infinity) - r.back) / (perUnitMode ? r.units || 1 : 1)
   const sorted = [...rows].sort(
     (a, b) =>
       Number(b.inStock) - Number(a.inStock) ||

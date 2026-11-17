@@ -95,3 +95,13 @@ describe('rankOffers', () => {
     expect(r[1].offer?.mismatch).toBe('refurbished')
   })
 })
+
+describe('rankOffers with a partner discount', () => {
+  it('ranks on the price after the partner gives part back, keeping the shop price on the offer', () => {
+    const input = [offer('A', 100, free), offer('B', 101, free)]
+    expect(order(rankOffers(input, target))).toEqual(['A:best', 'B:exact'])
+    const r = rankOffers(input, target, (url, price) => (url === 'https://B.be' ? price * 0.03 : 0))
+    expect(order(r)).toEqual(['B:best', 'A:exact'])
+    expect(r[0]?.offer?.delivered).toBe(101)
+  })
+})

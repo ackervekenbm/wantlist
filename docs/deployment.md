@@ -47,6 +47,7 @@ Compose → Settings**.
          OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
          WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-}
          WORKER_QUEUE_CAP: ${WORKER_QUEUE_CAP:-}
+         PARTNER_PROGRAMS: ${PARTNER_PROGRAMS:-}
        volumes:
          - CHANGE_TO_COMPOSE_DATA_PATH/wantlist-data:/app/data
        logging:
@@ -119,6 +120,7 @@ default.
 | `OPENROUTER_MODEL` | `google/gemma-4-31b-it:free` | Model used with the OpenRouter key |
 | `WORKER_INTERVAL_MS` | `900000` (15 min) | Longest wait between research passes; new ideas and scheduled retries start one sooner |
 | `WORKER_QUEUE_CAP` | `3` | Ideas researched per pass |
+| `PARTNER_PROGRAMS` | none | Bill-discount programs you use, comma-separated: `viking-deals` (Mobile Vikings). Partner shops then show the price after the discount and a link that starts a tracked purchase, and hunts rank on that price. The partner list is fetched once a day; when it can't be, offers just show without it |
 
 `/api/status` shows the model chain in effect, which models are benched for
 quota and until when, and the research queue.

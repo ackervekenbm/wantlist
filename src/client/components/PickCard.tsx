@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Availability, Pick } from '../../types'
 import { formatEur, priceText } from '../lib/format'
 import { ExternalIcon, ParcelIcon, StarIcon } from './icons'
+import { PartnerNote } from './PartnerNote'
 import { REACTION_LABEL } from './ReactionBar'
 
 interface Props {
@@ -61,6 +62,7 @@ export function PickCard({ pick, budget, onBought, onHunt }: Props) {
           )}
           {pick.shop && <span className="shop" title={pick.shop}>· {pick.shop}</span>}
         </p>
+        <PartnerNote partner={best?.partner} pay={pick.price} />
         {/* Its own line, so a wrap never starts with a separator. */}
         {(stock || pick.rating || overBudget) && (
           <p className="meta">

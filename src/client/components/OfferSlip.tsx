@@ -3,6 +3,7 @@ import { clockTime, deliveryText, eurTight, perUnitText, shortDate } from '../li
 import { figureOf, offersOf, packText, versusLast } from '../lib/hunt'
 import { ExternalIcon } from './icons'
 import { Leader } from './Leader'
+import { PartnerNote } from './PartnerNote'
 
 interface Props {
   idea: Idea
@@ -89,6 +90,7 @@ export function OfferSlip({ idea, best, unit, onBought }: Props) {
             </span>
           </div>
         )}
+        <PartnerNote partner={best.suppliers[0]?.partner} pay={pay} />
         {(vs || idea.purchases.length === 0) && (
           <p className="vs">
             {vs ? (

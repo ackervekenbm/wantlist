@@ -32,6 +32,7 @@ on free API tiers: €0 a month.
 - 👍 **React, then refine.** Mark each pick *No way*, *Kind of* or *Yes*, say why not, and the next round learns from it.
 - 🧾 **Preferences you can see.** What the researcher understood (must-haves, things to avoid, things you like) is written out, and you can edit it.
 - 🎯 **Hunt the exact thing.** Know exactly what to buy? Switch the idea to *Hunt* and it finds the cheapest real offer for that product, ranked by what you pay delivered. Refills come back with one tap.
+- 🤝 **Your discount partners count.** Use a bill-discount program like Viking Deals? Partner shops show what you pay after it, with a link that makes the purchase count.
 - 🛒 **Wanted, bought, archived.** *I bought this* keeps what you paid and where; only the wanted list is researched.
 - 🔒 **Yours.** One SQLite file on your own server, no accounts, no tracking. API keys stay on the server.
 
@@ -81,6 +82,7 @@ included. For Docker Compose and OpenMediaVault, see [Deployment](#deployment).
 - One product at several shops is one pick: **+2 shops** lists the other offers, cheapest in-stock offer first. Picks over your budget are flagged.
 - Known brands with real reviews rank above anonymous marketplace products, without excluding them.
 - Each pick carries one honest caveat, the thing to check before you buy ("loud on the top setting", "check size 36 is in stock").
+- **Discount partners (optional).** If you use a program that gives part of a purchase back on a bill, like Mobile Vikings' *Viking Deals*, turn it on with `PARTNER_PROGRAMS` (see the [settings](docs/deployment.md#settings)). An offer at a partner shop then says "≈ € 126,42 after Viking Deals · 2% back" (with a range when the rate depends on what you buy), and **Open via Viking Deals** starts the purchase on the partner page, which is what makes it count. Hunts rank offers on the price after the discount, so a partner wins a near-tie. The shop price stays the headline.
 
 </details>
 
@@ -124,6 +126,7 @@ Everything is in one SQLite file on your server (`/app/data/wantlist.db` in the
 container): your ideas, budgets, notes, preferences, reactions, picks, hunt targets and offers, and
 every purchase (what you paid, where, per unit). API keys live only in the server's environment, never in the
 browser or the database. The browser keeps only your theme choice.
+With a discount partner program turned on, the server also downloads that program's public partner list once a day and keeps it in memory; nothing about you is sent.
 
 There is **no login**, so keep wantlist on your home network or tailnet, and
 never forward a port to it from the internet.
@@ -164,7 +167,8 @@ fastest way to judge research quality.
 src/
 ├── client/          React UI (the "Quote Slip" design): screens, components, hooks
 ├── server/          Express API, SQLite store, background worker
-│   └── research/    the research pipeline, model providers, search, shop-page reading
+│   ├── research/    the research pipeline, model providers, search, shop-page reading
+│   └── partners/    bill-discount partner programs (Viking Deals)
 └── types/           types shared by client and server
 scripts/             the research spike and the README banner
 docs/                deployment guide, research design notes
