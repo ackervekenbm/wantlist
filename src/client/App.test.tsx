@@ -410,7 +410,7 @@ describe('App', () => {
     await renderApp('#/idea/999')
     await waitFor(() => expect(location.hash).toBe('#/'))
     expect(history.length).toBe(entries)
-    expect(screen.getByText('Pick an idea on the left, or add one')).toBeInTheDocument()
+    expect(document.querySelector('.pane-right')).toBeEmptyDOMElement()
   })
 
   it('Running low on a pantry row posts and moves the hunt to With the researcher', async () => {
