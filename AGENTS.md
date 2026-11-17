@@ -161,7 +161,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   Covered (the Pantry) is `mode = 'hunt' AND list = 'bought' AND refill = 1`,
   not a fourth list value (the `list` CHECK cannot change). `startHunt` switches
   to hunt (owner's choice) and queues a run, drafting the target from a pick
-  (condition from the idea's words, else new) and clears the `bought` snapshot; `recordPurchase` writes the
+  (condition from the idea's words, else new) and clears the `bought` snapshot;
+  it also stores that pick's shops in `hunt_from` (migration 8, `HuntSource[]`,
+  read by `huntSources`; the worker passes them as `huntFrom` on every run); `recordPurchase` writes the
   purchase, the `bought` snapshot, `list = 'bought'` and `refill`;
   `runningLow` (covered only) clears the snapshot and re-queues; `undoPurchase` deletes one and, if it
   was the newest, puts the idea back on wanted. Routes: `PATCH /api/ideas/:id`
@@ -220,12 +222,15 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   target and refill (never re-guessed once owner-set), and a hunt continues in the
   same run. `research/hunt.ts` (`runHunt`): queries for the exact target →
   search (nothing excluded: re-hunting should find the same shops) → the model
-  selects offer URLs from the results → pages read once through the `PageCache`
-  → shop pages that their affiliate links carry in the query are read too
-  (`referralTargets` in `http.ts`, `Page.referrals`; at most 3 per hunt) → one
-  model call returns `OfferFacts` per page (only what the page states;
-  delivery `unknown` otherwise; pages flagged `referral`, which only send
-  buyers on to another shop, are dropped) → price and stock from the shop's product data →
+  selects offer URLs from the results, plus the `huntFrom` shops → pages read
+  once through the `PageCache`; a page that can't be read (`unknown`) skips the
+  model and is listed as an unchecked offer with the `UNREADABLE` note, never best
+  → shop pages that the readable pages' affiliate links carry in the query are
+  read too (`referralTargets` in `http.ts`, `Page.referrals`; at most 3 per
+  hunt; an unreadable one is dropped) → one model call returns `OfferFacts` per
+  readable page (only what the page states; delivery `unknown` otherwise; pages
+  flagged `referral`, which only send buyers on to another shop, are dropped)
+  → price and stock from the shop's product data →
   `rank.ts`. `rankOffers` is pure code: `deliveredPrice` (free / paid /
   free-over threshold), per-unit when `target.unit` is set and packs differ,
   eligibility for best (exact match, checked price, in stock, deliverable), and
@@ -279,7 +284,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   text (page chrome dropped, `<main>` preferred) and the product data. Only
   404/410, a bounce to the home page, or a "not found" title count as
   **dead**; 401/403/429/5xx are bot walls or shop trouble and count as
-  unknown, so big marketplaces are not dropped. Never throws.
+  unknown, so big marketplaces are not dropped. A short "checking if you're
+  human" / "just a moment..." page is a bot check and counts as unknown too,
+  with no text. Never throws.
 - `src/client/` — React UI, the "Quote Slip" design. The app icon (a brass magnifier with a
   price tag in its lens) is drawn once in `scripts/gen-icons.mjs`: `npm run icons`
   writes `public/favicon.svg`, `apple-touch-icon.png` and `icons/` (192, 512,

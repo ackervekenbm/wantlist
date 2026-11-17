@@ -4,6 +4,7 @@ import Database from 'better-sqlite3'
 import type {
   Availability,
   BoughtPick,
+  HuntSource,
   HuntTarget,
   Idea,
   IdeaList,
@@ -144,6 +145,8 @@ const MIGRATIONS: Array<(db: WlDb) => void> = [
       CREATE INDEX IF NOT EXISTS idx_purchases_idea ON purchases(idea_id);
     `)
   },
+  // 8 - the shops of the pick a hunt started from, read on every run of it
+  (db) => addColumn(db, 'ideas', 'hunt_from', 'TEXT'),
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
@@ -553,11 +556,23 @@ export function startHunt(db: WlDb, id: number, pickId: number | null): Idea | n
           : 'new'
       target = { product: pick.title, variant: '', condition, exclude: [], unit: null }
     }
+    const from: HuntSource[] = (pick?.suppliers ?? []).map((s) => ({ url: s.url, shop: s.shop, title: pick?.title ?? '' }))
     db.prepare(
-      `UPDATE ideas SET mode = 'hunt', mode_by_owner = 1, target = ?, target_by_owner = 0, bought = NULL, ${QUEUE_NOW} WHERE id = ?`,
-    ).run(target ? JSON.stringify(target) : null, id)
+      `UPDATE ideas SET mode = 'hunt', mode_by_owner = 1, target = ?, target_by_owner = 0, hunt_from = ?, bought = NULL, ${QUEUE_NOW} WHERE id = ?`,
+    ).run(target ? JSON.stringify(target) : null, from.length ? JSON.stringify(from) : null, id)
     return getIdea(db, id)
   })()
+}
+
+/** The shops of the pick a hunt started from; empty for any other idea. */
+export function huntSources(db: WlDb, id: number): HuntSource[] {
+  const row = db.prepare('SELECT hunt_from AS huntFrom FROM ideas WHERE id = ?').get(id) as { huntFrom: string | null } | undefined
+  try {
+    const list: unknown = JSON.parse(row?.huntFrom ?? '[]')
+    return Array.isArray(list) ? (list as HuntSource[]) : []
+  } catch {
+    return []
+  }
 }
 
 /**

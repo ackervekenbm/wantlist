@@ -64,6 +64,18 @@ describe('fetchPage', () => {
     expect((await fetchPage(URL_)).status).toBe('live')
   })
 
+  it('calls a bot check unknown, never a live page', async () => {
+    respond("<html><head><title>Human verification</title></head><body><main>Checking if you're human We are running a quick security check to protect this site from bots.</main></body></html>")
+    expect(await fetchPage(URL_)).toMatchObject({ status: 'unknown', text: '' })
+    respond('<html><head><title>Just a moment...</title></head><body>Enable JavaScript and cookies to continue</body></html>')
+    expect((await fetchPage(URL_)).status).toBe('unknown')
+  })
+
+  it('keeps a shop page that merely mentions reCAPTCHA live', async () => {
+    respond(`<html><head><title>Fan | Shop</title></head><body><main>${'Quiet 40 dB desk fan. '.repeat(80)}</main><footer>This site is protected by reCAPTCHA</footer></body></html>`)
+    expect((await fetchPage(URL_)).status).toBe('live')
+  })
+
   it('calls a soft-404 page dead', async () => {
     respond('<title>Pagina niet gevonden - Shop</title>')
     expect((await fetchPage(URL_)).status).toBe('dead')

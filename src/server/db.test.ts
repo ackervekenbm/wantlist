@@ -22,6 +22,7 @@ import {
   requeueIdea,
   runningLow,
   startHunt,
+  huntSources,
   undoPurchase,
   updateIdea,
 } from './db'
@@ -479,7 +480,7 @@ describe('hunt mode', () => {
     `)
     old.close()
     const db = openDb(dir)
-    expect(SCHEMA_VERSION).toBe(7)
+    expect(SCHEMA_VERSION).toBe(8)
     const idea = getIdea(db, 1)!
     expect(idea).toMatchObject({ mode: 'explore', modeByOwner: false, target: null, targetByOwner: false, refill: null, purchases: [] })
     expect(idea.picks[0]).toMatchObject({ kind: 'pick', offer: null })
@@ -524,6 +525,22 @@ describe('hunt mode', () => {
     claimIdea(db, id)
     expect(startHunt(db, id, pick.id)).toBe('busy')
     expect(startHunt(db, 999, null)).toBeNull()
+  })
+
+  it('startHunt remembers the shops of the pick it starts from', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'fan')
+    completeIdea(db, id, researchResult())
+    const pick = getIdea(db, id)!.picks[0]
+    startHunt(db, id, pick.id)
+    expect(huntSources(db, id)).toEqual([
+      { url: 'https://shop.be/fan', shop: 'Shop Be', title: 'A fan' },
+      { url: 'https://alt.eu/fan', shop: 'Alt Shop', title: 'A fan' },
+    ])
+    requeueIdea(db, id, { requireSignal: false })
+    expect(huntSources(db, id)).toHaveLength(2)
+    startHunt(db, id, null)
+    expect(huntSources(db, id)).toEqual([])
   })
 
   it('startHunt reads condition words, not word fragments', () => {

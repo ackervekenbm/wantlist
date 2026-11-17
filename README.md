@@ -89,7 +89,7 @@ included. For Docker Compose and OpenMediaVault, see [Deployment](#deployment).
 <details>
 <summary><strong>Hunting an exact product</strong></summary>
 
-- Every idea is in **Explore** (3–5 different products) or **Hunt** (one exact product, the cheapest offer). The first run guesses which from your text; the **Explore / Hunt** switch at the top of an idea overrules it. **Hunt this one** on a pick turns the idea into a hunt for that product, and your Explore rounds stay reachable.
+- Every idea is in **Explore** (3–5 different products) or **Hunt** (one exact product, the cheapest offer). The first run guesses which from your text; the **Explore / Hunt** switch at the top of an idea overrules it. **Hunt this one** on a pick turns the idea into a hunt for that product, and your Explore rounds stay reachable. The shop that pick came from is always checked again, and a shop whose page can't be read (some block automated visits) is still listed, with a note to check it yourself.
 - A hunt has a **target**: product, variant, condition (new, refurbished, used or any) and what doesn't count ("not Optimum"). It's drafted for you and editable.
 - Offers are ranked by **what you pay delivered**: item price plus delivery. A delivery cost the shop doesn't state is never guessed: it says "delivery not shown". When pack sizes differ, offers compare **per unit** (per vial, per kg).
 - The best offer gets a slip with a **Bought here** button; the other shops are listed below it. Pick-up only, no delivery to Belgium and "not the exact product" offers sit in folded groups, never on top. There's no reacting to offers: a hunt reads like a quote.

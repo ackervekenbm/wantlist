@@ -72,10 +72,12 @@ export async function fetchPage(url: string): Promise<Page> {
   }
   const title = extractTitle(html)
   if (looksNotFound(title)) return { ...UNKNOWN, status: 'dead' }
+  const text = extractText(html)
+  if (looksLikeBotCheck(title, text)) return UNKNOWN
   return {
     status: 'live',
     title,
-    text: extractText(html),
+    text,
     product: extractProductData(html, res.url || url),
     referrals: referralTargets(html, res.url || url),
   }
@@ -131,6 +133,15 @@ function bouncedToHome(requested: string, res: Response): boolean {
   } catch {
     return false
   }
+}
+
+/** A "checking if you're human" page stands in for the shop page: nothing on it is the shop's. */
+function looksLikeBotCheck(title: string, text: string): boolean {
+  // Only short pages: a real product page may mention reCAPTCHA in its footer.
+  if (text.length > 1500) return false
+  return /checking if you('|’)?re (a )?human|verify(ing)? (that )?you are (a )?human|human verification|just a moment\.\.\.|attention required|are you a robot|ben je een robot|enable javascript and cookies to continue/i.test(
+    `${title} ${text}`,
+  )
 }
 
 function looksNotFound(title: string): boolean {

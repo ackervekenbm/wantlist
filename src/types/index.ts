@@ -320,6 +320,13 @@ export interface ResearchResult {
   picks: FinalPick[]
 }
 
+/** A shop page a hunt always reads: the pick it was started from. */
+export interface HuntSource {
+  url: string
+  shop: string
+  title: string
+}
+
 export interface ResearchRequest {
   ideaId: number
   text: string
@@ -331,6 +338,8 @@ export interface ResearchRequest {
   target?: HuntTarget | null
   targetByOwner?: boolean
   modeByOwner?: boolean
+  /** Shop pages a hunt reads besides what search finds. */
+  huntFrom?: HuntSource[]
   /** Called with a short human-readable step ("searching shops", ...). */
   onProgress?: (step: string) => void
 }

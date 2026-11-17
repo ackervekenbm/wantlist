@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createIdea, getIdea, reactToPick, requeueIdea, updateIdea } from './db'
+import { claimIdea, completeIdea, createIdea, getIdea, reactToPick, requeueIdea, startHunt, updateIdea } from './db'
 import { ResearchError, type FailureKind } from './research/errors'
 import { DEFAULT_RETRY, createWorker, retryAt, type WorkerOptions } from './worker'
 import type { ResearchEngine, ResearchRequest, ResearchResult } from '../types'
@@ -243,6 +243,17 @@ describe('worker hunt request', () => {
     updateIdea(db, id, { mode: 'hunt', target })
     const engine = engineOf(async () => researchResult())
     await makeWorker({ db, engine }).runOnce()
-    expect(engine.calls[0]).toMatchObject({ mode: 'hunt', modeByOwner: true, target, targetByOwner: true })
+    expect(engine.calls[0]).toMatchObject({ mode: 'hunt', modeByOwner: true, target, targetByOwner: true, huntFrom: [] })
+  })
+
+  it('passes the shops of the pick the hunt started from', async () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'fan')
+    claimIdea(db, id)
+    completeIdea(db, id, researchResult())
+    startHunt(db, id, getIdea(db, id)!.picks[0].id)
+    const engine = engineOf(async () => researchResult())
+    await makeWorker({ db, engine }).runOnce()
+    expect(engine.calls[0]?.huntFrom?.map((s) => s.url)).toEqual(['https://shop.be/fan', 'https://alt.eu/fan'])
   })
 })
