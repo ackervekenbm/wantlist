@@ -160,9 +160,37 @@ describe('hunt: referral sites', () => {
     expect(res.picks[0]?.offer?.group).toBe('best')
   })
 
+  it('drops a linked shop page it cannot read instead of listing a nameless offer', async () => {
+    pages({ [SHOPS[0]]: { ...page(20), referrals: [BOL] }, [SHOPS[1]]: page(28), [SHOPS[2]]: page(50) })
+    const res = await engine(new ReferralModel()).research({ ideaId: 1, text: 'feliway', mode: 'hunt', target: TARGET })
+    expect(vi.mocked(http.fetchPage).mock.calls.map((c) => c[0])).toContain(BOL)
+    expect(res.picks.map((p) => p.url)).not.toContain(BOL)
+  })
+
   it('does not read a linked page twice when search found it too', async () => {
     pages({ [SHOPS[0]]: { ...page(30), referrals: [SHOPS[1]] }, [SHOPS[1]]: page(28), [SHOPS[2]]: page(50) })
     await engine(new ReferralModel()).research({ ideaId: 1, text: 'feliway', mode: 'hunt', target: TARGET })
     expect(vi.mocked(http.fetchPage).mock.calls.filter((c) => c[0] === SHOPS[1])).toHaveLength(1)
+  })
+})
+
+describe('hunt: the shop it started from', () => {
+  const OWN = 'https://www.brand.be/feliway-friends'
+
+  it('reads the source shop even when search misses it, and lists it when its page cannot be read', async () => {
+    const model = new HuntModel()
+    const res = await engine(model).research({
+      ideaId: 1,
+      text: 'feliway',
+      mode: 'hunt',
+      target: TARGET,
+      huntFrom: [{ url: OWN, shop: 'Brand', title: 'Feliway Friends 48 ml' }],
+    })
+    expect(vi.mocked(http.fetchPage).mock.calls.map((c) => c[0])).toContain(OWN)
+    const own = res.picks.find((p) => p.url === OWN)
+    expect(own).toMatchObject({ shop: 'Brand', title: 'Feliway Friends 48 ml', price: null })
+    expect(own?.offer).toMatchObject({ group: 'exact', sellerNote: expect.stringMatching(/couldn.t read/i) })
+    expect(res.picks[0]?.offer?.group).toBe('best')
+    expect(res.picks[0]?.url).not.toBe(OWN)
   })
 })

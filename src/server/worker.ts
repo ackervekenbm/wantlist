@@ -6,6 +6,7 @@ import {
   dueIdeaIds,
   failIdea,
   getIdea,
+  huntSources,
   nextScheduledAttempt,
 } from './db'
 import { ResearchError } from './research/errors'
@@ -150,6 +151,7 @@ export function createWorker(opts: WorkerOptions): Worker {
           modeByOwner: idea.modeByOwner,
           target: idea.target,
           targetByOwner: idea.targetByOwner,
+          huntFrom: huntSources(opts.db, id),
           onProgress: (step) => {
             if (state.current?.ideaId === id) state.current = { ideaId: id, step }
           },

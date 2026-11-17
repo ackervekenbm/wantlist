@@ -39,6 +39,39 @@ export interface HuntPlan {
 /** Shop pages followed from referral links, on top of the selected ones. */
 const MAX_FOLLOWED = 3
 
+export const UNREADABLE = "Couldn't read this shop's page (it may block automated visits): open it to check the price and stock."
+
+/** A shop page that could not be read: listed with the search price, never checked, never best. */
+function unreadOffer(s: { url: string; shop: string; title: string; price: number | null }): FinalPick {
+  const supplier = offer(s.shop, s.url, s.price)
+  return {
+    rank: 0,
+    kind: 'offer',
+    offer: {
+      match: 'exact',
+      mismatch: null,
+      packs: 1,
+      unitsPerPack: null,
+      delivery: { kind: 'unknown', cost: null, threshold: null },
+      delivered: null,
+      perUnit: null,
+      condition: null,
+      sellerNote: UNREADABLE,
+      group: 'exact',
+    },
+    title: s.title,
+    shop: s.shop,
+    url: s.url,
+    price: supplier.price,
+    why: UNREADABLE,
+    caveat: null,
+    image: null,
+    rating: null,
+    suppliers: [supplier],
+    sourceUrls: [s.url],
+  }
+}
+
 const nothing = () => new ResearchError(HUNT_NOTHING, { kind: 'no-results' })
 
 /** One exact product: find every shop's offer page, read the facts, rank by delivered price. */
@@ -62,12 +95,22 @@ export async function runHunt(deps: HuntDeps, req: ResearchRequest, plan: HuntPl
     (raw) => normalizeSelect(raw, allowed),
   )
 
-  step(`reading ${selected.length} shop pages`)
-  const read = await mapLimit(selected, PAGE_CONCURRENCY, async (s) => ({
+  // The shops of the pick the hunt started from are read even when search misses them.
+  const picked = new Set(selected.map((s) => normalizeUrl(s.url)))
+  const toRead = [
+    ...selected,
+    ...(req.huntFrom ?? [])
+      .filter((h) => !picked.has(normalizeUrl(h.url)) && picked.add(normalizeUrl(h.url)))
+      .map((h) => ({ ...h, price: null })),
+  ]
+  step(`reading ${toRead.length} shop pages`)
+  const read = await mapLimit(toRead, PAGE_CONCURRENCY, async (s) => ({
     s,
     page: await cache.get(s.url),
   }))
-  const live = read.filter((r) => r.page.status !== 'dead')
+  // Unreadable pages (bot checks, shop errors) are listed for the owner to check, never sent to the model.
+  const live = read.filter((r) => r.page.status === 'live')
+  const blind = read.filter((r) => r.page.status === 'unknown').map((r) => unreadOffer(r.s))
 
   // A referral site's buy link carries the shop page that really sells: read that one too.
   const known = new Set(read.map((r) => normalizeUrl(r.s.url)))
@@ -81,13 +124,14 @@ export async function runHunt(deps: HuntDeps, req: ResearchRequest, plan: HuntPl
       s: { url, shop: new URL(url).hostname.replace(/^www\./, ''), title: '', price: null },
       page: await cache.get(url),
     }))
-    live.push(...extra.filter((r) => r.page.status !== 'dead'))
+    // An unreadable link target is dropped, not listed: there is nothing to name it by.
+    live.push(...extra.filter((r) => r.page.status === 'live'))
   }
-  if (live.length === 0) throw nothing()
+  if (live.length === 0 && blind.length === 0) throw nothing()
 
   step('checking match, packs and delivery')
   const urls = new Set(live.map((r) => r.s.url))
-  const facts = await router.generate(
+  const facts = live.length === 0 ? [] : await router.generate(
     {
       systemInstruction: OFFER_SYSTEM,
       contents: buildOfferUser(
@@ -140,7 +184,7 @@ export async function runHunt(deps: HuntDeps, req: ResearchRequest, plan: HuntPl
   })
 
   step('ranking by delivered price')
-  const picks = rankOffers(offers, target, deps.partnerSaving)
+  const picks = rankOffers([...offers, ...blind], target, deps.partnerSaving)
   if (!picks.some((p) => p.offer?.group === 'best')) throw nothing()
   return {
     brief: {
