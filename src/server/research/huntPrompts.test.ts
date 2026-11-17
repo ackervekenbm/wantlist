@@ -73,6 +73,12 @@ describe('normalizeOffers', () => {
   const one = (extra: Record<string, unknown>) =>
     normalizeOffers({ offers: [{ url: 'https://a.be/x', title: 't', ...extra }] }, sel)[0].facts
 
+  it('marks a page that only sends buyers to another shop', () => {
+    const [a] = normalizeOffers({ offers: [{ url: 'https://a.be/x', title: 't', match: 'exact', referral: true }] }, sel)
+    expect(a?.referral).toBe(true)
+    expect(normalizeOffers({ offers: [{ url: 'https://a.be/x', title: 't' }] }, sel)[0]?.referral).toBe(false)
+  })
+
   it('drops urls that were not selected', () => {
     expect(normalizeOffers({ offers: [{ url: 'https://z.be', title: 't', match: 'exact' }] }, sel)).toEqual([])
   })

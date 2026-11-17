@@ -221,8 +221,11 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   same run. `research/hunt.ts` (`runHunt`): queries for the exact target →
   search (nothing excluded: re-hunting should find the same shops) → the model
   selects offer URLs from the results → pages read once through the `PageCache`
-  → one model call returns `OfferFacts` per page (only what the page states;
-  delivery `unknown` otherwise) → price and stock from the shop's product data →
+  → shop pages that their affiliate links carry in the query are read too
+  (`referralTargets` in `http.ts`, `Page.referrals`; at most 3 per hunt) → one
+  model call returns `OfferFacts` per page (only what the page states;
+  delivery `unknown` otherwise; pages flagged `referral`, which only send
+  buyers on to another shop, are dropped) → price and stock from the shop's product data →
   `rank.ts`. `rankOffers` is pure code: `deliveredPrice` (free / paid /
   free-over threshold), per-unit when `target.unit` is set and packs differ,
   eligibility for best (exact match, checked price, in stock, deliverable), and
