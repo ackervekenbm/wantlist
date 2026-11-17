@@ -228,9 +228,10 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   → shop pages that the readable pages' affiliate links carry in the query are
   read too (`referralTargets` in `http.ts`, `Page.referrals`; at most 3 per
   hunt; an unreadable one is dropped) → one model call returns `OfferFacts` per
-  readable page (only what the page states; delivery `unknown` otherwise; pages
-  flagged `referral`, which only send buyers on to another shop, are dropped)
-  → price and stock from the shop's product data →
+  readable page (only what the page states; delivery `unknown` otherwise;
+  `stock` as the text states it; pages flagged `referral`, which only send
+  buyers on to another shop, are dropped) → price and stock from the shop's
+  product data, stock from the text only when the data has none →
   `rank.ts`. `rankOffers` is pure code: `deliveredPrice` (free / paid /
   free-over threshold), per-unit when `target.unit` is set and packs differ,
   eligibility for best (exact match, checked price, in stock, deliverable), and
