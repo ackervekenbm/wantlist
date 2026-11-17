@@ -61,24 +61,27 @@ button{cursor:pointer}
 .screen{max-width:640px;margin:0 auto;padding:12px 16px 32px}
 .screen h1{font-size:26px;line-height:1.12;letter-spacing:-.025em;margin:8px 0 6px;font-weight:650}
 .screen h1:focus{outline:none}
+.shell>.banner{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:30;width:min(560px,calc(100vw - 32px));background:var(--surface);box-shadow:0 10px 24px -8px var(--slip-shadow)}
 @media (max-width:899.98px){
   .shell[data-route="home"] .pane-right,
   .shell:not([data-route="home"]) .pane-left{display:none}
 }
+/* From 900 px nothing moves between screens: a full-width top bar, the sidebar always, and the main area beside it. */
 @media (min-width:900px){
-  .shell{display:grid;grid-template-columns:340px minmax(0,1fr)}
-  .pane{position:relative;height:100vh;height:100dvh;overflow:auto}
+  .shell{--bar:61px;--side:clamp(340px,22vw,400px);display:grid;grid-template-columns:var(--side) minmax(0,1fr);padding-top:var(--bar)}
+  .pane{position:relative;height:calc(100dvh - var(--bar));overflow:auto}
   .pane-left{border-right:1px solid var(--rule)}
+  .pane-left .app{padding-top:12px}
+  .pane-left .top{position:fixed;z-index:20;top:0;left:0;right:0;height:var(--bar);min-height:0;padding:0 16px;background:var(--bg);border-bottom:1px solid var(--rule)}
+  .pane-left .top .chip{flex:0 1 auto;margin-left:auto;max-width:480px}
+  .pane-left .top .iconbtn{margin-left:0}
   .shell:not([data-route="home"]) .capture{display:none}
-  .shell:not([data-route="home"]) .newidea{display:flex}
-  .shell[data-route="home"]{grid-template-columns:minmax(0,1fr)}
-  .shell[data-route="home"] .pane-right{display:none}
-  .shell[data-route="home"] .pane-left{border-right:0}
-  .shell[data-route="home"] .app{max-width:640px;margin:0 auto;padding-top:12px}
-  .shell[data-route="home"] .capture{padding:10px 10px 6px 18px;margin-top:24vh}
+  .shell .newidea{display:flex}
+  /* Home's add box stays in the sidebar's DOM (a half-typed idea survives), shown centred in the empty main area. */
+  .shell[data-route="home"] .capture{position:fixed;z-index:10;left:calc(var(--side) + (100vw - var(--side)) / 2);top:calc(var(--bar) + (100dvh - var(--bar)) * .4);transform:translate(-50%,-50%);width:min(640px,calc(100vw - var(--side) - 64px));margin:0;padding:10px 10px 6px 18px}
   .shell[data-route="home"] .cap-row textarea{font-size:17px}
+  .shell>.banner{top:calc(var(--bar) + 12px)}
 }
-.shell>.banner{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:30;width:min(560px,calc(100vw - 32px));background:var(--surface);box-shadow:0 10px 24px -8px var(--slip-shadow)}
 
 /* ---------- base components (mockup) ---------- */
 

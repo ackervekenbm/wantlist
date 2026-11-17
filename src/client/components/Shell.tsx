@@ -12,8 +12,9 @@ interface ShellProps {
 
 /**
  * Two panes, always both in the DOM. Which one shows is CSS only: below
- * 900 px the route picks one, from 900 px both sit side by side. On a PC
- * home the right pane is empty and the left pane shows alone, centred.
+ * 900 px the route picks one, from 900 px both sit side by side under a
+ * full-width top bar. On a PC home the right pane is empty and shows the
+ * sidebar's add box, centred.
  */
 export function Shell({ route, left, right, banner, toast }: ShellProps) {
   return (

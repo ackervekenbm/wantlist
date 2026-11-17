@@ -301,10 +301,11 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   (else replaces with home); Archive and Remove go home the same way.
   `App.tsx` wires route, `useIdeas` and the screens into `components/Shell.tsx`:
   two panes (list left, idea or lists right) that are always both in the DOM;
-  CSS alone shows one below 900 px (the route picks); from 900 px home is the
-  left pane alone, centred, and any other route is a 340 px sidebar with
-  `+ New idea` (the add box is hidden there) beside the right pane;
-  `useRouteFocus` focuses the add box on a PC home,
+  CSS alone shows one below 900 px (the route picks); from 900 px nothing
+  moves between routes: the `TopBar` is pinned full width, the left pane is
+  always a sidebar with `+ New idea`, and on home the add box (still in the
+  sidebar's DOM, so a draft survives) is shown centred in the empty right
+  pane; `useRouteFocus` and `+ New idea` focus it on a PC home,
   with slots for a banner and the undo toast. `TopBar` holds the logo (a link
   home; on a PC it replaces `BackLink`, which is phone-only), the researcher
   chip (researching / queue / out of quota until… / research off) and the
