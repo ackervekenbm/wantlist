@@ -111,7 +111,7 @@ export function HomeScreen({ ideas, status, selectedId, selectedList = null, onO
                   const step = stepOf(status, idea.id)
                   return (
                     <button key={idea.id} className="mini" {...rowProps(idea)}>
-                      <span className={`dot ${live ? 'live' : retry ? 'warn' : 'off'}`} aria-hidden="true" />
+                      <span className={`dot ${live ? 'live' : retry ? 'warn' : 'idle'}`} aria-hidden="true" />
                       <Leader
                         fig={live ? (step ?? 'researching') : retry ? `retrying around ${clockTime(retry)}` : 'queued'}
                       >

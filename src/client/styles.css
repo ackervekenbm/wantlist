@@ -96,7 +96,7 @@ button{cursor:pointer}
 .chip-blank{visibility:hidden}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
 .dot.live{animation:pulse 1.6s ease-in-out infinite}
-.dot.warn{background:var(--warn)} .dot.off{background:var(--ink-3)}
+.dot.warn{background:var(--warn)} .dot.idle{background:var(--ink-3)}
 .iconbtn{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;border:1px solid var(--rule);background:var(--surface);box-shadow:0 2px 0 var(--key-edge);color:var(--ink)}
 .iconbtn:active{transform:translateY(2px);box-shadow:none}
 

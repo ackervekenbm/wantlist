@@ -62,7 +62,7 @@ function ResearcherChip({ status, currentTitle }: { status: ServerStatus | null;
 
   if (!status.researchEnabled) {
     return chip(
-      'off',
+      'idle',
       <>
         <b>Research off</b> · API keys missing
       </>,

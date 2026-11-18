@@ -71,7 +71,7 @@ export function StatusCard({ idea, status, onRerun, onLoosen, onReword }: Props)
   if (idea.status !== 'queued') return null
   if (off) {
     return (
-      <Card dot="off" title="Research is off">
+      <Card dot="idle" title="Research is off">
         <p>API keys are missing on the server. This waits until they are set.</p>
       </Card>
     )
@@ -100,13 +100,13 @@ export function StatusCard({ idea, status, onRerun, onLoosen, onReword }: Props)
     )
   }
   return (
-    <Card dot="off" title={hunt ? 'Hunt is queued' : `Round ${next} is queued`}>
+    <Card dot="idle" title={hunt ? 'Hunt is queued' : `Round ${next} is queued`}>
       <p>It starts after the current research, usually within minutes. No need to wait here.</p>
     </Card>
   )
 }
 
-export function Card({ dot, title, children }: { dot?: 'live' | 'warn' | 'off'; title: string; children: ReactNode }) {
+export function Card({ dot, title, children }: { dot?: 'live' | 'warn' | 'idle'; title: string; children: ReactNode }) {
   const id = useId()
   return (
     <section className="card status" aria-labelledby={id}>
