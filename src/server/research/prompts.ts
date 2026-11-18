@@ -407,8 +407,9 @@ Ground rules:
   range in EUR. Otherwise leave empty.
 - Each candidate: concrete product title, shop name, the exact result URL, a
   one-line "why this fits" grounded in the idea.
-- Only pages for ONE specific product: never a category, search, best-seller
-  or comparison page. One URL is one product: never give two candidates the
+- Only a shop page for ONE specific product that can be bought there: never a
+  category, search, best-seller or comparison page, a review, blog or "best
+  of" article, or a brand page without a way to buy. One URL is one product: never give two candidates the
   same URL, and never name a product the page is not about.
 - Respect every "Must have" and "Avoid" line; prefer products with the
   "Liked so far" traits.
@@ -520,6 +521,9 @@ Ground rules:
   fine when they follow the shop rules below; do not fill the list with only
   one shop type.
 - Keep only products supported by the page text or clearly confirmed by it.
+- Every supplier URL is a shop page where this one product can be bought. A
+  page that lists several products, reviews or compares them, or has no price
+  or buy option, is evidence at most, never a supplier.
 - Be diligent: drop an offer whose page says it is unavailable, does not
   deliver to Belgium, is for business customers only, or ships from far away
   with high costs or weeks of delivery. Fewer good picks beat padding.

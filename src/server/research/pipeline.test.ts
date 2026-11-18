@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Page } from './http'
 import type { ProductData } from './product'
-import { NOTHING_NEW, ResearchError } from './errors'
+import { NOTHING_NEW, NOT_SHOP_PAGES, ResearchError } from './errors'
 import { ModelRouter, type GenerateArgs, type LlmProvider } from './llm'
 import { PipelineEngine } from './pipeline'
 import { SerperProvider, type SearchProvider, type SearchResult } from './search'
@@ -143,6 +143,20 @@ describe('PipelineEngine', () => {
     const model = new StepModel({ candidates })
     await engine(model, search(() => hits)).research({ ideaId: 1, text: 'a fan' })
     for (const h of hits) expect(model.verifyPrompt).toContain(`--- PAGE: ${h.url}`)
+  })
+
+  it('drops candidates whose page is a category or review page', async () => {
+    pages({ 'https://www.bol.com/be/nl/p/lasko/123': { kind: 'article' } })
+    const model = new StepModel({})
+    const result = await engine(model, search(() => HITS)).research({ ideaId: 1, text: 'a fan' })
+    expect(result.picks.map((p) => p.title)).toEqual(['Wahoo KICKR Headwind'])
+    expect(model.verifyPrompt).not.toContain('lasko')
+  })
+
+  it('stops when every candidate is a category or review page', async () => {
+    pages({ 'https://bikeshop.be/headwind': { kind: 'listing' }, 'https://www.bol.com/be/nl/p/lasko/123': { kind: 'article' } })
+    const err = await rejection(engine(new StepModel({}), search(() => HITS)).research({ ideaId: 1, text: 'a fan' }))
+    expect(err).toMatchObject({ kind: 'no-results', message: NOT_SHOP_PAGES })
   })
 
   it('never shows category or search pages to the candidate step', async () => {

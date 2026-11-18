@@ -1,6 +1,6 @@
 import type { UrlStatus } from '../../types'
 import { isListingUrl } from './offers'
-import { decodeEntities, extractProductData, type ProductData } from './product'
+import { decodeEntities, extractProductData, pageKindOf, type PageKind, type ProductData } from './product'
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
@@ -19,6 +19,8 @@ export interface Page {
   title: string
   text: string
   product: ProductData | null
+  /** Set when the page is a category, search or article page rather than one product's shop page. */
+  kind?: PageKind
   /** Shop pages this page's affiliate links lead to (see `referralTargets`). */
   referrals?: string[]
 }
@@ -74,11 +76,14 @@ export async function fetchPage(url: string): Promise<Page> {
   if (looksNotFound(title)) return { ...UNKNOWN, status: 'dead' }
   const text = extractText(html)
   if (looksLikeBotCheck(title, text)) return UNKNOWN
+  const kind = isListingUrl(res.url || url) ? 'listing' : pageKindOf(html)
   return {
     status: 'live',
     title,
     text,
-    product: extractProductData(html, res.url || url),
+    // A list's product data is its first entry's, not the page's.
+    product: kind ? null : extractProductData(html, res.url || url),
+    ...(kind && { kind }),
     referrals: referralTargets(html, res.url || url),
   }
 }

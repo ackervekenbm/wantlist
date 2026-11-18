@@ -363,6 +363,7 @@ describe('url helpers', () => {
       'https://www.amazon.com.be/s?k=citruspers',
       'https://www.coolblue.be/nl/zoeken?query=citruspers',
       'https://shop.be/catalogsearch/result/?q=fan',
+      'https://refurbishedmiller.be/collections/refurbished-aeron',
     ]) {
       expect(isListingUrl(url), url).toBe(true)
     }
@@ -372,6 +373,7 @@ describe('url helpers', () => {
       'https://www.coolblue.be/nl/product/897024/princess-201862-citruspers-pure.html',
       'https://www.brabantia.com/be_nl/stepup-pedaalemmer-10-liter-jade-green/',
       'https://a.be/p.php?id=1',
+      'https://refurbishedmiller.be/collections/refurbished-aeron/products/aeron-b',
       'not a url',
     ]) {
       expect(isListingUrl(url), url).toBe(false)
