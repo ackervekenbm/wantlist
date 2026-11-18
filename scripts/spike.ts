@@ -25,7 +25,6 @@ async function main() {
   const engine = new PipelineEngine({
     router,
     search: new SerperProvider(serperKey),
-    maxCandidatesToFetch: 3,
     onProgress,
   })
 

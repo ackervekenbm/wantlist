@@ -11,6 +11,7 @@ import {
   buildLearnUser,
   capPreferences,
   keepOwnerItems,
+  MAX_CANDIDATES,
   normalizeLearn,
   normalizePass1,
   normalizePass2,
@@ -94,14 +95,14 @@ describe('normalizePass1', () => {
     expect(normalizePass1(raw).candidates.map((c) => c.title)).toEqual(['Xemm wetsteen'])
   })
 
-  it('caps at five candidates', () => {
-    const candidates = Array.from({ length: 9 }).map((_, i) => ({
+  it('caps at MAX_CANDIDATES', () => {
+    const candidates = Array.from({ length: 12 }).map((_, i) => ({
       title: `p${i}`,
       shop: 's',
       url: `https://example.com/p${i}`,
     }))
     const result = normalizePass1({ candidates })
-    expect(result.candidates).toHaveLength(5)
+    expect(result.candidates).toHaveLength(MAX_CANDIDATES)
   })
 })
 

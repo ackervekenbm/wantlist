@@ -137,6 +137,14 @@ describe('PipelineEngine', () => {
     ])
   })
 
+  it('reads every shortlisted page, so the verifier sees all eight candidates', async () => {
+    const hits = Array.from({ length: 8 }, (_, i) => ({ title: `Fan ${i}`, url: `https://shop.be/fan-${i}`, snippet: '' }))
+    const candidates = { candidates: hits.map((h) => ({ title: h.title, shop: 'Shop', url: h.url })) }
+    const model = new StepModel({ candidates })
+    await engine(model, search(() => hits)).research({ ideaId: 1, text: 'a fan' })
+    for (const h of hits) expect(model.verifyPrompt).toContain(`--- PAGE: ${h.url}`)
+  })
+
   it('never shows category or search pages to the candidate step', async () => {
     const listing = 'https://www.bol.com/be/nl/l/ventilatoren/1234/'
     const model = new StepModel({})

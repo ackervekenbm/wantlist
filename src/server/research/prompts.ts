@@ -79,6 +79,8 @@ const PICK_RULES = `Weighing products:
 
 /** How many earlier picks a prompt shows; code-level exclusion still uses all of them. */
 const SHOWN_MAX = 40
+/** Candidates the shortlist may return; every one has its page read, so the verifier can keep 3-5. */
+export const MAX_CANDIDATES = 8
 
 function capList(raw: unknown): string[] {
   return (Array.isArray(raw) ? raw : [])
@@ -390,7 +392,7 @@ export function normalizeLearn(raw: unknown): { title: string; preferences: Pref
 
 export const CANDIDATE_SYSTEM = `You are the candidate-selection step of a shopping-research bot.
 You are given search-engine results (title | url | snippet) for a Belgian
-shopping idea. Choose 3-5 candidate products the user could reasonably buy.
+shopping idea. Choose 5-8 candidate products the user could reasonably buy.
 
 Ground rules:
 - Belgium, EUR.
@@ -461,7 +463,7 @@ ${already}
 Search results:
 ${lines}
 
-Return 3-5 candidate JSON per schema. URLs must come verbatim from the list above.`
+Return 5-8 candidate JSON per schema. URLs must come verbatim from the list above.`
 }
 
 export function normalizePass1(
@@ -494,7 +496,7 @@ export function normalizePass1(
   return {
     summary: '',
     criteria: [],
-    candidates: cleaned.slice(0, 5),
+    candidates: cleaned.slice(0, MAX_CANDIDATES),
     followUpQueries: [],
   }
 }

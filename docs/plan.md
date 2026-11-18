@@ -76,13 +76,13 @@ reasons over evidence we hand it.
 2. **Search** (ours): each query through **Serper** (Google SERP, `gl=BE`,
    2,500 one-time free credits), organic + shopping slots, de-duped, capped at
    24 rows. No search layer → research is disabled with a clear error.
-3. **Candidates** (`gemini-3.8-flash`): given the real result list, pick 3–5
+3. **Candidates** (`gemini-3.8-flash`): given the real result list, pick 5–8
    candidate **products** `{title, shop, url, price?, why}`. A candidate is a
    product, not a shop — the same product at several shops is listed once.
    Normalized hard: **URL must be one of the search results** — nothing
    invented.
-4. **Verify** (`gemini-3.8-flash`): server-side fetch of the top 3 candidate
-   pages, page text plus a "Shop data" line from the page's product markup
+4. **Verify** (`gemini-3.8-flash`): server-side fetch of every candidate
+   page, its text plus a "Shop data" line from the page's product markup
    (price, stock, rating) fed back so only evidence-backed products survive, each
    returned **once with a `suppliers` array** (every known shop offer for that
    product, best price first); the whole list is de-duplicated again at code
