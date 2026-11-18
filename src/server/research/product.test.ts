@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { availabilityOf, decodeEntities, extractProductData, parsePriceEur } from './product'
+import { availabilityOf, decodeEntities, extractProductData, pageKindOf, parsePriceEur } from './product'
 
 const PAGE = 'https://shop.be/nl/p/fan/123'
 
@@ -193,5 +193,29 @@ describe('decodeEntities', () => {
   it('decodes named and numeric entities, ampersand last', () => {
     expect(decodeEntities('Fan &amp;lt;3 &euro;&#160;59 &#x41; &quot;x&quot;')).toBe('Fan &lt;3 €\u00a059 A "x"')
     expect(decodeEntities('&#99999999;')).toBe('')
+  })
+})
+
+describe('pageKindOf', () => {
+  const product = { '@type': 'Product', name: 'Fan', offers: { price: '59', priceCurrency: 'EUR' } }
+
+  it('calls a list of products a listing, even when its entries carry prices', () => {
+    const list = { '@type': 'ItemList', itemListElement: [{ '@type': 'ListItem', item: product }] }
+    expect(pageKindOf(ld(list))).toBe('listing')
+    expect(pageKindOf(ld({ '@type': 'CollectionPage' }))).toBe('listing')
+  })
+
+  it('calls a review or blog post an article, from JSON-LD or og:type in either attribute order', () => {
+    expect(pageKindOf(ld({ '@graph': [{ '@type': 'WebPage' }, { '@type': 'BlogPosting' }] }))).toBe('article')
+    expect(pageKindOf('<meta property="og:type" content="article">')).toBe('article')
+    expect(pageKindOf('<meta content="article" property="og:type">')).toBe('article')
+  })
+
+  it('leaves a product page alone, related-product lists and all', () => {
+    const related = { '@type': 'ItemList', itemListElement: [{ '@type': 'ListItem', item: product }] }
+    expect(pageKindOf(ld(product, related))).toBeNull()
+    expect(pageKindOf(ld({ '@type': 'BuyAction', object: product }))).toBeNull()
+    expect(pageKindOf('<meta property="og:type" content="product">' + ld({ '@type': 'BreadcrumbList' }))).toBeNull()
+    expect(pageKindOf('<html>no markup</html>')).toBeNull()
   })
 })

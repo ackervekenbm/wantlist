@@ -32,6 +32,42 @@ export function extractProductData(html: string, pageUrl: string): ProductData |
   return empty ? null : merged
 }
 
+/** What a page is, when it is not one product's shop page. */
+export type PageKind = 'listing' | 'article'
+
+const LISTING_TYPES = new Set(['ItemList', 'CollectionPage', 'SearchResultsPage', 'OfferCatalog'])
+const ARTICLE_TYPES = new Set(['Article', 'BlogPosting', 'NewsArticle', 'Review', 'TechArticle'])
+
+/**
+ * A page nobody can buy one product from: its JSON-LD or OpenGraph calls it a
+ * list (category, search) or an article (review, 'top 7'), and it has no
+ * product of its own. A product inside a list is a list entry, not the page.
+ */
+export function pageKindOf(html: string): PageKind | null {
+  let own = false
+  let listing = false
+  let article = [...html.matchAll(/<meta\s[^>]*>/gi)].some((m) => {
+    const a = parseAttributes(m[0])
+    return a.property?.toLowerCase() === 'og:type' && a.content?.toLowerCase() === 'article'
+  })
+  const visit = (node: unknown, inList: boolean, depth: number): void => {
+    if (depth > 6 || !node || typeof node !== 'object') return
+    if (Array.isArray(node)) return node.forEach((n) => visit(n, inList, depth + 1))
+    const obj = node as Json
+    for (const t of ([] as unknown[]).concat(obj['@type'] ?? [])) {
+      if (t === 'Product' || t === 'ProductGroup' || t === 'IndividualProduct') own ||= !inList
+      if (LISTING_TYPES.has(String(t))) listing = true
+      if (ARTICLE_TYPES.has(String(t))) article = true
+    }
+    for (const key of ['@graph', 'mainEntity', 'object']) if (key in obj) visit(obj[key], inList, depth + 1)
+    for (const key of ['itemListElement', 'item', 'hasPart']) if (key in obj) visit(obj[key], true, depth + 1)
+  }
+  const re = /<script[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi
+  for (let m = re.exec(html); m; m = re.exec(html)) visit(parseLd(m[1]), false, 0)
+  if (own) return null
+  return listing ? 'listing' : article ? 'article' : null
+}
+
 // ---------------------------------------------------------------------------
 // Prices
 // ---------------------------------------------------------------------------

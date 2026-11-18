@@ -77,3 +77,4 @@ export function retryAfterHeaderMs(res: Response): number | null {
 
 /** Thrown when a refine round finds nothing beyond what the owner already saw. */
 export const NOTHING_NEW = 'Nothing new found. Loosen a criterion or reword the idea.'
+export const NOT_SHOP_PAGES = 'Only category pages and reviews turned up, no shop page to buy from. Reword the idea or research again.'

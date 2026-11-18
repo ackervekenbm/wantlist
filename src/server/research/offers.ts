@@ -89,6 +89,8 @@ export function isHttpUrl(value: string): boolean {
 }
 
 const LISTING_PATH = /\/(l|s|b|zgbs|search|zoeken|recherche|catalogsearch|bestsellers?)(\/|$)|\/gp\/bestsellers/i
+/** A Shopify collection; its products live at /collections/<name>/products/<slug>. */
+const SHOPIFY_COLLECTION = /\/collections\/[^/]+\/?$/i
 const SEARCH_PARAM = /^(q|query|k|keywords?|search|searchterm|text)$/i
 
 /**
@@ -99,7 +101,7 @@ const SEARCH_PARAM = /^(q|query|k|keywords?|search|searchterm|text)$/i
 export function isListingUrl(url: string): boolean {
   try {
     const u = new URL(url)
-    return LISTING_PATH.test(u.pathname) || [...u.searchParams.keys()].some((k) => SEARCH_PARAM.test(k))
+    return LISTING_PATH.test(u.pathname) || SHOPIFY_COLLECTION.test(u.pathname) || [...u.searchParams.keys()].some((k) => SEARCH_PARAM.test(k))
   } catch {
     return false
   }

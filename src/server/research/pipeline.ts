@@ -7,7 +7,7 @@ import type {
   ResearchRequest,
   ResearchResult,
 } from '../../types'
-import { NOTHING_NEW, ResearchError } from './errors'
+import { NOTHING_NEW, NOT_SHOP_PAGES, ResearchError } from './errors'
 import type { ModelRouter } from './llm'
 import {
   exclusionOf,
@@ -171,12 +171,17 @@ export class PipelineEngine implements ResearchEngine {
     const pageCache = new PageCache()
     const maxFetch = this.opts.maxCandidatesToFetch ?? MAX_CANDIDATES
     const toRead = pass1.candidates.slice(0, maxFetch).map((c) => c.url)
-    const read = await mapLimit(toRead, PAGE_CONCURRENCY, async (url) => ({ url, page: await pageCache.get(url) }))
+    const opened = await mapLimit(toRead, PAGE_CONCURRENCY, async (url) => ({ url, page: await pageCache.get(url) }))
+    // A category or review page has nothing to buy: it never becomes a pick.
+    const notShop = new Set(opened.filter((r) => r.page.kind).map((r) => normalizeUrl(r.url)))
+    const read = opened.filter((r) => !notShop.has(normalizeUrl(r.url)))
+    const candidates = pass1.candidates.filter((c) => !notShop.has(normalizeUrl(c.url)))
+    if (candidates.length === 0) throw new ResearchError(NOT_SHOP_PAGES, { kind: 'no-results' })
     const pages = read
       .filter((r) => r.page.text)
       .map((r) => ({ url: r.url, title: r.page.title, text: r.page.text, product: r.page.product }))
     const fetchErrors = read.filter((r) => !r.page.text).map((r) => r.url)
-    progress(`step 3: read ${pages.length}/${read.length} pages`)
+    progress(`step 3: read ${pages.length}/${read.length} pages, ${notShop.size} not shop pages`)
 
     step('checking the evidence')
     progress('step 4: verifying')
@@ -187,20 +192,20 @@ export class PipelineEngine implements ResearchEngine {
           idea: request,
           preferences,
           shown,
-          candidates: pass1.candidates,
+          candidates,
           pages,
           fetchErrors,
         }),
         schema: verifySchema(shown.length > 0),
         temperature: 0.3,
       },
-      (raw) => normalizePass2(raw, pass1.candidates, shown.length),
+      (raw) => normalizePass2(raw, candidates, shown.length),
     )
     let picks = verified.picks.filter((p) => !isExcluded(p, ex))
     if (picks.length === 0) {
       if (verified.repeats > 0 || verified.picks.length > 0) throw nothingNew()
       // The verifier kept nothing at all: pass-1 candidates are already filtered, so they are new.
-      picks = this.fallbackFromPass1(pass1.candidates)
+      picks = this.fallbackFromPass1(candidates)
     }
 
     step(`checking ${picks.reduce((n, p) => n + p.suppliers.length, 0)} offers at the shops`)

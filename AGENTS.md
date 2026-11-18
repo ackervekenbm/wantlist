@@ -290,7 +290,12 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   **dead**; 401/403/429/5xx are bot walls or shop trouble and count as
   unknown, so big marketplaces are not dropped. A short "checking if you're
   human" / "just a moment..." page is a bot check and counts as unknown too,
-  with no text. Never throws.
+  with no text. A page whose JSON-LD or OpenGraph makes it a list
+  (`ItemList`, `CollectionPage`...) or an article (`BlogPosting`, `og:type
+  article`...) with no product of its own, or a listing URL (Shopify
+  `/collections/<name>` too), gets `kind` (`pageKindOf` in `product.ts`) and
+  no product data. Explore drops such candidates before verifying, and
+  `checkedSupplier` never keeps an offer on one. Never throws.
 - `src/client/` — React UI, the "Quote Slip" design. The app icon (a brass magnifier with a
   price tag in its lens) is drawn once in `scripts/gen-icons.mjs`: `npm run icons`
   writes `public/favicon.svg`, `apple-touch-icon.png` and `icons/` (192, 512,

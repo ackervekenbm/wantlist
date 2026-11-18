@@ -35,6 +35,16 @@ describe('fetchPage', () => {
     expect(page.product).toMatchObject({ price: 59, availability: 'in_stock' })
   })
 
+  it('marks a category page and drops the price of its first entry', async () => {
+    respond(
+      `<html><head><title>Toothbrushes</title>
+       <script type="application/ld+json">{"@type":"ItemList","itemListElement":[{"@type":"ListItem","item":{"@type":"Product","name":"iO9","offers":{"price":"399","priceCurrency":"EUR"}}}]}</script>
+       </head><body>8 van 8 producten</body></html>`,
+    )
+    const page = await fetchPage(URL_)
+    expect(page).toMatchObject({ status: 'live', kind: 'listing', product: null })
+  })
+
   it('calls 404 and 410 dead', async () => {
     respond('gone', { status: 404 })
     expect((await fetchPage(URL_)).status).toBe('dead')

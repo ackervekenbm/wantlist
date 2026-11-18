@@ -102,7 +102,7 @@ included. For Docker Compose and OpenMediaVault, see [Deployment](#deployment).
 <summary><strong>How the research works</strong></summary>
 
 1. **Plan.** A model turns your idea, budget and must-haves into a few search queries (in Dutch, like the shops), a title and your preferences. From the second round it first learns from your reactions.
-2. **Search.** Serper runs the queries on Google with Belgium as the region. Category and search pages are dropped, and so is everything you've already seen.
+2. **Search.** Serper runs the queries on Google with Belgium as the region. Category and search pages are dropped, and so is everything you've already seen. A pick always links to a shop page you can buy from: a page that turns out to be a category, a review or a "best of" article once it's read never becomes a pick.
 3. **Shortlist.** A model picks 5–8 products, and it can only use links that came back from the search.
 4. **Verify.** The server reads every shortlisted product page, and a model keeps only what the evidence supports, with the why and the caveat.
 5. **Check the offers.** Every remaining shop link is opened once for liveness, price, stock, photo and rating.

@@ -107,9 +107,12 @@ export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) =>
   return results
 }
 
-/** The offer with price and stock from the shop page's own product data; null when the page is dead. */
+/**
+ * The offer with price and stock from the shop page's own product data; null
+ * when the page is dead or is a category, search or article page.
+ */
 export function checkedSupplier(s: PickSupplier, page: Page): PickSupplier | null {
-  if (page.status === 'dead') return null
+  if (page.status === 'dead' || page.kind) return null
   const product = page.product
   if (!product) return s
   return {
