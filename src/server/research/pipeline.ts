@@ -29,6 +29,7 @@ import {
   keepOwnerItems,
   LEARN_SCHEMA,
   LEARN_SYSTEM,
+  MAX_CANDIDATES,
   normalizeLearn,
   normalizePass1,
   normalizePass2,
@@ -168,7 +169,7 @@ export class PipelineEngine implements ResearchEngine {
 
     step(`reading ${pass1.candidates.length} product pages`)
     const pageCache = new PageCache()
-    const maxFetch = this.opts.maxCandidatesToFetch ?? 3
+    const maxFetch = this.opts.maxCandidatesToFetch ?? MAX_CANDIDATES
     const toRead = pass1.candidates.slice(0, maxFetch).map((c) => c.url)
     const read = await mapLimit(toRead, PAGE_CONCURRENCY, async (url) => ({ url, page: await pageCache.get(url) }))
     const pages = read

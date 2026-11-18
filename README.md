@@ -103,8 +103,8 @@ included. For Docker Compose and OpenMediaVault, see [Deployment](#deployment).
 
 1. **Plan.** A model turns your idea, budget and must-haves into a few search queries (in Dutch, like the shops), a title and your preferences. From the second round it first learns from your reactions.
 2. **Search.** Serper runs the queries on Google with Belgium as the region. Category and search pages are dropped, and so is everything you've already seen.
-3. **Shortlist.** A model picks 3–5 products, and it can only use links that came back from the search.
-4. **Verify.** The server reads the top product pages, and a model keeps only what the evidence supports, with the why and the caveat.
+3. **Shortlist.** A model picks 5–8 products, and it can only use links that came back from the search.
+4. **Verify.** The server reads every shortlisted product page, and a model keeps only what the evidence supports, with the why and the caveat.
 5. **Check the offers.** Every remaining shop link is opened once for liveness, price, stock, photo and rating.
 
 A hunt runs a variant of this: it plans queries for shops that sell exactly the target, opens up to 10 offer pages (and, when one is a comparison site, the shop page it links to instead), has a model read match, pack size, condition and delivery from each page, and ranks the offers in code by delivered price. It doesn't skip products you've seen, since finding the same shops again with today's prices is the point.

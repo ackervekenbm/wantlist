@@ -194,7 +194,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   preferences); otherwise a **learn** step runs first ("learning from your reactions"):
   reactions and reasons become preferences and new queries, and the owner's
   edited items are kept word-for-word (`keepOwnerItems`). Then: Serper search →
-  candidate selection → read the top pages → verify → **offer check**. It
+  candidate selection (5–8, `MAX_CANDIDATES`) → read every candidate page → verify → **offer check**. It
   returns the brief (title + preferences, stored on the idea) with the round's
   picks.
   Exclusion: every product shown since the last reword, plus every one marked
