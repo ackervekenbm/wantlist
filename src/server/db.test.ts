@@ -19,6 +19,7 @@ import {
   reactToPick,
   recordPurchase,
   recoverInterrupted,
+  moveToPantry,
   requeueIdea,
   runningLow,
   startHunt,
@@ -27,7 +28,7 @@ import {
   updateIdea,
 } from './db'
 import { isCovered } from '../types'
-import type { FinalPick, HuntTarget, OfferFacts } from '../types'
+import type { FinalPick, HuntTarget, Idea, OfferFacts } from '../types'
 import { finalPicks, researchResult, tempDb, tempDir } from './test/helpers'
 
 const NO_SIGNAL = { requireSignal: false }
@@ -590,6 +591,35 @@ describe('hunt mode', () => {
     expect(runningLow(db, id)).toMatchObject({ list: 'wanted', status: 'queued', attempts: 0 })
     expect(runningLow(db, id)).toBe('not-covered')
     expect(runningLow(db, 999)).toBeNull()
+  })
+
+  it('moveToPantry turns an Explore buy into a covered refill without a search', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'Feliway Friends refill')
+    completeIdea(db, id, researchResult())
+    expect(moveToPantry(db, id)).toBe('busy')
+    const pick = getIdea(db, id)!.picks[0]
+    updateIdea(db, id, { list: 'bought', boughtPickId: pick.id })
+    const idea = moveToPantry(db, id) as Idea
+    expect(isCovered(idea)).toBe(true)
+    expect(idea).toMatchObject({ mode: 'hunt', modeByOwner: true, status: 'done', bought: { title: pick.title } })
+    expect(idea.target).toEqual({ product: pick.title, variant: '', condition: 'new', exclude: [], unit: null })
+    expect(huntSources(db, id)).toEqual([{ url: pick.url, shop: pick.shop ?? '', title: pick.title }])
+    expect(moveToPantry(db, 999)).toBeNull()
+  })
+
+  it('moveToPantry keeps a one-off hunt buy its target and shops', () => {
+    const { db } = tempDb()
+    const id = createIdea(db, 'Feliway refill')
+    completeIdea(db, id, researchResult())
+    startHunt(db, id, getIdea(db, id)!.picks[0].id)
+    const before = huntSources(db, id)
+    claimIdea(db, id)
+    completeIdea(db, id, huntResult())
+    recordPurchase(db, id, { pickId: getIdea(db, id)!.picks.at(-1)!.id, paid: 50, refill: false })
+    const idea = moveToPantry(db, id) as Idea
+    expect(idea).toMatchObject({ refill: true, target: TARGET })
+    expect(huntSources(db, id)).toEqual(before)
   })
 
   it('undoPurchase', () => {

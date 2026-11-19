@@ -245,6 +245,22 @@ describe('Hunt: buying', () => {
   })
 })
 
+describe('Hunt: moving a bought idea to the Pantry', () => {
+  it('an Explore buy moves to the Pantry and shows what was bought', async () => {
+    const boughtPick = { title: 'Feliway Friends navulling 48 ml', shop: 'Zooplus', url: 'https://zooplus.be/f', price: 21.95, at: '2026-10-02T09:00:00.000Z' }
+    const { api, user } = await open([
+      idea({ id: 1, text: 'Feliway Friends refill', status: 'done', list: 'bought', bought: boughtPick, picks: [pick({ id: 1, round: 1 })] }),
+    ])
+    await user.click(pane().getByRole('button', { name: "It's a refill: move to Pantry" }))
+    expect(api.writes()).toEqual([{ method: 'POST', path: '/api/ideas/1/pantry', body: undefined }])
+    expect(await pane().findByText('Covered')).toBeInTheDocument()
+    expect(pane().getByText('since 2 Oct')).toBeInTheDocument()
+    expect(pane().getByRole('region', { name: 'Covered' })).toHaveTextContent('You bought Feliway Friends navulling 48 ml at Zooplus.')
+    expect(pane().getByRole('button', { name: 'Running low' })).toBeInTheDocument()
+    expect(pane().queryByRole('button', { name: /move to Pantry/ })).not.toBeInTheDocument()
+  })
+})
+
 describe('Hunt: the mode switch', () => {
   it('switches to Explore to show the deck, with the offers under Earlier hunts, and Hunt this one starts a hunt from a pick', async () => {
     const explorePick = pick({ id: 1, round: 1, title: 'Feliway Friends starter kit' })

@@ -546,20 +546,43 @@ export function startHunt(db: WlDb, id: number, pickId: number | null): Idea | n
     if (idea.status === 'researching') return 'busy'
     const pick = pickId === null ? null : idea.picks.find((p) => p.id === pickId)
     if (pick === undefined) return 'bad-pick'
-    let target: HuntTarget | null = null
-    if (pick) {
-      const said = [idea.text, idea.notes, ...(idea.preferences?.mustHaves ?? [])].join(' ')
-      const condition = /refurb|gereviseerd|reconditionn/i.test(said)
-        ? 'refurbished'
-        : /\b(tweedehands|occasion|gebruikt|second[- ]hand|used)\b/i.test(said)
-          ? 'used'
-          : 'new'
-      target = { product: pick.title, variant: '', condition, exclude: [], unit: null }
-    }
+    const target = pick ? draftTarget(idea, pick.title) : null
     const from: HuntSource[] = (pick?.suppliers ?? []).map((s) => ({ url: s.url, shop: s.shop, title: pick?.title ?? '' }))
     db.prepare(
       `UPDATE ideas SET mode = 'hunt', mode_by_owner = 1, target = ?, target_by_owner = 0, hunt_from = ?, bought = NULL, ${QUEUE_NOW} WHERE id = ?`,
     ).run(target ? JSON.stringify(target) : null, from.length ? JSON.stringify(from) : null, id)
+    return getIdea(db, id)
+  })()
+}
+
+/** A hunt target for one product, its condition taken from the idea's own words (else new). */
+function draftTarget(idea: Idea, product: string): HuntTarget {
+  const said = [idea.text, idea.notes, ...(idea.preferences?.mustHaves ?? [])].join(' ')
+  const condition = /refurb|gereviseerd|reconditionn/i.test(said)
+    ? 'refurbished'
+    : /\b(tweedehands|occasion|gebruikt|second[- ]hand|used)\b/i.test(said)
+      ? 'used'
+      : 'new'
+  return { product, variant: '', condition, exclude: [], unit: null }
+}
+
+/**
+ * Turns a bought idea into a covered refill (the Pantry): hunt mode, refill,
+ * and a target drafted from what was bought when it has none. Runs no search.
+ */
+export function moveToPantry(db: WlDb, id: number): Idea | null | 'busy' {
+  return db.transaction(() => {
+    const idea = getIdea(db, id)
+    if (!idea) return null
+    if (idea.list !== 'bought' || idea.status === 'researching') return 'busy'
+    const target = idea.target ?? draftTarget(idea, idea.bought?.title ?? idea.title ?? idea.text)
+    const from: HuntSource[] | null =
+      huntSources(db, id).length === 0 && idea.bought
+        ? [{ url: idea.bought.url, shop: idea.bought.shop ?? '', title: idea.bought.title }]
+        : null
+    db.prepare(
+      `UPDATE ideas SET mode = 'hunt', mode_by_owner = 1, refill = 1, target = ?, hunt_from = COALESCE(?, hunt_from) WHERE id = ?`,
+    ).run(JSON.stringify(target), from ? JSON.stringify(from) : null, id)
     return getIdea(db, id)
   })()
 }

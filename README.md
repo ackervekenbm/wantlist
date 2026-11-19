@@ -93,7 +93,7 @@ included. For Docker Compose and OpenMediaVault, see [Deployment](#deployment).
 - A hunt has a **target**: product, variant, condition (new, refurbished, used or any) and what doesn't count ("not Optimum"). It's drafted for you and editable.
 - Offers are ranked by **what you pay delivered**: item price plus delivery. A delivery cost the shop doesn't state is never guessed: its **Delivery** line says "not shown". Found the real cost in the shop's cart? Tap **Delivery** on that offer and enter it (0 = free): the offers re-rank on the full price, and **Clear** brings back what the shop page said. When pack sizes differ, offers compare **per unit** (per vial, per kg).
 - The best offer gets a slip with a **Bought here** button; the other shops are listed below it. Pick-up only, no delivery to Belgium and "not the exact product" offers sit in folded groups, never on top. There's no reacting to offers: a hunt reads like a quote.
-- **Bought here** records what you paid and asks "Will you buy this again?". Yes: the hunt is *covered* and waits in the **Pantry** (on the home screen and in the lists). No: it moves to Bought. Every purchase is kept, so the next slip can say "9% less than last time".
+- **Bought here** records what you paid and asks "Will you buy this again?". Yes: the hunt is *covered* and waits in the **Pantry** (on the home screen and in the lists). No: it moves to Bought. Changed your mind, or bought it from Explore? **It's a refill: move to Pantry** on any bought idea puts it there. Every purchase is kept, so the next slip can say "9% less than last time".
 - **Running low** on a covered hunt starts a new hunt in the background. Nothing is ever watched or re-hunted on its own.
 
 </details>
