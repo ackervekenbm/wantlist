@@ -3,6 +3,7 @@ import { HomeScreen, Skeleton } from './components/HomeScreen'
 import { IdeaScreen } from './components/IdeaScreen'
 import { shownTitle } from './lib/triage'
 import { ListsScreen } from './components/ListsScreen'
+import { SettingsScreen } from './components/SettingsScreen'
 import { Shell } from './components/Shell'
 import { TopBar } from './components/TopBar'
 import { useIdeas } from './hooks/useIdeas'
@@ -58,6 +59,8 @@ export function App() {
     <div className="screen" aria-busy="true">
       <Skeleton />
     </div>
+  ) : route.name === 'settings' ? (
+    <SettingsScreen status={state.status} />
   ) : route.name === 'lists' ? (
     <ListsScreen
       ideas={state.ideas}

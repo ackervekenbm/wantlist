@@ -161,6 +161,20 @@ npm run spike "your idea"   # run the research engine against your keys, step by
 fastest way to judge research quality.
 
 <details>
+<summary><strong>Settings: models and keys</strong></summary>
+
+The gear in the top bar opens a read-only Settings page. It lists the research
+models in the order they are tried, grouped by provider, with each provider's
+API key (set or not) and a link to its usage dashboard. Every model shows
+whether it is ready, out of quota until a time, or unavailable, and its last
+error. Groq and OpenRouter also report how many requests and tokens are left;
+Gemini does not, so check its dashboard. Keys and model names are changed in
+your `.env`, then restart; a blank `GROQ_MODEL` or `OPENROUTER_MODEL` uses the
+built-in default, marked "(default)" on the page.
+
+</details>
+
+<details>
 <summary><strong>Project structure</strong></summary>
 
 ```

@@ -11,9 +11,11 @@ describe('routes', () => {
       { name: 'lists', tab: 'bought' },
       { name: 'lists', tab: 'archived' },
       { name: 'lists', tab: 'pantry' },
+      { name: 'settings' },
     ]
     for (const r of routes) expect(parseHash(toHash(r))).toEqual(r)
     expect(toHash({ name: 'home' })).toBe('#/')
+    expect(toHash({ name: 'settings' })).toBe('#/settings')
     expect(toHash({ name: 'idea', id: 7 })).toBe('#/idea/7')
     expect(toHash({ name: 'lists', tab: 'bought' })).toBe('#/lists/bought')
   })

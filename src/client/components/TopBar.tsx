@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
 import type { ServerStatus } from '../../types'
 import { clockTime } from '../lib/format'
-import { goHome } from '../lib/route'
+import { goHome, navigate } from '../lib/route'
 import { nextTheme, type Theme } from '../lib/theme'
 import { quotaResetAt } from '../lib/triage'
-import { LogoMark, MoonIcon, SunIcon, SystemThemeIcon } from './icons'
+import { LogoMark, GearIcon, MoonIcon, SunIcon, SystemThemeIcon } from './icons'
 
 interface TopBarProps {
   status: ServerStatus | null
@@ -38,6 +38,18 @@ export function TopBar({ status, currentTitle, theme, onTheme }: TopBarProps) {
         <span>wantlist</span>
       </a>
       <ResearcherChip status={status} currentTitle={currentTitle} />
+      <a
+        className="iconbtn"
+        href="#/settings"
+        aria-label="Settings"
+        title="Settings"
+        onClick={(e) => {
+          e.preventDefault()
+          navigate({ name: 'settings' })
+        }}
+      >
+        <GearIcon width={18} height={18} />
+      </a>
       <button
         type="button"
         className="iconbtn"

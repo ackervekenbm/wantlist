@@ -257,7 +257,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   answer the normalizer rejects (no queries, no candidate from the result set)
   tries the next model. All benched: wait if the earliest reset is ≤ 90 s
   (per-minute limits), else throw `allModelsOut` with the time to that reset,
-  which the worker uses as the retry time. `health()` feeds `/api/status`.
+  which the worker uses as the retry time. `health()` feeds `/api/status` (each `ModelHealth` also carries `provider`, `model`,
+  `modelSource`, `lastError` and `limits`, read from `OpenAiCompatProvider.limits()`;
+  `keys` says which API keys are set, never their values).
 - `src/server/research/gemini.ts` — `GeminiProvider` (raw `fetch`, key in the
   `x-goog-api-key` header). 429s are classified from the body
   (`parseGoogleError`: QuotaFailure `quotaId`, RetryInfo `retryDelay`):
@@ -305,7 +307,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   bundled Bricolage Grotesque variable font (`@fontsource-variable/bricolage-grotesque`,
   no CDN). `lib/route.ts` is a hash router (`parseHash` / `toHash` /
   `useRoute`, `navigate`, `goHome`): `#/` home, `#/idea/<id>`,
-  `#/lists/<wanted|bought|archived>`. In-app moves push a history entry that
+  `#/lists/<wanted|bought|archived>`, `#/settings`. In-app moves push a history entry that
   remembers where it came from, so `BackLink` steps back when that was home
   (else replaces with home); Archive and Remove go home the same way.
   `App.tsx` wires route, `useIdeas` and the screens into `components/Shell.tsx`:
@@ -326,6 +328,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   three lists as tabs, with `BackLink`; `lib/filter.ts` filters lists above
   8) and `IdeaScreen`: `IdeaTitle` (rename), `StatusCard` (research step,
   retry count, errors; an archived idea gets its own card),
+  `SettingsScreen` (read-only: the model chain grouped by provider with key state,
+  dashboard links, bench state, last error and provider-reported limits; the gear in
+  `TopBar` opens it),
   `PreferencesPanel` (must-have / avoid / liked, one per line, editable),
   `PickDeck` (one `PickCard` at a time with pips and advance after a
   Yes; `ReactionBar`: No way and Kind of each open their own why box, tapping

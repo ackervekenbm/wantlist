@@ -22,6 +22,14 @@ describe('App', () => {
     expect(screen.getByText('Nothing on the list.')).toBeInTheDocument()
   })
 
+  it('opens Settings from the gear in the top bar', async () => {
+    fakeApi([])
+    const user = await renderApp('#/')
+    await user.click(screen.getByRole('link', { name: 'Settings' }))
+    expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument()
+    expect(location.hash).toBe('#/settings')
+  })
+
   it('adds an idea with Enter, including budget and notes, and opens it from its row', async () => {
     const api = fakeApi([])
     const user = await renderApp()

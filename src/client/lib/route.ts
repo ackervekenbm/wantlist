@@ -6,12 +6,13 @@ import type { IdeaList } from '../../types'
 /** Pantry is a filter over bought ideas (the covered hunts), not a stored list. */
 export type ListTab = IdeaList | 'pantry'
 
-export type Route = { name: 'home' } | { name: 'idea'; id: number } | { name: 'lists'; tab: ListTab }
+export type Route = { name: 'home' } | { name: 'idea'; id: number } | { name: 'lists'; tab: ListTab } | { name: 'settings' }
 
 const LISTS: readonly ListTab[] = ['wanted', 'bought', 'archived', 'pantry']
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, '')
+  if (path === '/settings') return { name: 'settings' }
   const idea = /^\/idea\/([1-9]\d*)$/.exec(path)
   if (idea) return { name: 'idea', id: Number(idea[1]) }
   const lists = /^\/lists\/(\w+)$/.exec(path)
@@ -22,6 +23,7 @@ export function parseHash(hash: string): Route {
 export function toHash(route: Route): string {
   if (route.name === 'idea') return `#/idea/${route.id}`
   if (route.name === 'lists') return `#/lists/${route.tab}`
+  if (route.name === 'settings') return '#/settings'
   return '#/'
 }
 

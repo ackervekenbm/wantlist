@@ -90,6 +90,10 @@ button{cursor:pointer}
 .mark{font-weight:700;font-size:21px;letter-spacing:-.03em;display:flex;align-items:center;gap:6px;flex:none;min-height:44px;color:inherit;text-decoration:none}
 .mark img{flex:none}
 .top .iconbtn{margin-left:auto}
+.top .iconbtn + .iconbtn{margin-left:0}
+.prov{padding:12px 14px;margin-bottom:10px}
+.prov .mrow{margin-top:8px;font-size:14px;overflow-wrap:anywhere}
+.prov .n{font-size:13px;color:var(--ink-2)}
 .chip{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:18px;background:var(--surface);border:1px solid var(--rule);font-size:13px;color:var(--ink-2)}
 .chip span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip b{color:var(--ink);font-weight:600}
