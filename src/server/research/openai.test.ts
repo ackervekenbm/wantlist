@@ -91,6 +91,23 @@ describe('OpenAiCompatProvider', () => {
     expect(me.retryAfterMs).toBe(15 * 60 * 1000)
   })
 
+  it("keeps the readable message from a JSON error body, not the raw JSON", async () => {
+    // OpenRouter's real answer when a free model's shared upstream pool is busy.
+    const raw = 'google/gemma-4-31b-it:free is temporarily rate-limited upstream. Please retry shortly.'
+    stubFetch(
+      () =>
+        new Response(JSON.stringify({ error: { message: 'Provider returned error', code: 429, metadata: { raw } } }), {
+          status: 429,
+        }),
+    )
+    let me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ResearchError
+    expect(me.message).toBe(`groq:test-model: rate limited: ${raw}`)
+
+    stubFetch(() => new Response(JSON.stringify({ error: { message: 'Invalid API Key' } }), { status: 401 }))
+    me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ResearchError
+    expect(me.message).toBe('groq:test-model: not usable (HTTP 401): Invalid API Key')
+  })
+
   it('maps 5xx to retryable errors', async () => {
     stubFetch(() => new Response('oops', { status: 503 }))
     const me = (await provider().generate(ARGS).catch((e: unknown) => e)) as ResearchError

@@ -74,6 +74,7 @@ function ModelRow({ m, n }: { m: ModelHealth; n: number }) {
         {' · '}
         {state}
       </div>
+      {m.reason === 'quota' && m.lastError && <div className="n">{m.lastError}</div>}
       {!m.reason && m.lastError && <div className="n">last error: {m.lastError}</div>}
       {m.limits ? (
         <>

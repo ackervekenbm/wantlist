@@ -83,7 +83,7 @@ export class OpenAiCompatProvider implements LlmProvider {
     this.recordLimits(res.headers)
 
     if (!res.ok) {
-      const detail = (await res.text().catch(() => '')).slice(0, 200)
+      const detail = errorText(await res.text().catch(() => '')).slice(0, 200)
       const suffix = detail ? `: ${detail}` : ''
       if (res.status === 429) {
         throw new ResearchError(`${this.id}: rate limited${suffix}`, {
@@ -121,6 +121,18 @@ export class OpenAiCompatProvider implements LlmProvider {
       throw new ResearchError(`${this.id}: answer is not valid JSON: ${text.slice(0, 120)}`, { kind: 'invalid' })
     }
   }
+}
+
+/** The readable part of an error body: OpenRouter's upstream `metadata.raw`, else `error.message`, else the body. */
+function errorText(body: string): string {
+  try {
+    const e = (JSON.parse(body) as { error?: { message?: unknown; metadata?: { raw?: unknown } } }).error
+    const text = e?.metadata?.raw ?? e?.message
+    if (typeof text === 'string' && text.trim()) return text.trim()
+  } catch {
+    // not JSON: keep the body as it is
+  }
+  return body
 }
 
 interface OpenAiCompatResponse {

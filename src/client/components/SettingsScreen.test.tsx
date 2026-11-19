@@ -44,7 +44,7 @@ describe('SettingsScreen', () => {
 
   it('shows state and limits', () => {
     const models = [
-      gemini('g-1', { reason: 'quota', benchedUntil: '2026-11-19T10:00:00Z' }),
+      gemini('g-1', { reason: 'quota', benchedUntil: '2026-11-19T10:00:00Z', lastError: 'rate-limited upstream' }),
       gemini('g-2', { reason: 'unavailable', lastError: 'model not found' }),
       groq({
         limits: {
@@ -56,6 +56,7 @@ describe('SettingsScreen', () => {
     ]
     render(<SettingsScreen status={status({ models, keys: KEYS })} />)
     expect(screen.getByText(/out of quota until/)).toBeInTheDocument()
+    expect(screen.getByText('rate-limited upstream')).toBeInTheDocument()
     expect(screen.getByText(/model not found/)).toBeInTheDocument()
     expect(screen.getByText(/980 of 1000/)).toBeInTheDocument()
     expect(screen.getByText(/2m59.56s/)).toBeInTheDocument()
