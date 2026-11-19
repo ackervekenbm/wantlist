@@ -8,7 +8,7 @@ interface Props {
   reaction: Reaction | null
   reason: string | null
   onReact: (patch: PickPatch) => Promise<void>
-  /** In the deck: the why-not card gets Next, which saves and moves on. */
+  /** In the deck: the why card gets Next, which saves and moves on. */
   onNext?: () => void
 }
 
@@ -21,11 +21,20 @@ const CHOICES: Array<{ value: Reaction; Icon: typeof NoIcon }> = [
   { value: 'yes', Icon: YesIcon },
 ]
 
-const QUICK = ['Too expensive', 'Not my style', 'Wrong type', 'Doubt the quality']
+/** No way and Kind of ask why; each reaction has its own question and quick answers. */
+const WHY = {
+  no: { ask: "What's off?", label: (t: string) => `Why not ${t}?`, quick: ['Too expensive', 'Not my style', 'Wrong type', 'Doubt the quality'] },
+  maybe: {
+    ask: "What's missing?",
+    label: (t: string) => `What's missing from ${t}?`,
+    quick: ['A bit too pricey', 'Almost my style', 'Missing a feature', 'Unsure of the quality'],
+  },
+}
+type WhyReaction = keyof typeof WHY
 
-/** No way / Kind of / Yes keycaps on a pick, plus why not. Tapping the active one clears it. */
+/** No way / Kind of / Yes keycaps on a pick, plus why for No way and Kind of. Tapping the active one clears it. */
 export function ReactionBar({ title, reaction, reason, onReact, onNext }: Props) {
-  // Focus the why-not box only right after the user taps No way.
+  // Focus the why box only right after the user taps No way or Kind of.
   const [focusWhy, setFocusWhy] = useState(false)
 
   return (
@@ -40,7 +49,7 @@ export function ReactionBar({ title, reaction, reason, onReact, onNext }: Props)
               className={`key ${value}`}
               aria-pressed={active}
               onClick={() => {
-                setFocusWhy(!active && value === 'no')
+                setFocusWhy(!active && value in WHY)
                 // A failure shows in the app's banner and rolls back.
                 onReact(active ? { reaction: null, reason: null } : { reaction: value }).catch(() => {})
               }}
@@ -51,20 +60,31 @@ export function ReactionBar({ title, reaction, reason, onReact, onNext }: Props)
           )
         })}
       </div>
-      {reaction === 'no' && (
-        <WhyNot title={title} reason={reason} autoFocus={focusWhy} onReact={onReact} onNext={onNext} />
+      {reaction && reaction in WHY && (
+        // Keyed: switching No way ↔ Kind of drops the reason (server rule), so the box starts empty.
+        <Why
+          key={reaction}
+          kind={reaction as WhyReaction}
+          title={title}
+          reason={reason}
+          autoFocus={focusWhy}
+          onReact={onReact}
+          onNext={onNext}
+        />
       )}
     </div>
   )
 }
 
-function WhyNot({
+function Why({
+  kind,
   title,
   reason,
   autoFocus,
   onReact,
   onNext,
 }: {
+  kind: WhyReaction
   title: string
   reason: string | null
   autoFocus: boolean
@@ -73,6 +93,7 @@ function WhyNot({
 }) {
   const [value, setValue] = useState(reason ?? '')
   const id = useId()
+  const why = WHY[kind]
   const lastSent = useRef(reason)
 
   const send = (text = value) => {
@@ -92,12 +113,12 @@ function WhyNot({
   useEffect(() => () => sendRef.current(), [])
 
   return (
-    <div className="whynot" role="group" aria-labelledby={`${id}-q`}>
+    <div className={`whynot ${kind}`} role="group" aria-labelledby={`${id}-q`}>
       <p id={`${id}-q`}>
-        What's off? <span>Optional, it steers the next round.</span>
+        {why.ask} <span>Optional, it steers the next round.</span>
       </p>
       <div className="chips">
-        {QUICK.map((text) => (
+        {why.quick.map((text) => (
           <button
             key={text}
             type="button"
@@ -116,7 +137,7 @@ function WhyNot({
       </div>
       <div className="wrow">
         <label htmlFor={id} className="sr">
-          Why not {title}?
+          {why.label(title)}
         </label>
         <input
           id={id}

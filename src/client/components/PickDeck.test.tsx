@@ -58,7 +58,7 @@ describe('PickDeck moves', () => {
   it('moves on at once, without the 250 ms exit, under reduced motion', async () => {
     vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce'), media: q }))
     const { user } = await open([three()])
-    await user.click(keys('Alpha').getByRole('button', { name: 'Kind of' }))
+    await user.click(keys('Alpha').getByRole('button', { name: 'Yes' }))
     expect(current()).toBe('Bravo')
     expect(document.querySelector('.deck .pick')).not.toHaveClass('out-l')
   })
@@ -90,6 +90,34 @@ describe('PickDeck moves', () => {
     await wait(BUSY_POLL_MS + 10)
     await waitFor(() => expect(api.calls.filter((c) => c.path === '/api/ideas').length).toBeGreaterThan(before))
     expect(current()).toBe('Bravo')
+  })
+})
+
+describe('Kind of and what is missing', () => {
+  it('stays on the pick and saves what is missing', async () => {
+    const { api, user } = await open([three()])
+    await user.click(keys('Alpha').getByRole('button', { name: 'Kind of' }))
+    await wait(500)
+    expect(current()).toBe('Alpha')
+    const why = screen.getByRole('textbox', { name: "What's missing from Alpha?" })
+    expect(why).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Missing a feature' }))
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(current()).toBe('Bravo')
+    await waitFor(() =>
+      expect(api.writes()).toEqual([
+        { method: 'PATCH', path: '/api/picks/1', body: { reaction: 'maybe' } },
+        { method: 'PATCH', path: '/api/picks/1', body: { reason: 'Missing a feature' } },
+      ]),
+    )
+  })
+
+  it('switching from No way starts an empty box, since the reason is dropped', async () => {
+    const { user } = await open([three([{ reaction: 'no', reason: 'too loud' }])])
+    await user.click(pip(1))
+    await user.click(keys('Alpha').getByRole('button', { name: 'Kind of' }))
+    expect(screen.queryByRole('textbox', { name: /Why not/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: "What's missing from Alpha?" })).toHaveValue('')
   })
 })
 

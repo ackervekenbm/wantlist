@@ -29,7 +29,7 @@ on free API tiers: €0 a month.
 - 🔎 **Researched in the background.** It plans searches, shortlists real products from the results and verifies them against the shop pages, while you do something else.
 - 🇧🇪 **Shops you can actually order from.** Belgian shops and Dutch shops that deliver to Belgium, big marketplaces and specialists alike. No trade-only wholesalers, no import resellers, no far-away shops for everyday things.
 - 💶 **Prices you can trust.** Every offer is opened at the shop: price and stock come from the shop itself, dead links are dropped, and sold-out products make way for ones you can buy.
-- 👍 **React, then refine.** Mark each pick *No way*, *Kind of* or *Yes*, say why not, and the next round learns from it.
+- 👍 **React, then refine.** Mark each pick *No way*, *Kind of* or *Yes*, say what's off or missing, and the next round learns from it.
 - 🧾 **Preferences you can see.** What the researcher understood (must-haves, things to avoid, things you like) is written out, and you can edit it.
 - 🎯 **Hunt the exact thing.** Know exactly what to buy? Switch the idea to *Hunt* and it finds the cheapest real offer for that product, ranked by what you pay delivered. Refills come back with one tap.
 - 🤝 **Your discount partners count.** Use a bill-discount program like Viking Deals? Partner shops show what you pay after it, with a link that makes the purchase count.
@@ -68,7 +68,7 @@ included. For Docker Compose and OpenMediaVault, see [Deployment](#deployment).
 <details>
 <summary><strong>Picks, reactions and refine rounds</strong></summary>
 
-- Picks come one card at a time, with dots to jump between them. React with **No way** (and say why not), **Kind of** or **Yes**; tap the active one again to clear it.
+- Picks come one card at a time, with dots to jump between them. React with **No way** (and say why not), **Kind of** (and say what's missing) or **Yes**; tap the active one again to clear it.
 - **Refine** researches a new round from your reactions and preference edits. **Research again** runs another round without them.
 - Each round adds its own picks; earlier rounds fold away and are never deleted, so a failed round loses nothing. **Keepers** keeps your *Yes* picks in view.
 - A product you've already seen never comes back, at any shop. When a round finds nothing new, it says so and suggests loosening a criterion or rewording the idea.
