@@ -327,8 +327,8 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   retry count, errors; an archived idea gets its own card),
   `PreferencesPanel` (must-have / avoid / liked, one per line, editable),
   `PickDeck` (one `PickCard` at a time with pips and advance after a
-  reaction; `ReactionBar`: No way opens a why-not, tapping the active one
-  clears it; checked price ✓ vs "≈" search price, stock, rating, caveat, other
+  Yes; `ReactionBar`: No way and Kind of each open their own why box, tapping
+  the active one clears it; checked price ✓ vs "≈" search price, stock, rating, caveat, other
   shops, "I bought this"), the `RefineBar` dock (needs a reaction or an
   edit), and `Keepers` (earlier "yes" picks) and `EarlierRounds` (older
   rounds, folded), both built from `PickRow`. `Sheet` is a native

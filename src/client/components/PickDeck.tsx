@@ -31,7 +31,7 @@ export function PickDeck({ idea, onReact, onBought, onHunt }: Props) {
   const wanted = idea.list === 'wanted'
   // A pick id, not an index, so a poll can't move it.
   const [at, setAt] = useState<number | 'end'>(() => (picks.find((p) => !p.reaction) ?? picks[0])?.id ?? 'end')
-  // The Yes / Kind of waiting to advance; dropped if the reaction rolls back.
+  // The Yes waiting to advance; dropped if the reaction rolls back. No way and Kind of stay to ask why.
   const [pending, setPending] = useState<{ id: number; reaction: Reaction } | null>(null)
   const picksRef = useRef(picks)
   const cardRef = useRef<HTMLElement>(null)
@@ -74,7 +74,7 @@ export function PickDeck({ idea, onReact, onBought, onHunt }: Props) {
   const react = (p: Pick, patch: PickPatch) => {
     const done = onReact(p.id, patch)
     const r = patch.reaction
-    if (r === 'yes' || r === 'maybe') {
+    if (r === 'yes') {
       if (reducedMotion()) advance(p.id)
       else setPending({ id: p.id, reaction: r })
     }
@@ -159,7 +159,7 @@ export function PickDeck({ idea, onReact, onBought, onHunt }: Props) {
             onReact={(patch) => react(pick, patch)}
             onNext={() => advance(pick.id)}
           />
-          {pick.reaction !== 'no' && (
+          {pick.reaction !== 'no' && pick.reaction !== 'maybe' && (
             <p className="keyhint">Tap again to clear</p>
           )}
         </>

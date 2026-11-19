@@ -8,7 +8,7 @@ interface Props {
   reaction: Reaction | null
   reason: string | null
   onReact: (patch: PickPatch) => Promise<void>
-  /** In the deck: the why-not card gets Next, which saves and moves on. */
+  /** In the deck: the why card gets Next, which saves and moves on. */
   onNext?: () => void
 }
 
@@ -21,11 +21,31 @@ const CHOICES: Array<{ value: Reaction; Icon: typeof NoIcon }> = [
   { value: 'yes', Icon: YesIcon },
 ]
 
-const QUICK = ['Too expensive', 'Not my style', 'Wrong type', 'Doubt the quality']
+/** No way and Kind of ask why; each reaction has its own question and quick answers. */
+const WHY = {
+  no: { ask: "What's off?", label: (t: string) => `Why not ${t}?`, quick: ['Too expensive', 'Not my style', 'Wrong type', 'Doubt the quality'] },
+  maybe: {
+    ask: "What's missing?",
+    label: (t: string) => `What's missing from ${t}?`,
+    quick: ['A bit too pricey', 'Almost my style', 'Missing a feature', 'Unsure of the quality'],
+  },
+}
+type WhyReaction = keyof typeof WHY
 
-/** No way / Kind of / Yes keycaps on a pick, plus why not. Tapping the active one clears it. */
+// The tapped quick answers and the owner's note are stored as one reason, joined by SEP.
+const SEP = ' · '
+const joinReason = (picked: string[], note: string) => [...picked, note.trim()].filter(Boolean).join(SEP) || null
+function splitReason(reason: string | null, quick: string[]) {
+  const parts = reason ? reason.split(SEP) : []
+  return {
+    picked: quick.filter((q) => parts.includes(q)),
+    note: parts.filter((p) => !quick.includes(p)).join(SEP),
+  }
+}
+
+/** No way / Kind of / Yes keycaps on a pick, plus why for No way and Kind of. Tapping the active one clears it. */
 export function ReactionBar({ title, reaction, reason, onReact, onNext }: Props) {
-  // Focus the why-not box only right after the user taps No way.
+  // Focus the why box only right after the user taps No way or Kind of.
   const [focusWhy, setFocusWhy] = useState(false)
 
   return (
@@ -40,7 +60,7 @@ export function ReactionBar({ title, reaction, reason, onReact, onNext }: Props)
               className={`key ${value}`}
               aria-pressed={active}
               onClick={() => {
-                setFocusWhy(!active && value === 'no')
+                setFocusWhy(!active && value in WHY)
                 // A failure shows in the app's banner and rolls back.
                 onReact(active ? { reaction: null, reason: null } : { reaction: value }).catch(() => {})
               }}
@@ -51,32 +71,45 @@ export function ReactionBar({ title, reaction, reason, onReact, onNext }: Props)
           )
         })}
       </div>
-      {reaction === 'no' && (
-        <WhyNot title={title} reason={reason} autoFocus={focusWhy} onReact={onReact} onNext={onNext} />
+      {reaction && reaction in WHY && (
+        // Keyed: switching No way ↔ Kind of drops the reason (server rule), so the box starts empty.
+        <Why
+          key={reaction}
+          kind={reaction as WhyReaction}
+          title={title}
+          reason={reason}
+          autoFocus={focusWhy}
+          onReact={onReact}
+          onNext={onNext}
+        />
       )}
     </div>
   )
 }
 
-function WhyNot({
+function Why({
+  kind,
   title,
   reason,
   autoFocus,
   onReact,
   onNext,
 }: {
+  kind: WhyReaction
   title: string
   reason: string | null
   autoFocus: boolean
   onReact: (patch: PickPatch) => Promise<void>
   onNext?: () => void
 }) {
-  const [value, setValue] = useState(reason ?? '')
   const id = useId()
+  const why = WHY[kind]
+  const [picked, setPicked] = useState(() => splitReason(reason, why.quick).picked)
+  const [value, setValue] = useState(() => splitReason(reason, why.quick).note)
   const lastSent = useRef(reason)
 
-  const send = (text = value) => {
-    const next = text.trim() || null
+  const send = (chips = picked) => {
+    const next = joinReason(chips, value)
     if (next === lastSent.current) return
     const before = lastSent.current
     lastSent.current = next
@@ -92,22 +125,23 @@ function WhyNot({
   useEffect(() => () => sendRef.current(), [])
 
   return (
-    <div className="whynot" role="group" aria-labelledby={`${id}-q`}>
+    <div className={`whynot ${kind}`} role="group" aria-labelledby={`${id}-q`}>
       <p id={`${id}-q`}>
-        What's off? <span>Optional, it steers the next round.</span>
+        {why.ask} <span>Optional, it steers the next round.</span>
       </p>
       <div className="chips">
-        {QUICK.map((text) => (
+        {why.quick.map((text) => (
           <button
             key={text}
             type="button"
             className="chipbtn"
-            // Keeps focus in the input, so its blur doesn't save the typed text before the chip text.
+            // Keeps focus in the input, so its blur doesn't save once before the chip's own save.
             onMouseDown={(e) => e.preventDefault()}
-            aria-pressed={value.trim() === text}
+            aria-pressed={picked.includes(text)}
             onClick={() => {
-              setValue(text)
-              send(text)
+              const next = why.quick.filter((q) => (q === text ? !picked.includes(q) : picked.includes(q)))
+              setPicked(next)
+              send(next)
             }}
           >
             {text}
@@ -116,12 +150,13 @@ function WhyNot({
       </div>
       <div className="wrow">
         <label htmlFor={id} className="sr">
-          Why not {title}?
+          {why.label(title)}
         </label>
         <input
           id={id}
           placeholder="In your words…"
-          maxLength={REASON_MAX}
+          // Room left once the tapped answers are in the reason.
+          maxLength={REASON_MAX - (picked.length ? picked.join(SEP).length + SEP.length : 0)}
           value={value}
           autoFocus={autoFocus}
           onChange={(e) => setValue(e.target.value)}
