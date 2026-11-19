@@ -1,4 +1,4 @@
-import type { ModelHealth } from '../../types'
+import type { ModelHealth, ModelSource, RateLimits } from '../../types'
 import { ResearchError, toResearchError } from './errors'
 
 export interface GenerateArgs {
@@ -11,6 +11,10 @@ export interface GenerateArgs {
 export interface LlmProvider {
   /** Stable identifier, e.g. "gemini:gemini-3.8-flash" or "groq:qwen/qwen3.8-27b". */
   readonly id: string
+  /** Whether the model name is the built-in default or set through the environment. */
+  readonly modelSource?: ModelSource
+  /** Rate limits from the latest response headers, when the provider reports them. */
+  limits?(): RateLimits | null
   generate(args: GenerateArgs): Promise<unknown>
 }
 

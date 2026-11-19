@@ -133,4 +133,64 @@ describe('OpenAiCompatProvider', () => {
     expect(junk.kind).toBe('invalid')
     expect(junk.message).toContain('not valid JSON')
   })
+
+  it('records Groq rate-limit headers', async () => {
+    const p = provider()
+    stubFetch(() => {
+      const res = chatResponse('{"a":"b"}')
+      res.headers.set('x-ratelimit-limit-requests', '1000')
+      res.headers.set('x-ratelimit-remaining-requests', '980')
+      res.headers.set('x-ratelimit-reset-requests', '2m59.56s')
+      res.headers.set('x-ratelimit-limit-tokens', '6000')
+      res.headers.set('x-ratelimit-remaining-tokens', '5400')
+      res.headers.set('x-ratelimit-reset-tokens', '6s')
+      return res
+    })
+    await p.generate(ARGS)
+    expect(p.limits()).toEqual({
+      requests: { limit: 1000, remaining: 980, reset: '2m59.56s' },
+      tokens: { limit: 6000, remaining: 5400, reset: '6s' },
+      seenAt: expect.any(String),
+    })
+  })
+
+  it("records OpenRouter's unsuffixed headers as requests, also on a 429", async () => {
+    const p = provider()
+    stubFetch(
+      () =>
+        new Response('slow down', {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': '50',
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': '1763596800000',
+          },
+        }),
+    )
+    await expect(p.generate(ARGS)).rejects.toBeInstanceOf(ResearchError)
+    expect(p.limits()).toEqual({
+      requests: { limit: 50, remaining: 0, reset: '1763596800000' },
+      tokens: null,
+      seenAt: expect.any(String),
+    })
+  })
+
+  it('keeps limits null without headers, and nulls garbage numbers', async () => {
+    const p = provider()
+    expect(p.limits()).toBeNull()
+    stubFetch(() => chatResponse('{"a":"b"}'))
+    await p.generate(ARGS)
+    expect(p.limits()).toBeNull()
+    stubFetch(() => {
+      const res = chatResponse('{"a":"b"}')
+      res.headers.set('x-ratelimit-remaining-requests', 'abc')
+      return res
+    })
+    await p.generate(ARGS)
+    expect(p.limits()).toEqual({
+      requests: { limit: null, remaining: null, reset: null },
+      tokens: null,
+      seenAt: expect.any(String),
+    })
+  })
 })

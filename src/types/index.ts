@@ -282,6 +282,22 @@ export interface ModelHealth {
   reason: 'quota' | 'unavailable' | null
 }
 
+export interface RateLimit {
+  limit: number | null
+  remaining: number | null
+  /** Raw header: Groq "2m59.56s", OpenRouter epoch ms. */
+  reset: string | null
+}
+
+export interface RateLimits {
+  requests: RateLimit | null
+  tokens: RateLimit | null
+  /** ISO-8601, when the headers were read. */
+  seenAt: string
+}
+
+export type ModelSource = 'default' | 'env'
+
 export interface ResearchCandidate {
   title: string
   shop: string

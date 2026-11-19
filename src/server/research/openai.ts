@@ -1,5 +1,6 @@
 import { ResearchError, retryAfterHeaderMs } from './errors'
 import { parseJsonLoose } from './json'
+import type { ModelSource, RateLimit, RateLimits } from '../../types'
 import type { GenerateArgs, LlmProvider } from './llm'
 
 export interface OpenAiCompatOptions {
@@ -9,6 +10,7 @@ export interface OpenAiCompatOptions {
   baseUrl: string
   apiKey: string
   model: string
+  modelSource?: ModelSource
 }
 
 const TIMEOUT_MS = 90_000
@@ -22,9 +24,30 @@ const DEFAULT_429_BENCH_MS = 15 * 60 * 1000
  */
 export class OpenAiCompatProvider implements LlmProvider {
   readonly id: string
+  readonly modelSource?: ModelSource
+  private seen: RateLimits | null = null
 
   constructor(private readonly opts: OpenAiCompatOptions) {
     this.id = opts.id
+    this.modelSource = opts.modelSource
+  }
+
+  limits(): RateLimits | null {
+    return this.seen
+  }
+
+  /** Groq sends -requests / -tokens suffixed headers, OpenRouter unsuffixed ones (read as requests). */
+  private recordLimits(headers: Headers): void {
+    const group = (suffix: string): RateLimit | null => {
+      const get = (name: string) => headers.get(`x-ratelimit-${name}${suffix}`)
+      const [limit, remaining, reset] = [get('limit'), get('remaining'), get('reset')]
+      if (limit === null && remaining === null && reset === null) return null
+      const num = (v: string | null) => (v !== null && Number.isFinite(Number(v)) ? Number(v) : null)
+      return { limit: num(limit), remaining: num(remaining), reset }
+    }
+    const requests = group('-requests') ?? group('')
+    const tokens = group('-tokens')
+    if (requests || tokens) this.seen = { requests, tokens, seenAt: new Date().toISOString() }
   }
 
   async generate(args: GenerateArgs): Promise<unknown> {
@@ -56,6 +79,8 @@ export class OpenAiCompatProvider implements LlmProvider {
     } catch (err) {
       throw new ResearchError(`${this.id}: request failed (${(err as Error).message})`, { kind: 'transient' })
     }
+
+    this.recordLimits(res.headers)
 
     if (!res.ok) {
       const detail = (await res.text().catch(() => '')).slice(0, 200)
