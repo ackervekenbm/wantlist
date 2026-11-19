@@ -16,6 +16,7 @@ import {
   setOfferDelivery,
   recordPurchase,
   requeueIdea,
+  moveToPantry,
   runningLow,
   startHunt,
   undoPurchase,
@@ -185,6 +186,15 @@ export function createApp(opts: AppOptions): express.Express {
     if (idea === 'not-covered' || idea === 'busy') return busy(res)
     worker.kick()
     res.status(202).json(show(idea))
+  })
+
+  app.post('/api/ideas/:id/pantry', (req, res) => {
+    const id = ideaId(req, res)
+    if (id === null) return
+    const idea = moveToPantry(db, id)
+    if (idea === null) return notFound(res)
+    if (idea === 'busy') return busy(res)
+    res.json(show(idea))
   })
 
   app.delete('/api/purchases/:id', (req, res) => {

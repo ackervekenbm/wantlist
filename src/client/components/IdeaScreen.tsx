@@ -25,7 +25,7 @@ interface Props {
   status: ServerStatus | null
   /** Back home, after Archive or Remove. */
   onBack: () => void
-  actions: Pick<IdeasActions, 'patch' | 'rerun' | 'remove' | 'react' | 'refine' | 'switchMode' | 'huntPick' | 'buy' | 'runningLow' | 'setDelivery'>
+  actions: Pick<IdeasActions, 'patch' | 'rerun' | 'remove' | 'react' | 'refine' | 'switchMode' | 'huntPick' | 'buy' | 'runningLow' | 'setDelivery' | 'toPantry'>
 }
 
 /** One idea: header with the mode switch, where research stands, then Explore (learned, picks, refine) or the hunt. */
@@ -133,6 +133,16 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
             </p>
           ) : (
             <p>Bought something else.</p>
+          )}
+          {!busy && (
+            <>
+              <p className="hint">Runs out and you'll buy it again? Keep it in the Pantry, and hunt for the best price when you're running low.</p>
+              <div className="acts">
+                <button type="button" className="btn small" onClick={() => fire(actions.toPantry(id))}>
+                  It's a refill: move to Pantry
+                </button>
+              </div>
+            </>
           )}
         </Card>
       ) : idea.list === 'archived' ? (

@@ -39,6 +39,8 @@ export interface IdeasActions {
   /** Your own delivery cost on a hunt offer (0 = free), or null for what the shop page said; the server re-ranks. */
   setDelivery(pickId: number, cost: number | null): Promise<void>
   runningLow(id: number): Promise<void>
+  /** A bought idea turns out to be a refill: it becomes a hunt in the Pantry. */
+  toPantry(id: number): Promise<void>
   /** Takes back the purchase in the toast. */
   undoBuy(): Promise<void>
   dismissError(): void
@@ -214,6 +216,11 @@ export function useIdeas(): IdeasState & IdeasActions {
         writeSeq.current++
         replace(await api.runningLow(id))
         void refresh(true)
+      }),
+    toPantry: (id) =>
+      run(async () => {
+        writeSeq.current++
+        replace(await api.toPantry(id))
       }),
     undoBuy: () =>
       run(async () => {

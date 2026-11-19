@@ -64,6 +64,10 @@ export function runningLow(id: number): Promise<Idea> {
   return req(`/api/ideas/${id}/running-low`, { method: 'POST' })
 }
 
+export function toPantry(id: number): Promise<Idea> {
+  return req(`/api/ideas/${id}/pantry`, { method: 'POST' })
+}
+
 export function undoPurchase(purchaseId: number): Promise<Idea> {
   return req(`/api/purchases/${purchaseId}`, { method: 'DELETE' })
 }

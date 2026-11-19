@@ -334,6 +334,17 @@ describe('hunt routes', () => {
     await api.post('/api/ideas/99/running-low').expect(404)
   })
 
+  it('moves a bought idea to the Pantry, else 409', async () => {
+    const { db, api, worker } = setup()
+    const id = seedDone(db)
+    await api.post(`/api/ideas/${id}/pantry`).expect(409)
+    await api.patch(`/api/ideas/${id}`).send({ list: 'bought', boughtPickId: pickOf(db, id) }).expect(200)
+    const res = await api.post(`/api/ideas/${id}/pantry`).expect(200)
+    expect(res.body).toMatchObject({ mode: 'hunt', list: 'bought', refill: true })
+    expect(worker.kick).not.toHaveBeenCalled()
+    await api.post('/api/ideas/99/pantry').expect(404)
+  })
+
   it('PATCH a hunt offer with your delivery cost re-ranks the hunt, and null clears it', async () => {
     const { db, api } = setup()
     const id = createIdea(db, 'pedals')

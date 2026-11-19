@@ -108,7 +108,7 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
     const method = init.method ?? 'GET'
     const body: unknown = init.body ? JSON.parse(String(init.body)) : undefined
     calls.push({ method, path: input, body })
-    const m = /^\/api\/ideas\/(\d+)(?:\/(rerun|refine|hunt|purchases|running-low))?$/.exec(input)
+    const m = /^\/api\/ideas\/(\d+)(?:\/(rerun|refine|hunt|purchases|running-low|pantry))?$/.exec(input)
     const id = m ? Number(m[1]) : null
     const found = id !== null ? ideas.find((i) => i.id === id) : undefined
 
@@ -246,6 +246,19 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
       }
       ideas = ideas.map((i) => (i.id === id ? updated : i))
       return json(updated, 201)
+    }
+    if (m?.[2] === 'pantry' && method === 'POST') {
+      if (found.list !== 'bought') return json({ error: 'not bought' }, 409)
+      const product = found.bought?.title ?? found.title ?? found.text
+      const updated: Idea = {
+        ...found,
+        mode: 'hunt',
+        modeByOwner: true,
+        refill: true,
+        target: found.target ?? { product, variant: '', condition: 'new', exclude: [], unit: null },
+      }
+      ideas = ideas.map((i) => (i.id === id ? updated : i))
+      return json(updated)
     }
     if (m?.[2] === 'running-low' && method === 'POST') {
       if (!isCovered(found)) return json({ error: 'not covered' }, 409)

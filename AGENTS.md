@@ -168,11 +168,12 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   it also stores that pick's shops in `hunt_from` (migration 8, `HuntSource[]`,
   read by `huntSources`; the worker passes them as `huntFrom` on every run); `recordPurchase` writes the
   purchase, the `bought` snapshot, `list = 'bought'` and `refill`;
-  `runningLow` (covered only) clears the snapshot and re-queues; `undoPurchase` deletes one and, if it
+  `runningLow` (covered only) clears the snapshot and re-queues; `moveToPantry` turns any bought idea into a covered one (hunt, owner's choice, `refill = 1`, target drafted from the
+  `bought` snapshot when it has none, `hunt_from` from it when empty; no run queued); `undoPurchase` deletes one and, if it
   was the newest, puts the idea back on wanted. Routes: `PATCH /api/ideas/:id`
   also takes `mode` and `target` (409 while researching); `POST
   /api/ideas/:id/hunt` `{pickId}` (202), `POST …/purchases` `{pickId|null, paid,
-  refill}` (201), `POST …/running-low` (202; 409 unless covered and idle),
+  refill}` (201), `POST …/running-low` (202; 409 unless covered and idle), `POST …/pantry` (200; 409 unless bought and idle),
   `DELETE /api/purchases/:id` (the undo).
 - `src/server/worker.ts` — in-process worker with per-instance state. A pass
   researches up to `WORKER_QUEUE_CAP` (default 3) **due** ideas, one at a time.
@@ -353,7 +354,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   price, per unit, "x% less than last time"), `OfferList` (other shops and the
   folded unavailable / mismatch groups; every offer has **Delivery**, opening
   `DeliverySheet` for your own cost), `BoughtSheet` (paid, "Will you buy this
-  again?", undo toast) and `CoveredStub` (covered since, what you paid, Running
+  again?", undo toast) and `CoveredStub` (covered since, what you paid or the `bought` snapshot, Running
   low). `lib/hunt.ts`: `offersOf` (newest hunt round), `exploreRounds`,
   `bestOffer`, `versusLast`. Hunt offers stay out of Keepers, earlier rounds and
   refine. **Hunt this one** sits on the pick card and Keepers row. Pantry is a
