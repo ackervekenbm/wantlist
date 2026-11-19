@@ -47,12 +47,9 @@ export const ChevronIcon = (p: IconProps) => (
 )
 
 
-export const LogoMark = ({ size = 22 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-    <path d="M5 2.5h14v19l-2.33-1.6-2.34 1.6L12 19.9l-2.33 1.6-2.34-1.6L5 21.5z" fill="var(--accent)" />
-    <path d="M8.5 8h7M8.5 11.5h7M8.5 15h4" stroke="var(--accent-ink)" strokeWidth={1.8} strokeLinecap="round" />
-  </svg>
-)
+// The app icon itself (drawn in scripts/gen-icons.mjs), so the header always matches the favicon.
+export const LogoMark = () => <img src="/favicon.svg" width={28} height={28} alt="" />
+
 
 export const SunIcon = (p: IconProps) => (
   <Icon {...p}>
