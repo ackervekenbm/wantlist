@@ -1,3 +1,4 @@
+import type { ApiKeyState } from '../../types'
 import { GeminiProvider } from './gemini'
 import { ModelRouter, type LlmProvider } from './llm'
 import { OpenAiCompatProvider } from './openai'
@@ -24,30 +25,35 @@ export function buildProviderChain(env: NodeJS.ProcessEnv = process.env): LlmPro
     const primary = env.GEMINI_MODEL?.trim()
     const models = primary ? [primary, ...configured.filter((m) => m !== primary)] : configured
     for (const model of models) {
-      chain.push(new GeminiProvider({ apiKey: geminiKey, model }))
+      const modelSource = model === primary || listed.includes(model) ? 'env' : 'default'
+      chain.push(new GeminiProvider({ apiKey: geminiKey, model, modelSource }))
     }
   }
 
   if (env.GROQ_API_KEY) {
-    const model = env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL
+    const picked = env.GROQ_MODEL?.trim()
+    const model = picked || DEFAULT_GROQ_MODEL
     chain.push(
       new OpenAiCompatProvider({
         id: `groq:${model}`,
         baseUrl: 'https://api.groq.com/openai/v1',
         apiKey: env.GROQ_API_KEY,
         model,
+        modelSource: picked ? 'env' : 'default',
       }),
     )
   }
 
   if (env.OPENROUTER_API_KEY) {
-    const model = env.OPENROUTER_MODEL?.trim() || DEFAULT_OPENROUTER_MODEL
+    const picked = env.OPENROUTER_MODEL?.trim()
+    const model = picked || DEFAULT_OPENROUTER_MODEL
     chain.push(
       new OpenAiCompatProvider({
         id: `openrouter:${model}`,
         baseUrl: 'https://openrouter.ai/api/v1',
         apiKey: env.OPENROUTER_API_KEY,
         model,
+        modelSource: picked ? 'env' : 'default',
       }),
     )
   }
@@ -61,4 +67,11 @@ export function buildModelRouter(
 ): ModelRouter | null {
   const chain = buildProviderChain(env)
   return chain.length > 0 ? new ModelRouter({ chain, onEvent }) : null
+}
+
+const KEY_NAMES = ['GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENROUTER_API_KEY', 'SERPER_API_KEY']
+
+/** Which keys are set, for the Settings page; values never leave this function. */
+export function apiKeys(env: NodeJS.ProcessEnv): ApiKeyState[] {
+  return KEY_NAMES.map((name) => ({ name, set: Boolean(env[name]?.trim()) }))
 }

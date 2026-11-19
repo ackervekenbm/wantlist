@@ -257,7 +257,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   answer the normalizer rejects (no queries, no candidate from the result set)
   tries the next model. All benched: wait if the earliest reset is ≤ 90 s
   (per-minute limits), else throw `allModelsOut` with the time to that reset,
-  which the worker uses as the retry time. `health()` feeds `/api/status`.
+  which the worker uses as the retry time. `health()` feeds `/api/status` (each `ModelHealth` also carries `provider`, `model`,
+  `modelSource`, `lastError` and `limits`, read from `OpenAiCompatProvider.limits()`;
+  `keys` says which API keys are set, never their values).
 - `src/server/research/gemini.ts` — `GeminiProvider` (raw `fetch`, key in the
   `x-goog-api-key` header). 429s are classified from the body
   (`parseGoogleError`: QuotaFailure `quotaId`, RetryInfo `retryDelay`):
@@ -276,7 +278,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 - `src/server/research/chain.ts` — builds the provider chain from env:
   `GEMINI_MODEL` (primary) → `MODEL_CHAIN` (Gemini fallbacks, default
   `gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite`) → optional
-  `GROQ_API_KEY` → optional `OPENROUTER_API_KEY`.
+  `GROQ_API_KEY` → optional `OPENROUTER_API_KEY`. Each entry carries its `modelSource` (`default` / `env`); `apiKeys(env)` reports which keys are set, never values.
 - `src/server/research/product.ts` — structured product data from a shop page:
   schema.org JSON-LD (`Product`, `@graph`, a `BuyAction`'s `object`, `ProductGroup` variants, `Offer` /
   `AggregateOffer`; EUR only; cheapest in-stock offer wins), OpenGraph /
@@ -305,7 +307,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   bundled Bricolage Grotesque variable font (`@fontsource-variable/bricolage-grotesque`,
   no CDN). `lib/route.ts` is a hash router (`parseHash` / `toHash` /
   `useRoute`, `navigate`, `goHome`): `#/` home, `#/idea/<id>`,
-  `#/lists/<wanted|bought|archived>`. In-app moves push a history entry that
+  `#/lists/<wanted|bought|archived>`, `#/settings`. In-app moves push a history entry that
   remembers where it came from, so `BackLink` steps back when that was home
   (else replaces with home); Archive and Remove go home the same way.
   `App.tsx` wires route, `useIdeas` and the screens into `components/Shell.tsx`:
@@ -324,7 +326,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   researcher** / tiles for the lists, sorted by `lib/triage.ts`: `needOf`,
   `isWorking`, `quotaResetAt`, `shownTitle`, `stepOf`), `ListsScreen` (the
   three lists as tabs, with `BackLink`; `lib/filter.ts` filters lists above
-  8) and `IdeaScreen`: `IdeaTitle` (rename), `StatusCard` (research step,
+  8), `SettingsScreen` (read-only models and keys, with `BackLink`: the chain grouped by provider with key state, dashboard links, bench state, last error and provider-reported limits; the gear in `TopBar` opens it) and `IdeaScreen`: `IdeaTitle` (rename), `StatusCard` (research step,
   retry count, errors; an archived idea gets its own card),
   `PreferencesPanel` (must-have / avoid / liked, one per line, editable),
   `PickDeck` (one `PickCard` at a time with pips and advance after a

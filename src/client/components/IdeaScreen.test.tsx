@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Idea, ServerStatus } from '../../types'
 import { App } from '../App'
 import { BUSY_POLL_MS } from '../hooks/useIdeas'
-import { fakeApi, idea, pick, status } from '../test/fakeApi'
+import { fakeApi, idea, modelHealth, pick, status } from '../test/fakeApi'
 
 /** The app on idea 1 (or `id`), once the ideas have loaded. */
 async function open(ideas: Idea[], serverStatus?: ServerStatus, id = 1) {
@@ -81,7 +81,7 @@ describe('StatusCard', () => {
   it('says when every model is out of quota', async () => {
     await open(
       [idea({ status: 'queued' })],
-      status({ models: [{ id: 'gemini:a', benchedUntil: '2026-11-12T08:00:00.000Z', reason: 'quota' }] }),
+      status({ models: [modelHealth({ id: 'gemini:a', benchedUntil: '2026-11-12T08:00:00.000Z', reason: 'quota' })] }),
     )
     expect(pane().getByRole('region', { name: /^Out of quota until/ })).toBeInTheDocument()
   })

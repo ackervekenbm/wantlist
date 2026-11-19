@@ -272,15 +272,46 @@ export interface ServerStatus {
   current: { ideaId: number; step: string } | null
   /** The model chain in order, with any model currently benched. */
   models: ModelHealth[]
+  /** Which API keys are set; never their values. */
+  keys: ApiKeyState[]
+}
+
+export interface ApiKeyState {
+  name: string
+  set: boolean
 }
 
 export interface ModelHealth {
   id: string
+  /** Before the first ':' of id: 'gemini' | 'groq' | 'openrouter'. */
+  provider: string
+  /** After the first ':' of id. */
+  model: string
+  modelSource: ModelSource
   /** Skipped until this time (ISO-8601), or null when usable. */
   benchedUntil: string | null
   /** quota: rate/daily limit; unavailable: model unknown or key refused. */
   reason: 'quota' | 'unavailable' | null
+  /** The last error this model returned, cut to 200 chars; cleared when it answers. */
+  lastError: string | null
+  limits: RateLimits | null
 }
+
+export interface RateLimit {
+  limit: number | null
+  remaining: number | null
+  /** Raw header: Groq "2m59.56s", OpenRouter epoch ms. */
+  reset: string | null
+}
+
+export interface RateLimits {
+  requests: RateLimit | null
+  tokens: RateLimit | null
+  /** ISO-8601, when the headers were read. */
+  seenAt: string
+}
+
+export type ModelSource = 'default' | 'env'
 
 export interface ResearchCandidate {
   title: string

@@ -1,5 +1,6 @@
 import { ResearchError, retryAfterHeaderMs } from './errors'
 import { parseJsonLoose } from './json'
+import type { ModelSource, RateLimit, RateLimits } from '../../types'
 import type { GenerateArgs, LlmProvider } from './llm'
 
 export interface OpenAiCompatOptions {
@@ -9,6 +10,7 @@ export interface OpenAiCompatOptions {
   baseUrl: string
   apiKey: string
   model: string
+  modelSource?: ModelSource
 }
 
 const TIMEOUT_MS = 90_000
@@ -22,9 +24,30 @@ const DEFAULT_429_BENCH_MS = 15 * 60 * 1000
  */
 export class OpenAiCompatProvider implements LlmProvider {
   readonly id: string
+  readonly modelSource?: ModelSource
+  private seen: RateLimits | null = null
 
   constructor(private readonly opts: OpenAiCompatOptions) {
     this.id = opts.id
+    this.modelSource = opts.modelSource
+  }
+
+  limits(): RateLimits | null {
+    return this.seen
+  }
+
+  /** Groq sends -requests / -tokens suffixed headers, OpenRouter unsuffixed ones (read as requests). */
+  private recordLimits(headers: Headers): void {
+    const group = (suffix: string): RateLimit | null => {
+      const get = (name: string) => headers.get(`x-ratelimit-${name}${suffix}`)
+      const [limit, remaining, reset] = [get('limit'), get('remaining'), get('reset')]
+      if (limit === null && remaining === null && reset === null) return null
+      const num = (v: string | null) => (v !== null && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null)
+      return { limit: num(limit), remaining: num(remaining), reset }
+    }
+    const requests = group('-requests') ?? group('')
+    const tokens = group('-tokens')
+    if (requests || tokens) this.seen = { requests, tokens, seenAt: new Date().toISOString() }
   }
 
   async generate(args: GenerateArgs): Promise<unknown> {
@@ -57,8 +80,10 @@ export class OpenAiCompatProvider implements LlmProvider {
       throw new ResearchError(`${this.id}: request failed (${(err as Error).message})`, { kind: 'transient' })
     }
 
+    this.recordLimits(res.headers)
+
     if (!res.ok) {
-      const detail = (await res.text().catch(() => '')).slice(0, 200)
+      const detail = errorText(await res.text().catch(() => '')).slice(0, 200)
       const suffix = detail ? `: ${detail}` : ''
       if (res.status === 429) {
         throw new ResearchError(`${this.id}: rate limited${suffix}`, {
@@ -96,6 +121,18 @@ export class OpenAiCompatProvider implements LlmProvider {
       throw new ResearchError(`${this.id}: answer is not valid JSON: ${text.slice(0, 120)}`, { kind: 'invalid' })
     }
   }
+}
+
+/** The readable part of an error body: OpenRouter's upstream `metadata.raw`, else `error.message`, else the body. */
+function errorText(body: string): string {
+  try {
+    const e = (JSON.parse(body) as { error?: { message?: unknown; metadata?: { raw?: unknown } } }).error
+    const text = e?.metadata?.raw ?? e?.message
+    if (typeof text === 'string' && text.trim()) return text.trim()
+  } catch {
+    // not JSON: keep the body as it is
+  }
+  return body
 }
 
 interface OpenAiCompatResponse {

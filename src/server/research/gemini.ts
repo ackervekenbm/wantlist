@@ -1,3 +1,4 @@
+import type { ModelSource } from '../../types'
 import { ResearchError, msUntilMidnight, retryAfterHeaderMs } from './errors'
 import { parseJsonLoose } from './json'
 import type { GenerateArgs, LlmProvider } from './llm'
@@ -13,15 +14,18 @@ const BLOCKED_FINISH = new Set(['SAFETY', 'RECITATION', 'PROHIBITED_CONTENT', 'B
 export interface GeminiOptions {
   apiKey: string
   model: string
+  modelSource?: ModelSource
   /** Injectable clock for tests (quota reset times). */
   now?: () => number
 }
 
 export class GeminiProvider implements LlmProvider {
   readonly id: string
+  readonly modelSource?: ModelSource
 
   constructor(private readonly opts: GeminiOptions) {
     this.id = `gemini:${opts.model}`
+    this.modelSource = opts.modelSource
   }
 
   async generate(args: GenerateArgs): Promise<unknown> {

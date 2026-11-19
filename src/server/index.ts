@@ -3,7 +3,7 @@ import { createApp } from './app'
 import { openDb, recoverInterrupted } from './db'
 import { env, envInt, loadEnv } from './env'
 import { Partners } from './partners'
-import { buildModelRouter } from './research/chain'
+import { apiKeys, buildModelRouter } from './research/chain'
 import { PipelineEngine } from './research/pipeline'
 import { SerperProvider } from './research/search'
 import { createWorker } from './worker'
@@ -44,6 +44,7 @@ const app = createApp({
   db,
   worker,
   missingKeys,
+  keys: apiKeys(process.env),
   modelHealth: () => router?.health() ?? [],
   partners,
   clientDist: path.join(process.cwd(), 'dist'),

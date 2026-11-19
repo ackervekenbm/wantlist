@@ -58,7 +58,7 @@ describe('ModelRouter', () => {
     await expect(router.generate(ARGS)).resolves.toEqual({ ok: 2 })
     await router.generate(ARGS)
     expect(a.calls).toBe(1)
-    expect(router.health()).toEqual([
+    expect(router.health()).toMatchObject([
       { id: 'a', benchedUntil: new Date(1_005_000).toISOString(), reason: 'quota' },
       { id: 'b', benchedUntil: null, reason: null },
     ])
@@ -181,5 +181,38 @@ describe('msUntilMidnight', () => {
     // 2026-11-07 12:00 UTC is 04:00 in Los Angeles (PST, UTC-8): 20 h left there.
     expect(msUntilMidnight('America/Los_Angeles', Date.UTC(2026, 10, 7, 12))).toBe(20 * 3_600_000)
     expect(msUntilMidnight('UTC', Date.UTC(2026, 10, 7, 23, 30))).toBe(30 * 60_000)
+  })
+})
+
+describe('ModelRouter health details', () => {
+  const L = { requests: { limit: 10, remaining: 4, reset: '1s' }, tokens: null }
+
+  it('reports provider, model, last error and limits', async () => {
+    let call = 0
+    const groq: LlmProvider = {
+      id: 'groq:qwen/x',
+      modelSource: 'default',
+      limits: () => L as never,
+      generate: async () => {
+        call += 1
+        if (call === 1) throw fail('invalid', null, 'groq:qwen/x: request rejected')
+        return { ok: 1 }
+      },
+    }
+    const router = makeRouter([groq])
+    await expect(router.generate(ARGS)).rejects.toThrow('request rejected')
+    expect(router.health()[0]).toMatchObject({
+      provider: 'groq',
+      model: 'qwen/x',
+      modelSource: 'default',
+      lastError: 'request rejected',
+      limits: L,
+    })
+    await router.generate(ARGS)
+    expect(router.health()[0].lastError).toBeNull()
+  })
+
+  it('defaults the source to env and limits to null', () => {
+    expect(makeRouter([new FakeProvider('a', () => 1)]).health()[0]).toMatchObject({ modelSource: 'env', limits: null })
   })
 })

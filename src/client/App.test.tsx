@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import { IDLE_POLL_MS, UNDO_MS } from './hooks/useIdeas'
-import { fakeApi, idea, pick, status } from './test/fakeApi'
+import { fakeApi, idea, modelHealth, pick, status } from './test/fakeApi'
 
 /** Renders the app on a route (`#/idea/1`, `#/lists/wanted`, …) once the ideas have loaded. */
 async function renderApp(hash = '#/') {
@@ -20,6 +20,14 @@ describe('App', () => {
     fakeApi([])
     await renderApp()
     expect(screen.getByText('Nothing on the list.')).toBeInTheDocument()
+  })
+
+  it('opens Settings from the gear in the top bar', async () => {
+    fakeApi([])
+    const user = await renderApp('#/')
+    await user.click(screen.getByRole('link', { name: 'Settings' }))
+    expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument()
+    expect(location.hash).toBe('#/settings')
   })
 
   it('adds an idea with Enter, including budget and notes, and opens it from its row', async () => {
@@ -328,13 +336,7 @@ describe('App', () => {
     fakeApi(
       [],
       status({
-        models: [
-          {
-            id: 'gemini:a',
-            benchedUntil: '2026-11-08T08:00:00.000Z',
-            reason: 'quota',
-          },
-        ],
+        models: [modelHealth({ id: 'gemini:a', benchedUntil: '2026-11-08T08:00:00.000Z', reason: 'quota' })],
       }),
     )
     await renderApp()

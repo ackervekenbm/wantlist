@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { isCovered, type Idea, type IdeaPatch, type NewPurchase, type OfferFacts, type Pick, type PickPatch, type Purchase, type ServerStatus } from '../../types'
+import { isCovered, type Idea, type ModelHealth, type IdeaPatch, type NewPurchase, type OfferFacts, type Pick, type PickPatch, type Purchase, type ServerStatus } from '../../types'
 
 /** A pick with sensible defaults; override what the test is about. */
 export function pick(over: Partial<Pick> = {}): Pick {
@@ -67,6 +67,20 @@ export function idea(over: Partial<Idea> = {}): Idea {
   }
 }
 
+export function modelHealth(over: Partial<ModelHealth> = {}): ModelHealth {
+  return {
+    id: 'gemini:gemini-3.8-flash',
+    provider: 'gemini',
+    model: 'gemini-3.8-flash',
+    modelSource: 'default',
+    benchedUntil: null,
+    reason: null,
+    lastError: null,
+    limits: null,
+    ...over,
+  }
+}
+
 export function status(over: Partial<ServerStatus> = {}): ServerStatus {
   return {
     researchEnabled: true,
@@ -76,7 +90,8 @@ export function status(over: Partial<ServerStatus> = {}): ServerStatus {
     lastRunResult: null,
     queuedCount: 0,
     current: null,
-    models: [{ id: 'gemini:gemini-3.8-flash', benchedUntil: null, reason: null }],
+    models: [modelHealth()],
+    keys: [],
     ...over,
   }
 }
