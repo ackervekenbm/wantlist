@@ -278,7 +278,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 - `src/server/research/chain.ts` — builds the provider chain from env:
   `GEMINI_MODEL` (primary) → `MODEL_CHAIN` (Gemini fallbacks, default
   `gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite`) → optional
-  `GROQ_API_KEY` → optional `OPENROUTER_API_KEY`.
+  `GROQ_API_KEY` → optional `OPENROUTER_API_KEY`. Each entry carries its `modelSource` (`default` / `env`); `apiKeys(env)` reports which keys are set, never values.
 - `src/server/research/product.ts` — structured product data from a shop page:
   schema.org JSON-LD (`Product`, `@graph`, a `BuyAction`'s `object`, `ProductGroup` variants, `Offer` /
   `AggregateOffer`; EUR only; cheapest in-stock offer wins), OpenGraph /
@@ -326,11 +326,8 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   researcher** / tiles for the lists, sorted by `lib/triage.ts`: `needOf`,
   `isWorking`, `quotaResetAt`, `shownTitle`, `stepOf`), `ListsScreen` (the
   three lists as tabs, with `BackLink`; `lib/filter.ts` filters lists above
-  8) and `IdeaScreen`: `IdeaTitle` (rename), `StatusCard` (research step,
+  8), `SettingsScreen` (read-only models and keys, with `BackLink`: the chain grouped by provider with key state, dashboard links, bench state, last error and provider-reported limits; the gear in `TopBar` opens it) and `IdeaScreen`: `IdeaTitle` (rename), `StatusCard` (research step,
   retry count, errors; an archived idea gets its own card),
-  `SettingsScreen` (read-only: the model chain grouped by provider with key state,
-  dashboard links, bench state, last error and provider-reported limits; the gear in
-  `TopBar` opens it),
   `PreferencesPanel` (must-have / avoid / liked, one per line, editable),
   `PickDeck` (one `PickCard` at a time with pips and advance after a
   Yes; `ReactionBar`: No way and Kind of each open their own why box, tapping

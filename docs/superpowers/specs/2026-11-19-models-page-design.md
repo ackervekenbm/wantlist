@@ -41,7 +41,7 @@ server log and the top-bar chip's "out of quota" tooltip.
 | OpenRouter | the same headers if it sends them (possibly only on a 429) | `https://openrouter.ai/activity` |
 | Serper | key set or not | `https://serper.dev/dashboard` |
 
-A model not called since the last restart shows "no data yet".
+A model not called since the last restart shows "no limits reported yet".
 
 ## Design
 
@@ -49,7 +49,7 @@ A model not called since the last restart shows "no data yet".
 
 - `OpenAiCompatProvider` reads `x-ratelimit-*` headers on every response (ok
   or error) and keeps the latest as `RateLimits` (`requests` and `tokens`,
-  each `{ limit, remaining, resetsIn }` with any part null when absent;
+  each `{ limit, remaining, reset }` (reset is the raw header string) with any part null when absent;
   `seenAt`). Exposed through an optional `limits()` on `LlmProvider`; Gemini
   does not implement it.
 - Each provider exposes `provider` (`gemini` / `groq` / `openrouter`) and

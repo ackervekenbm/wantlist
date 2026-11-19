@@ -79,6 +79,7 @@ function ModelRow({ m, n }: { m: ModelHealth; n: number }) {
         <>
           <Limit what="requests" l={m.limits.requests} />
           <Limit what="tokens" l={m.limits.tokens} />
+          <div className="n">as of {clockTime(m.limits.seenAt)}</div>
         </>
       ) : (
         m.provider !== 'gemini' && <div className="n">no limits reported yet</div>

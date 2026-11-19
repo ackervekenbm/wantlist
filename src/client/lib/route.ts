@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { IdeaList } from '../../types'
 
-// A hash router: #/, #/idea/<id>, #/lists/<wanted|bought|archived|pantry>.
+// A hash router: #/, #/idea/<id>, #/lists/<wanted|bought|archived|pantry>, #/settings.
 
 /** Pantry is a filter over bought ideas (the covered hunts), not a stored list. */
 export type ListTab = IdeaList | 'pantry'

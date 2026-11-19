@@ -42,7 +42,7 @@ export class OpenAiCompatProvider implements LlmProvider {
       const get = (name: string) => headers.get(`x-ratelimit-${name}${suffix}`)
       const [limit, remaining, reset] = [get('limit'), get('remaining'), get('reset')]
       if (limit === null && remaining === null && reset === null) return null
-      const num = (v: string | null) => (v !== null && Number.isFinite(Number(v)) ? Number(v) : null)
+      const num = (v: string | null) => (v !== null && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null)
       return { limit: num(limit), remaining: num(remaining), reset }
     }
     const requests = group('-requests') ?? group('')

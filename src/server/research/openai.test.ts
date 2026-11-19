@@ -184,6 +184,7 @@ describe('OpenAiCompatProvider', () => {
     stubFetch(() => {
       const res = chatResponse('{"a":"b"}')
       res.headers.set('x-ratelimit-remaining-requests', 'abc')
+      res.headers.set('x-ratelimit-limit-requests', ' ')
       return res
     })
     await p.generate(ARGS)

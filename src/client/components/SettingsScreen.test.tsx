@@ -59,6 +59,7 @@ describe('SettingsScreen', () => {
     expect(screen.getByText(/model not found/)).toBeInTheDocument()
     expect(screen.getByText(/980 of 1000/)).toBeInTheDocument()
     expect(screen.getByText(/2m59.56s/)).toBeInTheDocument()
+    expect(screen.getByText(/^as of /)).toBeInTheDocument()
   })
 
   it('renders while status is still loading', () => {

@@ -205,7 +205,7 @@ describe('ModelRouter health details', () => {
       provider: 'groq',
       model: 'qwen/x',
       modelSource: 'default',
-      lastError: 'groq:qwen/x: request rejected',
+      lastError: 'request rejected',
       limits: L,
     })
     await router.generate(ARGS)

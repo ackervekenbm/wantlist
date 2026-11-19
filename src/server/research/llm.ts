@@ -151,7 +151,7 @@ export class ModelRouter {
         } catch (err) {
           const e = toResearchError(err)
           lastError = e
-          this.lastErrors.set(entry.id, e.message.slice(0, 200))
+          this.lastErrors.set(entry.id, e.message.replace(`${entry.id}: `, '').slice(0, 200))
 
           if (e.kind === 'quota' || e.kind === 'unavailable') {
             const ms =
