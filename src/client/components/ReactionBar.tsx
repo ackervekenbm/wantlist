@@ -32,6 +32,17 @@ const WHY = {
 }
 type WhyReaction = keyof typeof WHY
 
+// The tapped quick answers and the owner's note are stored as one reason, joined by SEP.
+const SEP = ' · '
+const joinReason = (picked: string[], note: string) => [...picked, note.trim()].filter(Boolean).join(SEP) || null
+function splitReason(reason: string | null, quick: string[]) {
+  const parts = reason ? reason.split(SEP) : []
+  return {
+    picked: quick.filter((q) => parts.includes(q)),
+    note: parts.filter((p) => !quick.includes(p)).join(SEP),
+  }
+}
+
 /** No way / Kind of / Yes keycaps on a pick, plus why for No way and Kind of. Tapping the active one clears it. */
 export function ReactionBar({ title, reaction, reason, onReact, onNext }: Props) {
   // Focus the why box only right after the user taps No way or Kind of.
@@ -91,13 +102,14 @@ function Why({
   onReact: (patch: PickPatch) => Promise<void>
   onNext?: () => void
 }) {
-  const [value, setValue] = useState(reason ?? '')
   const id = useId()
   const why = WHY[kind]
+  const [picked, setPicked] = useState(() => splitReason(reason, why.quick).picked)
+  const [value, setValue] = useState(() => splitReason(reason, why.quick).note)
   const lastSent = useRef(reason)
 
-  const send = (text = value) => {
-    const next = text.trim() || null
+  const send = (chips = picked) => {
+    const next = joinReason(chips, value)
     if (next === lastSent.current) return
     const before = lastSent.current
     lastSent.current = next
@@ -123,12 +135,13 @@ function Why({
             key={text}
             type="button"
             className="chipbtn"
-            // Keeps focus in the input, so its blur doesn't save the typed text before the chip text.
+            // Keeps focus in the input, so its blur doesn't save once before the chip's own save.
             onMouseDown={(e) => e.preventDefault()}
-            aria-pressed={value.trim() === text}
+            aria-pressed={picked.includes(text)}
             onClick={() => {
-              setValue(text)
-              send(text)
+              const next = why.quick.filter((q) => (q === text ? !picked.includes(q) : picked.includes(q)))
+              setPicked(next)
+              send(next)
             }}
           >
             {text}
@@ -142,7 +155,8 @@ function Why({
         <input
           id={id}
           placeholder="In your words…"
-          maxLength={REASON_MAX}
+          // Room left once the tapped answers are in the reason.
+          maxLength={REASON_MAX - (picked.length ? picked.join(SEP).length + SEP.length : 0)}
           value={value}
           autoFocus={autoFocus}
           onChange={(e) => setValue(e.target.value)}

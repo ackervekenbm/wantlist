@@ -321,7 +321,8 @@ button{cursor:pointer}
 .erow .key[aria-pressed="true"]{transform:translateY(2px)}
 .erow .key svg{width:15px;height:15px}
 .erow .whynot{margin-top:4px;padding:0;background:none;border:0}
-.erow .whynot p,.erow .whynot .chips{display:none}
+.erow .whynot p{display:none}
+.erow .whynot .chips{margin-bottom:6px}
 .erow .whynot .wrow{margin:0}
 .round{border-top:1px solid var(--rule)}
 .round:first-child{border-top:0}

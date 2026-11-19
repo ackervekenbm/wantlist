@@ -154,35 +154,47 @@ describe('No way and why-not', () => {
     )
   })
 
-  it('a quick chip saves its text once and fills the input', async () => {
+  it('quick answers toggle on and off, combine, and leave the input alone', async () => {
     const { api, user } = await open([three()])
     await user.click(keys('Alpha').getByRole('button', { name: 'No way' }))
-    const chip = screen.getByRole('button', { name: 'Too expensive' })
-    await user.click(chip)
-    expect(screen.getByRole('textbox', { name: 'Why not Alpha?' })).toHaveValue('Too expensive')
-    expect(chip).toHaveAttribute('aria-pressed', 'true')
-    await user.click(chip)
-    await user.click(screen.getByRole('textbox', { name: 'Why not Alpha?' }))
-    await user.tab()
+    const pricey = screen.getByRole('button', { name: 'Too expensive' })
+    await user.click(pricey)
+    await user.click(screen.getByRole('button', { name: 'Not my style' }))
+    expect(pricey).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('textbox', { name: 'Why not Alpha?' })).toHaveValue('')
+    await user.click(pricey)
+    expect(pricey).toHaveAttribute('aria-pressed', 'false')
     await waitFor(() =>
-      expect(api.writes()).toEqual([
-        { method: 'PATCH', path: '/api/picks/1', body: { reaction: 'no' } },
-        { method: 'PATCH', path: '/api/picks/1', body: { reason: 'Too expensive' } },
+      expect(api.writes().map((w) => w.body)).toEqual([
+        { reaction: 'no' },
+        { reason: 'Too expensive' },
+        { reason: 'Too expensive · Not my style' },
+        { reason: 'Not my style' },
       ]),
     )
   })
 
-  it('a chip tapped after typing saves only the chip text', async () => {
+  it('a quick answer and a typed note are saved together', async () => {
     const { api, user } = await open([three()])
     await user.click(keys('Alpha').getByRole('button', { name: 'No way' }))
-    await user.type(screen.getByRole('textbox', { name: 'Why not Alpha?' }), 'meh')
+    await user.type(screen.getByRole('textbox', { name: 'Why not Alpha?' }), 'too loud')
     await user.click(screen.getByRole('button', { name: 'Not my style' }))
+    expect(screen.getByRole('textbox', { name: 'Why not Alpha?' })).toHaveValue('too loud')
+    await user.tab()
     await waitFor(() =>
       expect(api.writes()).toEqual([
         { method: 'PATCH', path: '/api/picks/1', body: { reaction: 'no' } },
-        { method: 'PATCH', path: '/api/picks/1', body: { reason: 'Not my style' } },
+        { method: 'PATCH', path: '/api/picks/1', body: { reason: 'Not my style · too loud' } },
       ]),
     )
+  })
+
+  it('a saved reason comes back as highlighted answers and the note', async () => {
+    const { user } = await open([three([{ reaction: 'no', reason: 'Too expensive · too loud' }])])
+    await user.click(pip(1))
+    expect(screen.getByRole('button', { name: 'Too expensive' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Not my style' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('textbox', { name: 'Why not Alpha?' })).toHaveValue('too loud')
   })
 
   it('Next saves the reason and moves on', async () => {
