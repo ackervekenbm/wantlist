@@ -326,7 +326,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   researcher** / tiles for the lists, sorted by `lib/triage.ts`: `needOf`,
   `isWorking`, `quotaResetAt`, `shownTitle`, `stepOf`), `ListsScreen` (the
   three lists as tabs, with `BackLink`; `lib/filter.ts` filters lists above
-  8), `SettingsScreen` (read-only models and keys, with `BackLink`: the chain grouped by provider with key state, dashboard links, bench state, last error and provider-reported limits; the gear in `TopBar` opens it) and `IdeaScreen`: `IdeaTitle` (rename), `StatusCard` (research step,
+  8), `SettingsScreen` (read-only models and keys, with `BackLink`: the chain grouped by provider with key state, dashboard links, bench state, last error and provider-reported limits; the gear in `TopBar` opens it; an **About** section from build-time constants: `__BUILD_SHA__`, `__BUILD_TIME__`, `__REPO__` from the image build's `COMMIT_SHA` / `BUILD_TIME` / `GITHUB_REPOSITORY` args ("development build" without them) and `__LICENSE__` from `package.json`'s `license`, "not chosen yet" while empty; `buildDefine` in `vite.config.mts`, shared with vitest, declared in `src/client/build.d.ts`) and `IdeaScreen`: `IdeaTitle` (rename), `StatusCard` (research step,
   retry count, errors; an archived idea gets its own card),
   `PreferencesPanel` (must-have / avoid / liked, one per line, editable),
   `PickDeck` (one `PickCard` at a time with pips and advance after a

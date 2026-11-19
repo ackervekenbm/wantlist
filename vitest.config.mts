@@ -1,8 +1,10 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
+import { buildDefine } from './vite.config.mjs'
 
 export default defineConfig({
   plugins: [react()],
+  define: buildDefine,
   test: {
     globals: false,
     // Tests sit next to the code they test: server ones run in node, client
