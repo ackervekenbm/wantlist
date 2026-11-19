@@ -8,6 +8,10 @@ COPY package.json package-lock.json .npmrc ./
 # `node-gyp rebuild` for better-sqlite3 never runs: no toolchain needed.
 RUN npm ci --no-audit --no-fund
 COPY . .
+# Build facts for the About section (Settings); a local build shows "development build".
+ARG COMMIT_SHA
+ARG BUILD_TIME
+ARG GITHUB_REPOSITORY
 RUN npm run build
 
 # --- runtime stage ---

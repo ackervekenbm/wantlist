@@ -9,8 +9,21 @@ const PROVIDERS: Record<string, { name: string; key: string; dashboard: string }
   openrouter: { name: 'OpenRouter', key: 'OPENROUTER_API_KEY', dashboard: 'https://openrouter.ai/activity' },
 }
 
-/** Models and keys as the server sees them: read-only, set in the server's environment. */
-export function SettingsScreen({ status }: { status: ServerStatus | null }) {
+export interface BuildInfo {
+  /** Full commit hash, or 'dev' for a local build. */
+  sha: string
+  /** ISO-8601 commit time, or '' when unknown. */
+  time: string
+  /** GitHub owner/name. */
+  repo: string
+  /** package.json `license`, '' while none is chosen. */
+  license: string
+}
+
+const BUILD: BuildInfo = { sha: __BUILD_SHA__, time: __BUILD_TIME__, repo: __REPO__, license: __LICENSE__ }
+
+/** Models and keys as the server sees them (read-only, set in the server's environment), then the build. */
+export function SettingsScreen({ status, build = BUILD }: { status: ServerStatus | null; build?: BuildInfo }) {
   const keySet = (name: string) => status?.keys.find((k) => k.name === name)?.set ?? false
   const chain = status?.models ?? []
   // Providers in chain order, then the ones that are not in it.
@@ -45,7 +58,45 @@ export function SettingsScreen({ status }: { status: ServerStatus | null }) {
           </Section>
         </>
       )}
+      <About build={build} />
     </div>
+  )
+}
+
+function About({ build }: { build: BuildInfo }) {
+  const gh = `https://github.com/${build.repo}`
+  const owner = build.repo.split('/')[0]
+  const built = build.time
+    ? new Date(build.time).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : ''
+  return (
+    <Section title="About">
+      <div className="card prov">
+        <div>
+          <b>wantlist</b> <span className="n">· deferred shopping researcher</span>
+        </div>
+        <Leader
+          fig={
+            build.sha === 'dev' ? (
+              'development build'
+            ) : (
+              <>
+                <DashLink href={`${gh}/commit/${build.sha}`}>{build.sha.slice(0, 7)}</DashLink>
+                {built && ` · ${built}`}
+              </>
+            )
+          }
+        >
+          Build
+        </Leader>
+        <Leader fig={<DashLink href={gh}>{build.repo}</DashLink>}>Source</Leader>
+        <Leader fig={<DashLink href={`${gh}/issues`}>Report an issue</DashLink>}>Feedback</Leader>
+        <Leader fig={<DashLink href={`https://github.com/${owner}`}>{owner}</DashLink>}>Made by</Leader>
+        <Leader fig={build.license ? <DashLink href={`${gh}/blob/main/LICENSE`}>{build.license}</DashLink> : 'not chosen yet'}>
+          License
+        </Leader>
+      </div>
+    </Section>
   )
 }
 

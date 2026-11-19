@@ -68,3 +68,27 @@ describe('SettingsScreen', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument()
   })
 })
+
+describe('About', () => {
+  const href = (name: string | RegExp) => screen.getByRole('link', { name }).getAttribute('href')
+
+  it('shows a local build as a development build with no license yet', () => {
+    render(<SettingsScreen status={null} />)
+    const about = within(screen.getByRole('region', { name: 'About' }))
+    expect(about.getByText('development build')).toBeInTheDocument()
+    expect(about.getByText('not chosen yet')).toBeInTheDocument()
+    expect(href('ackervekenbm/wantlist')).toBe('https://github.com/ackervekenbm/wantlist')
+    expect(href('Report an issue')).toBe('https://github.com/ackervekenbm/wantlist/issues')
+    expect(href('ackervekenbm')).toBe('https://github.com/ackervekenbm')
+  })
+
+  it('links an image build to its commit and its license', () => {
+    const build = { sha: 'abcdef1234567890', time: '2026-11-19T14:05:00+01:00', repo: 'someone/wantlist', license: 'MIT' }
+    render(<SettingsScreen status={null} build={build} />)
+    expect(href('abcdef1')).toBe('https://github.com/someone/wantlist/commit/abcdef1234567890')
+    expect(screen.getByText(/2026/)).toBeInTheDocument()
+    expect(href('MIT')).toBe('https://github.com/someone/wantlist/blob/main/LICENSE')
+    expect(href('someone')).toBe('https://github.com/someone')
+    for (const a of within(screen.getByRole('region', { name: 'About' })).getAllByRole('link')) expect(a).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+})
