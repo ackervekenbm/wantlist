@@ -5,7 +5,7 @@ import { Leader, Section } from './Leader'
 
 const PROVIDERS: Record<string, { name: string; key: string; dashboard: string }> = {
   gemini: { name: 'Gemini', key: 'GEMINI_API_KEY', dashboard: 'https://aistudio.google.com/usage' },
-  groq: { name: 'Groq', key: 'GROQ_API_KEY', dashboard: 'https://console.groq.com/dashboard/usage' },
+  groq: { name: 'Groq', key: 'GROQ_API_KEY', dashboard: 'https://console.groq.com/settings/limits' },
   openrouter: { name: 'OpenRouter', key: 'OPENROUTER_API_KEY', dashboard: 'https://openrouter.ai/activity' },
 }
 

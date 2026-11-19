@@ -30,6 +30,9 @@ describe('SettingsScreen', () => {
     expect(gem).toHaveAttribute('href', 'https://aistudio.google.com/usage')
     expect(gem).toHaveAttribute('target', '_blank')
     expect(gem.getAttribute('rel')).toContain('noopener')
+    const href = (name: string) => screen.getByRole('link', { name }).getAttribute('href')
+    expect(href('Groq')).toBe('https://console.groq.com/settings/limits')
+    expect(href('OpenRouter')).toBe('https://openrouter.ai/activity')
     expect(screen.getByRole('link', { name: 'Serper' })).toHaveAttribute('href', 'https://serper.dev/dashboard')
   })
 
