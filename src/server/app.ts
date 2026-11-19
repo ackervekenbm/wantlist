@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express'
-import type { Condition, HuntTarget, Idea, IdeaList, IdeaMode, IdeaPatch, ModelHealth, NewIdea, PickPatch, Preferences, Reaction, ServerStatus } from '../types'
+import type { ApiKeyState, Condition, HuntTarget, Idea, IdeaList, IdeaMode, IdeaPatch, ModelHealth, NewIdea, PickPatch, Preferences, Reaction, ServerStatus } from '../types'
 import { PREF_ITEMS_MAX, PREF_ITEM_CHARS, PREF_SUMMARY_CHARS, REASON_MAX, TITLE_MAX } from '../types/limits'
 import type { WlDb } from './db'
 import {
@@ -40,6 +40,8 @@ export interface AppOptions {
   missingKeys: string[]
   /** Model chain standing for /api/status; empty when no model is configured. */
   modelHealth?: () => ModelHealth[]
+  /** Which API keys are set, for /api/status. */
+  keys?: ApiKeyState[]
   /** The owner's partner programs, filled into every shop offer served. */
   partners?: Pick<Partners, 'withPartners'> & Partial<Pick<Partners, 'saving'>>
   /** Built client to serve; omitted (or missing on disk) serves the API only. */
@@ -70,6 +72,7 @@ export function createApp(opts: AppOptions): express.Express {
       missingKeys: opts.missingKeys,
       queuedCount: countQueued(db),
       models: opts.modelHealth?.() ?? [],
+      keys: opts.keys ?? [],
     }
     res.json(status)
   })

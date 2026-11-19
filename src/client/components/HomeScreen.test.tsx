@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { HuntTarget, Idea, ServerStatus } from '../../types'
 import { clockTime } from '../lib/format'
-import { idea, pick, status } from '../test/fakeApi'
+import { idea, modelHealth, pick, status } from '../test/fakeApi'
 import { HomeScreen } from './HomeScreen'
 
 const IDEAS: Idea[] = [
@@ -115,7 +115,7 @@ describe('HomeScreen', () => {
   })
 
   it('says when every model is out of quota', () => {
-    renderHome({ status: status({ models: [{ id: 'a', benchedUntil: '2026-11-12T09:00:00', reason: 'quota' }] }) })
+    renderHome({ status: status({ models: [modelHealth({ id: 'a', benchedUntil: '2026-11-12T09:00:00', reason: 'quota' })] }) })
     expect(screen.getByRole('status')).toHaveTextContent(`Research picks up again around ${clockTime('2026-11-12T09:00:00')}.`)
   })
 

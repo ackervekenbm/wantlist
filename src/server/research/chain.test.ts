@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildProviderChain, DEFAULT_GEMINI_CHAIN } from './chain'
+import { apiKeys, buildProviderChain, DEFAULT_GEMINI_CHAIN } from './chain'
 
 const defaults = DEFAULT_GEMINI_CHAIN.split(',').map((m) => `gemini:${m}`)
 const ids = (env: NodeJS.ProcessEnv) => buildProviderChain(env).map((p) => p.id)
@@ -35,5 +35,16 @@ describe('buildProviderChain', () => {
     expect(Object.values(src({ GROQ_API_KEY: 'k', GROQ_MODEL: 'm' }))).toEqual(['env'])
     expect(Object.values(src({ OPENROUTER_API_KEY: 'k' }))).toEqual(['default'])
     expect(Object.values(src({ OPENROUTER_API_KEY: 'k', OPENROUTER_MODEL: 'm' }))).toEqual(['env'])
+  })
+})
+
+describe('apiKeys', () => {
+  it('lists the four keys without values', () => {
+    expect(apiKeys({ GROQ_API_KEY: 'g', SERPER_API_KEY: ' ' })).toEqual([
+      { name: 'GEMINI_API_KEY', set: false },
+      { name: 'GROQ_API_KEY', set: true },
+      { name: 'OPENROUTER_API_KEY', set: false },
+      { name: 'SERPER_API_KEY', set: false },
+    ])
   })
 })

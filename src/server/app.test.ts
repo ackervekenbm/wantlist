@@ -7,6 +7,7 @@ import { REASON_MAX } from '../types/limits'
 import { claimIdea, completeIdea, createIdea, failIdea, getIdea, requeueIdea, type WlDb } from './db'
 import type { Delivery, FinalPick, Idea } from '../types'
 import { rankOffers } from './research/rank'
+import { apiKeys } from './research/chain'
 import type { Worker } from './worker'
 import { researchResult, tempDb, tempDir } from './test/helpers'
 
@@ -51,6 +52,14 @@ describe('API', () => {
       running: true,
       current: { ideaId: 1, step: 'searching' },
     })
+  })
+
+  it('/api/status carries key states, never values', async () => {
+    const { db } = tempDb()
+    const app = createApp({ db, worker: fakeWorker(), missingKeys: [], keys: apiKeys({ GEMINI_API_KEY: 'secret-key-123' }) })
+    const res = await request(app).get('/api/status').expect(200)
+    expect(res.body.keys[0]).toEqual({ name: 'GEMINI_API_KEY', set: true })
+    expect(res.text).not.toContain('secret-key-123')
   })
 
   it('adds an idea, returns it whole, and wakes the worker', async () => {

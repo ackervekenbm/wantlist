@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { idea, pick, status } from '../test/fakeApi'
+import { idea, modelHealth, pick, status } from '../test/fakeApi'
 import { isWorking, needOf, quotaResetAt, shownTitle } from './triage'
 
 describe('needOf', () => {
@@ -43,10 +43,10 @@ describe('isWorking', () => {
 
 describe('quotaResetAt', () => {
   it('gives the earliest reset only when every model is benched', () => {
-    const a = { id: 'a', benchedUntil: '2026-11-12T09:00:00Z', reason: 'quota' as const }
-    const b = { id: 'b', benchedUntil: '2026-11-12T08:00:00Z', reason: 'quota' as const }
+    const a = modelHealth({ id: 'a', benchedUntil: '2026-11-12T09:00:00Z', reason: 'quota' })
+    const b = modelHealth({ id: 'b', benchedUntil: '2026-11-12T08:00:00Z', reason: 'quota' })
     expect(quotaResetAt(status({ models: [a, b] }))).toBe('2026-11-12T08:00:00Z')
-    expect(quotaResetAt(status({ models: [a, { id: 'c', benchedUntil: null, reason: null }] }))).toBeNull()
+    expect(quotaResetAt(status({ models: [a, modelHealth({ id: 'c' })] }))).toBeNull()
     expect(quotaResetAt(status({ models: [] }))).toBeNull()
   })
 })

@@ -66,6 +66,7 @@ export class ModelRouter {
   private readonly sleep: (ms: number) => Promise<void>
   private readonly backoffBaseMs: number
   private readonly benches = new Map<string, Bench>()
+  private readonly lastErrors = new Map<string, string>()
 
   constructor(opts: ModelRouterOptions) {
     if (opts.chain.length === 0) throw new Error('ModelRouter requires at least one provider')
@@ -84,10 +85,16 @@ export class ModelRouter {
     const now = this.now()
     return this.chain.map((p) => {
       const bench = this.activeBench(p.id, now)
+      const [provider, ...rest] = p.id.split(':')
       return {
         id: p.id,
+        provider,
+        model: rest.join(':'),
+        modelSource: p.modelSource ?? 'env',
         benchedUntil: bench ? new Date(bench.until).toISOString() : null,
         reason: bench?.reason ?? null,
+        lastError: this.lastErrors.get(p.id) ?? null,
+        limits: p.limits?.() ?? null,
       }
     })
   }
@@ -138,11 +145,13 @@ export class ModelRouter {
       for (let attempt = 0; ; attempt += 1) {
         try {
           const value = parse(await entry.generate(args))
+          this.lastErrors.delete(entry.id)
           if (attempt > 0) this.onEvent(`${entry.id} served after ${attempt} retr${attempt === 1 ? 'y' : 'ies'}`)
           return { ok: true, value }
         } catch (err) {
           const e = toResearchError(err)
           lastError = e
+          this.lastErrors.set(entry.id, e.message.slice(0, 200))
 
           if (e.kind === 'quota' || e.kind === 'unavailable') {
             const ms =

@@ -1,3 +1,4 @@
+import type { ApiKeyState } from '../../types'
 import { GeminiProvider } from './gemini'
 import { ModelRouter, type LlmProvider } from './llm'
 import { OpenAiCompatProvider } from './openai'
@@ -66,4 +67,11 @@ export function buildModelRouter(
 ): ModelRouter | null {
   const chain = buildProviderChain(env)
   return chain.length > 0 ? new ModelRouter({ chain, onEvent }) : null
+}
+
+const KEY_NAMES = ['GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENROUTER_API_KEY', 'SERPER_API_KEY']
+
+/** Which keys are set, for the Settings page; values never leave this function. */
+export function apiKeys(env: NodeJS.ProcessEnv): ApiKeyState[] {
+  return KEY_NAMES.map((name) => ({ name, set: Boolean(env[name]?.trim()) }))
 }
