@@ -31,11 +31,18 @@ function pages(byUrl: Record<string, Partial<Page>>) {
 class StepModel implements LlmProvider {
   readonly id = 'fake'
   verifyPrompt = ''
+  shortlists = 0
   learnPrompt = ''
   prompts: string[] = []
   systems: string[] = []
   constructor(
-    private readonly answers: { plan?: unknown; learn?: unknown; candidates?: unknown; verify?: unknown },
+    private readonly answers: {
+      plan?: unknown
+      learn?: unknown
+      candidates?: unknown | unknown[]
+      more?: unknown
+      verify?: unknown
+    },
   ) {}
   async generate(args: GenerateArgs): Promise<unknown> {
     this.prompts.push(args.contents)
@@ -53,9 +60,16 @@ class StepModel implements LlmProvider {
     if (args.systemInstruction.includes('planning step')) {
       return this.answers.plan ?? { summary: 'a fan', criteria: ['quiet'], searchQueries: ['indoor cycling fan'] }
     }
+    if (args.systemInstruction.includes('search-again')) {
+      // No new queries by default: the round goes on with what it read.
+      return this.answers.more ?? { searchQueries: [] }
+    }
     if (args.systemInstruction.includes('candidate-selection')) {
+      // An array answers each shortlist pass in turn.
+      const c = this.answers.candidates
+      if (Array.isArray(c)) return c[this.shortlists++] ?? { candidates: [] }
       return (
-        this.answers.candidates ?? {
+        c ?? {
           candidates: [
             { title: 'Wahoo KICKR Headwind', shop: 'Bikeshop', url: 'https://bikeshop.be/headwind', price: '229', why: 'made for this' },
             { title: 'Lasko fan', shop: 'bol', url: 'https://www.bol.com/be/nl/p/lasko/123', price: '59', why: 'cheap' },
@@ -131,7 +145,8 @@ describe('PipelineEngine', () => {
       'working out what to look for',
       'searching shops and reviews',
       'shortlisting from 2 results',
-      'reading 2 product pages',
+      'reading 2 pages',
+      'searching again',
       'checking the evidence',
       'checking 2 offers at the shops',
     ])
@@ -172,7 +187,7 @@ describe('PipelineEngine', () => {
   it('gives every step the budget and notes', async () => {
     const model = new StepModel({})
     await engine(model, search(() => HITS)).research({ ideaId: 1, text: 'fan', budget: 150, notes: 'white, quiet' })
-    expect(model.prompts).toHaveLength(3)
+    expect(model.prompts).toHaveLength(4)
     for (const prompt of model.prompts) {
       expect(prompt).toContain('Idea: "fan"')
       expect(prompt).toContain('Budget: at most EUR 150')
@@ -264,9 +279,11 @@ describe('PipelineEngine', () => {
   it('gives every model step the shop rules', async () => {
     const model = new StepModel({})
     await engine(model, search(() => HITS)).research({ ideaId: 1, text: 'fan' })
-    expect(model.systems).toHaveLength(3)
+    expect(model.systems).toHaveLength(4)
     for (const system of model.systems) expect(system).toContain('deliver to Belgium')
-    expect(model.systems.slice(1).every((system) => system.includes('Prefer known brands'))).toBe(true)
+    const weighing = model.systems.filter((s) => /candidate-selection|verification pass/.test(s))
+    expect(weighing).toHaveLength(2)
+    expect(weighing.every((system) => system.includes('Prefer known brands'))).toBe(true)
   })
 
   it('drops dead offers and products left without one', async () => {
@@ -589,5 +606,63 @@ describe('SerperProvider', () => {
     expect(key).toMatchObject({ kind: 'unavailable' })
     const limited = await serper(new Response('slow', { status: 429 })).catch((e) => e)
     expect(limited).toMatchObject({ kind: 'transient', retryAfterMs: 10_000 })
+  })
+})
+
+describe('PipelineEngine browsing and searching again', () => {
+  const CATEGORY = 'https://lumz.be/spiegels'
+  const mirror = (i: number) => ({ title: `Spiegel ${i}`, url: `https://lumz.be/spiegels/spiegel-${i}` })
+  const candidate = (r: { title: string; url: string }, shop = 'Lumz') => ({ title: r.title, shop, url: r.url })
+
+  it('browses a category page: its products are offered to the next shortlist and read', async () => {
+    const links = [mirror(1), mirror(2), mirror(3)]
+    pages({ [CATEGORY]: { kind: 'listing', links } })
+    const model = new StepModel({
+      candidates: [
+        { candidates: [candidate({ title: 'Spiegels', url: CATEGORY }), candidate(HITS[0], 'Bikeshop')] },
+        { candidates: links.map((l) => candidate(l)) },
+      ],
+    })
+    const provider = search(() => [...HITS, { title: 'Spiegels | Lumz', url: CATEGORY, snippet: '' }])
+    await engine(model, provider).research({ ideaId: 1, text: 'hallway mirror' })
+    const shortlists = model.prompts.filter((_, i) => model.systems[i].includes('candidate-selection'))
+    expect(shortlists).toHaveLength(2)
+    expect(shortlists[1]).toContain(`Spiegel 2 | ${mirror(2).url} | on Lumz's Spiegels page`)
+    for (const l of links) expect(model.verifyPrompt).toContain(`--- PAGE: ${l.url}`)
+    expect(model.verifyPrompt).not.toContain(`--- PAGE: ${CATEGORY} (`)
+    expect(provider.queries).toEqual(['indoor cycling fan'])
+  })
+
+  it('searches again with new queries when too few product pages were read', async () => {
+    const fresh = [mirror(4), mirror(5)].map((m) => ({ ...m, snippet: '' }))
+    const model = new StepModel({
+      candidates: [{ candidates: HITS.map((h) => candidate(h, 'Shop')) }, { candidates: fresh.map((m) => candidate(m)) }],
+      more: { searchQueries: ['Indoor  cycling fan', 'grote spiegel 180 cm'] },
+    })
+    const provider = search((q) => (q === 'grote spiegel 180 cm' ? fresh : HITS))
+    await engine(model, provider).research({ ideaId: 1, text: 'a fan' })
+    // The repeated query is dropped, ignoring case and spacing.
+    expect(provider.queries).toEqual(['indoor cycling fan', 'grote spiegel 180 cm'])
+    for (const m of fresh) expect(model.verifyPrompt).toContain(`--- PAGE: ${m.url}`)
+    expect(model.verifyPrompt).toContain(`--- PAGE: ${HITS[0].url}`)
+  })
+
+  it('stops once enough product pages are read', async () => {
+    const hits = Array.from({ length: 6 }, (_, i) => ({ ...mirror(i), snippet: '' }))
+    const model = new StepModel({ candidates: { candidates: hits.map((h) => candidate(h)) } })
+    await engine(model, search(() => hits)).research({ ideaId: 1, text: 'mirror' })
+    expect(model.systems.some((s) => s.includes('search-again'))).toBe(false)
+  })
+
+  it('keeps what it read when a later shortlist fails', async () => {
+    pages({ [CATEGORY]: { kind: 'listing', links: [mirror(1)] } })
+    const model = new StepModel({
+      candidates: [{ candidates: [candidate({ title: 'Spiegels', url: CATEGORY }), candidate(HITS[0], 'Bikeshop')] }, { candidates: [] }],
+    })
+    const result = await engine(model, search(() => [...HITS, { title: 'Spiegels', url: CATEGORY, snippet: '' }])).research({
+      ideaId: 1,
+      text: 'mirror',
+    })
+    expect(result.picks.map((p) => p.title)).toContain('Wahoo KICKR Headwind')
   })
 })
