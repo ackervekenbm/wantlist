@@ -33,7 +33,7 @@ on free API tiers: €0 a month.
 - 🧾 **Preferences you can see.** What the researcher understood (must-haves, things to avoid, things you like) is written out, and you can edit it.
 - 🎯 **Hunt the exact thing.** Know exactly what to buy? Switch the idea to *Hunt* and it finds the cheapest real offer for that product, ranked by what you pay delivered. Refills come back with one tap.
 - 🤝 **Your discount partners count.** Use a bill-discount program like Viking Deals? Partner shops show what you pay after it, with a link that makes the purchase count.
-- 🛒 **Wanted, bought, archived.** *I bought this* keeps what you paid and where; only the wanted list is researched.
+- 🛒 **Wanted, bought, archived.** *I bought this* keeps what you paid and where, and *Didn't buy it after all* puts a mistake back with its picks; only the wanted list is researched.
 - 🔒 **Yours.** One SQLite file on your own server, no accounts, no tracking. API keys stay on the server.
 
 ## Quick start
