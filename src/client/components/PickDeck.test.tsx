@@ -259,6 +259,8 @@ describe('Pick card', () => {
     const img = document.querySelector('.photo img') as HTMLImageElement
     expect(img).toHaveAttribute('src', 'https://bikeshop.be/headwind.jpg')
     expect(img).toHaveAttribute('draggable', 'false')
+    expect(img.closest('a')).toHaveAttribute('href', 'https://bikeshop.be/headwind')
+    expect(img.closest('a')).toHaveAttribute('target', '_blank')
     expect(screen.queryByText('no photo')).not.toBeInTheDocument()
     fireEvent.error(img)
     expect(document.querySelector('.photo img')).toBeNull()

@@ -33,13 +33,16 @@ export function PickCard({ pick, budget, onBought, onHunt }: Props) {
     <>
       <div className="photo">
         {pick.image && !broken ? (
-          <img
-            src={pick.image}
-            alt=""
-            draggable={false}
-            referrerPolicy="no-referrer"
-            onError={() => setBroken(true)}
-          />
+          // The same link as Open shop below, so it is left out of the tab order and screen readers.
+          <a href={pick.url} target="_blank" rel="noreferrer noopener" tabIndex={-1} aria-hidden="true">
+            <img
+              src={pick.image}
+              alt=""
+              draggable={false}
+              referrerPolicy="no-referrer"
+              onError={() => setBroken(true)}
+            />
+          </a>
         ) : (
           <>
             <ParcelIcon />
