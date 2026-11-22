@@ -249,6 +249,21 @@ describe('Bought and archived ideas', () => {
     await waitFor(() => expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/ideas/1', body: { list: 'wanted' } }]))
   })
 
+  it('Didn\'t buy it after all deletes the purchase that buy made and goes back to wanted', async () => {
+    const purchase = { id: 7, ideaId: 1, at: bought.at, shop: 'Bikeshop', url: 'https://x.be', title: bought.title, packs: 1, unitsPerPack: null, unitLabel: null, paid: 249.99, perUnit: null }
+    const { api, user } = await open([idea({ list: 'bought', bought, purchases: [purchase] })])
+    await user.click(pane().getByRole('button', { name: "Didn't buy it after all" }))
+    await waitFor(() => expect(api.writes()).toEqual([{ method: 'DELETE', path: '/api/purchases/7' }]))
+    expect(await pane().findByRole('button', { name: 'No way' })).toBeInTheDocument()
+  })
+
+  it('Didn\'t buy it after all, with no purchase of its own, only moves back to wanted', async () => {
+    const older = { id: 3, ideaId: 1, at: '2026-01-01T10:00:00Z', shop: null, url: null, title: 'Old fan', packs: 1, unitsPerPack: null, unitLabel: null, paid: 30, perUnit: null }
+    const { api, user } = await open([idea({ list: 'bought', bought: null, purchases: [older] })])
+    await user.click(pane().getByRole('button', { name: "Didn't buy it after all" }))
+    await waitFor(() => expect(api.writes()).toEqual([{ method: 'PATCH', path: '/api/ideas/1', body: { list: 'wanted' } }]))
+  })
+
   it('archived: no reactions, only Want again and Remove', async () => {
     const { user } = await open([idea({ list: 'archived' })])
     expect(pane().getByRole('region', { name: 'Archived' })).toHaveTextContent(/not researched/)

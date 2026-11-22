@@ -25,7 +25,7 @@ interface Props {
   status: ServerStatus | null
   /** Back home, after Archive or Remove. */
   onBack: () => void
-  actions: Pick<IdeasActions, 'patch' | 'rerun' | 'remove' | 'react' | 'refine' | 'switchMode' | 'huntPick' | 'buy' | 'runningLow' | 'setDelivery' | 'toPantry'>
+  actions: Pick<IdeasActions, 'patch' | 'rerun' | 'remove' | 'react' | 'refine' | 'switchMode' | 'huntPick' | 'buy' | 'runningLow' | 'setDelivery' | 'toPantry' | 'unbuy'>
 }
 
 /** One idea: header with the mode switch, where research stands, then Explore (learned, picks, refine) or the hunt. */
@@ -140,6 +140,9 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
               <div className="acts">
                 <button type="button" className="btn small" onClick={() => fire(actions.toPantry(id))}>
                   It's a refill: move to Pantry
+                </button>
+                <button type="button" className="btn small quiet" onClick={() => fire(actions.unbuy(id))}>
+                  Didn't buy it after all
                 </button>
               </div>
             </>

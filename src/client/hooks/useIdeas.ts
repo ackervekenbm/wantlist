@@ -41,6 +41,8 @@ export interface IdeasActions {
   runningLow(id: number): Promise<void>
   /** A bought idea turns out to be a refill: it becomes a hunt in the Pantry. */
   toPantry(id: number): Promise<void>
+  /** Marked bought by mistake: back on the wanted list, and the purchase that marking made is deleted. */
+  unbuy(id: number): Promise<void>
   /** Takes back the purchase in the toast. */
   undoBuy(): Promise<void>
   dismissError(): void
@@ -221,6 +223,15 @@ export function useIdeas(): IdeasState & IdeasActions {
       run(async () => {
         writeSeq.current++
         replace(await api.toPantry(id))
+      }),
+    unbuy: (id) =>
+      run(async () => {
+        const idea = ideas.find((i) => i.id === id)
+        const p = idea?.purchases[0]
+        writeSeq.current++
+        // The purchase written with the bought snapshot shares its time.
+        // shortcut: a hunt "bought something else" has no snapshot, so its purchase stays; store the purchase id on the idea if that matters.
+        replace(await (p && idea?.bought?.at === p.at ? api.undoPurchase(p.id) : api.patchIdea(id, { list: 'wanted' })))
       }),
     undoBuy: () =>
       run(async () => {
