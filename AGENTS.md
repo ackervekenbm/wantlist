@@ -297,7 +297,8 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   (`ItemList`, `CollectionPage`...) or an article (`BlogPosting`, `og:type
   article`...) with no product of its own, or a listing URL (Shopify
   `/collections/<name>` too), gets `kind` (`pageKindOf` in `product.ts`) and
-  no product data. Explore drops such candidates before verifying, and
+  no product data; so does a page with no price of its own whose text shows
+  12 or more different euro amounts (a category without list markup). Explore drops such candidates before verifying, and
   `checkedSupplier` never keeps an offer on one. Never throws.
 - `src/client/` — React UI, the "Quote Slip" design. The app icon (a brass magnifier with a
   price tag in its lens) is drawn once in `scripts/gen-icons.mjs`: `npm run icons`

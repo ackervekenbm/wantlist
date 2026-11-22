@@ -76,17 +76,27 @@ export async function fetchPage(url: string): Promise<Page> {
   if (looksNotFound(title)) return { ...UNKNOWN, status: 'dead' }
   const text = extractText(html)
   if (looksLikeBotCheck(title, text)) return UNKNOWN
-  const kind = isListingUrl(res.url || url) ? 'listing' : pageKindOf(html)
+  let kind = isListingUrl(res.url || url) ? 'listing' : pageKindOf(html)
+  // A list's product data is its first entry's, not the page's.
+  let product = kind ? null : extractProductData(html, res.url || url)
+  // A category page the shop did not mark up as one: no price of its own, one per product in the text.
+  if (!product?.price && manyPrices(text)) {
+    kind = 'listing'
+    product = null
+  }
   return {
     status: 'live',
     title,
     text,
-    // A list's product data is its first entry's, not the page's.
-    product: kind ? null : extractProductData(html, res.url || url),
+    product,
     ...(kind && { kind }),
     referrals: referralTargets(html, res.url || url),
   }
 }
+
+/** Distinct euro amounts that make a page with no price of its own a list: a product page with a few related items stays well below. */
+const LISTING_PRICES = 12
+const manyPrices = (text: string): boolean => new Set(text.match(/€\s?\d[\d.,]*|\d[\d.,]*\s?€/g)).size >= LISTING_PRICES
 
 const MAX_REFERRALS = 3
 const IMAGE = /\.(jpe?g|png|gif|webp|avif|svg)$/i

@@ -45,6 +45,24 @@ describe('fetchPage', () => {
     expect(page).toMatchObject({ status: 'live', kind: 'listing', product: null })
   })
 
+  it('marks a page with a price per product and none of its own a listing', async () => {
+    const tiles = Array.from({ length: 12 }, (_, i) => `<li>Spiegel ${i} € ${100 + i},00</li>`).join('')
+    respond(`<html><head><title>Spiegels</title><meta property="og:image" content="https://shop.be/hero.jpg"></head><body><ul>${tiles}</ul></body></html>`)
+    expect(await fetchPage(URL_)).toMatchObject({ status: 'live', kind: 'listing', product: null })
+  })
+
+  it('keeps a product page with its own price live, however many prices it shows', async () => {
+    const related = Array.from({ length: 20 }, (_, i) => `<li>Other € ${100 + i},00</li>`).join('')
+    respond(
+      `<html><head><title>Spiegel</title>
+       <script type="application/ld+json">{"@type":"Product","name":"Spiegel","offers":{"price":"129","priceCurrency":"EUR"}}</script>
+       </head><body><ul>${related}</ul></body></html>`,
+    )
+    const page = await fetchPage(URL_)
+    expect(page.kind).toBeUndefined()
+    expect(page.product).toMatchObject({ price: 129 })
+  })
+
   it('calls 404 and 410 dead', async () => {
     respond('gone', { status: 404 })
     expect((await fetchPage(URL_)).status).toBe('dead')
