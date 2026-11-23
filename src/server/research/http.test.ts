@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { extractText, fetchPage, referralTargets } from './http'
+import { extractText, fetchPage, listingLinks, referralTargets } from './http'
 
 const URL_ = 'https://shop.be/nl/p/fan/123'
 
@@ -43,6 +43,24 @@ describe('fetchPage', () => {
     )
     const page = await fetchPage(URL_)
     expect(page).toMatchObject({ status: 'live', kind: 'listing', product: null })
+  })
+
+  it('marks a page with a price per product and none of its own a listing', async () => {
+    const tiles = Array.from({ length: 12 }, (_, i) => `<li>Spiegel ${i} € ${100 + i},00</li>`).join('')
+    respond(`<html><head><title>Spiegels</title><meta property="og:image" content="https://shop.be/hero.jpg"></head><body><ul>${tiles}</ul></body></html>`)
+    expect(await fetchPage(URL_)).toMatchObject({ status: 'live', kind: 'listing', product: null, links: [] })
+  })
+
+  it('keeps a product page with its own price live, however many prices it shows', async () => {
+    const related = Array.from({ length: 20 }, (_, i) => `<li>Other € ${100 + i},00</li>`).join('')
+    respond(
+      `<html><head><title>Spiegel</title>
+       <script type="application/ld+json">{"@type":"Product","name":"Spiegel","offers":{"price":"129","priceCurrency":"EUR"}}</script>
+       </head><body><ul>${related}</ul></body></html>`,
+    )
+    const page = await fetchPage(URL_)
+    expect(page.kind).toBeUndefined()
+    expect(page.product).toMatchObject({ price: 129 })
   })
 
   it('calls 404 and 410 dead', async () => {
@@ -101,6 +119,28 @@ describe('fetchPage', () => {
     const page = await fetchPage(URL_)
     expect(page.status).toBe('live')
     expect(page.text.length).toBeLessThanOrEqual(12_000)
+  })
+})
+
+describe('listingLinks', () => {
+  const PAGE = 'https://www.shop.be/spiegels'
+  it('lists named links on its own site, products first, never menus, listings, other sites or itself', () => {
+    const html = [
+      '<nav><a href="/spiegels/menu-item-spiegel">Menu spiegel link</a></nav>',
+      '<a href="/lampen">Alle lampen &amp; licht</a>',
+      '<a href="/spiegels/ronde-spiegel-100"><img src="a.jpg" alt="Ronde spiegel 100 cm"></a>',
+      '<a class="t" href="/spiegels/ronde-spiegel-100">Ronde spiegel 100 cm</a>',
+      '<a href="https://cdn.shop.be/spiegels/arch#reviews" title="Arch spiegel messing"></a>',
+      '<a href="https://other.be/spiegel">Spiegel elders</a>',
+      '<a href="/zoeken?q=spiegel">Zoek spiegels</a>',
+      '<a href="/spiegels">Spiegels home</a>',
+      '<a href="/spiegels/x">Kort</a>',
+    ].join('')
+    expect(listingLinks(html, PAGE)).toEqual([
+      { title: 'Ronde spiegel 100 cm', url: 'https://www.shop.be/spiegels/ronde-spiegel-100' },
+      { title: 'Arch spiegel messing', url: 'https://cdn.shop.be/spiegels/arch' },
+      { title: 'Alle lampen & licht', url: 'https://www.shop.be/lampen' },
+    ])
   })
 })
 

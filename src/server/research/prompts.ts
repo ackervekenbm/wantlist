@@ -275,6 +275,50 @@ export function normalizePlan(raw: unknown): ResearchPlan {
 }
 
 // ---------------------------------------------------------------------------
+// Search again - when a round has read too few product pages
+// ---------------------------------------------------------------------------
+
+export const MORE_QUERIES_SYSTEM = `You are the search-again step of a shopping-research bot that has NO internet access itself.
+The searches so far found too few pages for single products the owner could
+buy: mostly category pages, articles or products that do not fit. Write 2 or 3
+NEW web-search queries that surface individual product pages in shops: name
+concrete product types, styles, sizes, materials, brands or models that fit
+the idea, in Dutch the way Belgian shops write them. Never repeat or merely
+reorder a query already tried.
+
+${SHOP_RULES}`
+
+export const MORE_QUERIES_SCHEMA = {
+  type: 'object',
+  properties: {
+    searchQueries: { type: 'array', items: { type: 'string' }, description: '2-3 new search queries' },
+  },
+  required: ['searchQueries'],
+}
+
+export function buildMoreQueriesUser(idea: IdeaInput, preferences: Preferences, tried: string[], found: string[]): string {
+  return `${describeIdea(idea)}
+${describePreferences(preferences)}
+
+Queries already tried:
+${tried.map((q) => `- ${q}`).join('\n')}
+
+Product pages found so far:
+${found.length ? found.map((t) => `- ${t}`).join('\n') : '(none)'}
+
+Return the new queries JSON per schema.`
+}
+
+/** The new queries, without any already tried (ignoring case and spacing). */
+export function normalizeMoreQueries(raw: unknown, tried: string[]): string[] {
+  const key = (q: string) => q.toLowerCase().replace(/\s+/g, ' ').trim()
+  const old = new Set(tried.map(key))
+  const fresh = cleanQueries((raw as { searchQueries?: unknown })?.searchQueries, 'search again').filter((q) => !old.has(key(q)))
+  if (fresh.length === 0) throw new ResearchError('search again repeated the old queries', { kind: 'invalid' })
+  return fresh
+}
+
+// ---------------------------------------------------------------------------
 // Step 1b - learn from the owner's reactions (replaces the plan in later rounds)
 // ---------------------------------------------------------------------------
 
@@ -407,9 +451,11 @@ Ground rules:
   range in EUR. Otherwise leave empty.
 - Each candidate: concrete product title, shop name, the exact result URL, a
   one-line "why this fits" grounded in the idea.
-- Only a shop page for ONE specific product that can be bought there: never a
-  category, search, best-seller or comparison page, a review, blog or "best
-  of" article, or a brand page without a way to buy. One URL is one product: never give two candidates the
+- A shop page for ONE specific product that can be bought there. A shop's
+  category page for exactly this kind of product may be listed too (title:
+  the category's name): it is opened and its products are offered to you
+  next. Never a search, best-seller or comparison page, a review, blog or
+  "best of" article, or a brand page without a way to buy. One URL is one product: never give two candidates the
   same URL, and never name a product the page is not about.
 - Respect every "Must have" and "Avoid" line; prefer products with the
   "Liked so far" traits.

@@ -1,5 +1,5 @@
 import type { UrlStatus } from '../../types'
-import { isListingUrl } from './offers'
+import { isListingUrl, normalizeUrl } from './offers'
 import { decodeEntities, extractProductData, pageKindOf, type PageKind, type ProductData } from './product'
 
 const UA =
@@ -23,6 +23,14 @@ export interface Page {
   kind?: PageKind
   /** Shop pages this page's affiliate links lead to (see `referralTargets`). */
   referrals?: string[]
+  /** On a listing: the products it links to, for browsing it (see `listingLinks`). */
+  links?: PageLink[]
+}
+
+/** A link on a category page, named by its own text. */
+export interface PageLink {
+  title: string
+  url: string
 }
 
 const UNKNOWN: Page = { status: 'unknown', title: '', text: '', product: null }
@@ -76,16 +84,78 @@ export async function fetchPage(url: string): Promise<Page> {
   if (looksNotFound(title)) return { ...UNKNOWN, status: 'dead' }
   const text = extractText(html)
   if (looksLikeBotCheck(title, text)) return UNKNOWN
-  const kind = isListingUrl(res.url || url) ? 'listing' : pageKindOf(html)
+  let kind = isListingUrl(res.url || url) ? 'listing' : pageKindOf(html)
+  // A list's product data is its first entry's, not the page's.
+  let product = kind ? null : extractProductData(html, res.url || url)
+  // A category page the shop did not mark up as one: no price of its own, one per product in the text.
+  if (!product?.price && manyPrices(text)) {
+    kind = 'listing'
+    product = null
+  }
   return {
     status: 'live',
     title,
     text,
-    // A list's product data is its first entry's, not the page's.
-    product: kind ? null : extractProductData(html, res.url || url),
+    product,
     ...(kind && { kind }),
+    ...(kind === 'listing' && { links: listingLinks(html, res.url || url) }),
     referrals: referralTargets(html, res.url || url),
   }
+}
+
+/** Distinct euro amounts that make a page with no price of its own a list: a product page with a few related items stays well below. */
+const LISTING_PRICES = 12
+const manyPrices = (text: string): boolean => new Set(text.match(/€\s?\d[\d.,]*|\d[\d.,]*\s?€/g)).size >= LISTING_PRICES
+
+const MAX_LINKS = 40
+
+/**
+ * What a category page links to on its own site, with a name (the link text,
+ * else its title or image alt), never another listing. Links below the page's
+ * own path (`/spiegels/<product>`) come first; the shortlist model tells
+ * products from menu links.
+ */
+export function listingLinks(html: string, pageUrl: string): PageLink[] {
+  let base: URL
+  try {
+    base = new URL(pageUrl)
+  } catch {
+    return []
+  }
+  const site = siteOf(base.hostname)
+  const self = normalizeUrl(pageUrl)
+  const below = `${base.pathname.replace(/\/+$/, '')}/`
+  const found = new Map<string, PageLink & { score: number }>()
+  // Menus, headers and footers are left out with the rest of the chrome.
+  for (const m of contentHtml(html).matchAll(/<a\s([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const href = /href\s*=\s*["']([^"']+)["']/i.exec(m[1])?.[1]
+    if (!href) continue
+    let link: URL
+    try {
+      link = new URL(decodeEntities(href), base)
+    } catch {
+      continue
+    }
+    if (!/^https?:$/.test(link.protocol) || siteOf(link.hostname) !== site || isListingUrl(link.href)) continue
+    const key = normalizeUrl(link.href)
+    if (key === self || found.has(key)) continue
+    const named =
+      m[2].replace(/<[^>]+>/g, ' ').trim() ||
+      /title\s*=\s*["']([^"']+)["']/i.exec(m[1])?.[1] ||
+      /alt\s*=\s*["']([^"']+)["']/i.exec(m[2])?.[1] ||
+      ''
+    const title = decodeEntities(named).replace(/\s+/g, ' ').trim()
+    if (title.length < 6) continue
+    link.hash = ''
+    // A product's slug names it in several words (`hovet-spiegel-zwart-70515915`); a menu link's rarely does.
+    const slug = link.pathname.split('/').filter(Boolean).at(-1) ?? ''
+    const score = (link.pathname.startsWith(below) ? 2 : 0) + (slug.split(/[-_]/).length >= 3 ? 1 : 0)
+    found.set(key, { title: title.slice(0, 120), url: link.href, score })
+  }
+  return [...found.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_LINKS)
+    .map(({ title, url }) => ({ title, url }))
 }
 
 const MAX_REFERRALS = 3
@@ -186,6 +256,11 @@ export function extractTitle(html: string): string {
  * the page has a substantial one.
  */
 export function extractText(html: string): string {
+  return toText(contentHtml(html)).slice(0, MAX_TEXT_CHARS)
+}
+
+/** The page without comments, scripts, styles and chrome: <main> when it is substantial. */
+function contentHtml(html: string): string {
   let s = html.replace(/<!--[\s\S]*?-->/g, ' ')
   for (const tag of ['script', 'style', 'noscript', 'svg', 'template', 'iframe']) {
     s = s.replace(new RegExp(`<${tag}[\\s>][\\s\\S]*?<\\/${tag}>`, 'gi'), ' ')
@@ -195,7 +270,7 @@ export function extractText(html: string): string {
   for (const tag of ['nav', 'header', 'footer', 'aside']) {
     s = s.replace(new RegExp(`<${tag}[\\s>][\\s\\S]*?<\\/${tag}>`, 'gi'), ' ')
   }
-  return toText(s).slice(0, MAX_TEXT_CHARS)
+  return s
 }
 
 function toText(html: string): string {

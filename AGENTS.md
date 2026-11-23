@@ -195,7 +195,12 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   preferences); otherwise a **learn** step runs first ("learning from your reactions"):
   reactions and reasons become preferences and new queries, and the owner's
   edited items are kept word-for-word (`keepOwnerItems`). Then: Serper search →
-  candidate selection (5–8, `MAX_CANDIDATES`) → read every candidate page → verify → **offer check**. It
+  candidate selection (5–8, `MAX_CANDIDATES`) → read every candidate page →
+  until 6 product pages are read (`ENOUGH_PAGES`), at most 3 shortlist passes
+  (`MAX_PASSES`): a category page's `links` go to the next shortlist, and with
+  nothing left to browse the search-again step (`MORE_QUERIES_SYSTEM`, never a
+  query already tried) searches again; a failing later pass only ends the loop →
+  verify (at most 12 read candidates, `MAX_VERIFY`) → **offer check**. It
   returns the brief (title + preferences, stored on the idea) with the round's
   picks.
   Exclusion: every product shown since the last reword, plus every one marked
@@ -297,7 +302,12 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   (`ItemList`, `CollectionPage`...) or an article (`BlogPosting`, `og:type
   article`...) with no product of its own, or a listing URL (Shopify
   `/collections/<name>` too), gets `kind` (`pageKindOf` in `product.ts`) and
-  no product data. Explore drops such candidates before verifying, and
+  no product data; so does a page with no price of its own whose text shows
+  12 or more different euro amounts (a category without list markup). A
+  listing also carries `links` (`listingLinks`): up to 40 named links on its
+  own site outside the page chrome, never listings, those below its path or
+  with a several-word slug first. Explore browses those instead of verifying
+  the page, and
   `checkedSupplier` never keeps an offer on one. Never throws.
 - `src/client/` — React UI, the "Quote Slip" design. The app icon (a brass magnifier with a
   price tag in its lens) is drawn once in `scripts/gen-icons.mjs`: `npm run icons`
