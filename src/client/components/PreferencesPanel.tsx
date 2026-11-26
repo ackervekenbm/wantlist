@@ -17,8 +17,8 @@ type Draft = Record<ListKey, string>
 
 const LISTS: Array<{ key: ListKey; glyph: string; cls: string; spoken: string; label: string }> = [
   { key: 'mustHaves', glyph: '✓', cls: 'must', spoken: 'must have', label: 'Must have, one per line' },
-  { key: 'avoid', glyph: '✗', cls: 'avoid', spoken: 'avoid', label: 'Avoid, one per line' },
   { key: 'likes', glyph: '♥', cls: 'like', spoken: 'liked', label: 'Liked, one per line' },
+  { key: 'avoid', glyph: '✗', cls: 'avoid', spoken: 'avoid', label: 'Avoid, one per line' },
 ]
 
 const draftOf = (p: Preferences): Draft => ({
@@ -55,8 +55,8 @@ export function PreferencesPanel({ preferences, editable, onSave, editRequest = 
       await onSave({
         summary: preferences.summary,
         mustHaves: toItems(draft.mustHaves),
-        avoid: toItems(draft.avoid),
         likes: toItems(draft.likes),
+        avoid: toItems(draft.avoid),
       })
       setDraft(null)
     } catch {
