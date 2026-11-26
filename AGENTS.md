@@ -80,8 +80,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 
 - Name the branch `fix/...`, `feat/...` or `chore/...` (one per issue).
 - Put `Fixes #<n>` on its own line in the PR body so the issue auto-closes on merge.
-- One issue, one PR, branched off the latest `main`, targeting `main`
-  (`Fixes #<n>` only closes issues from there).
+- One issue, one PR, branched off the latest `main`. Every PR targets `main`
+  (`Fixes #<n>` only closes issues from there; CI runs on every PR, stacked
+  ones included).
 - Don't stack by default. Work that needs an unmerged PR goes into that PR, as
   its own commit with its own `Fixes #<n>` line, or waits until it has merged.
 - When a stack is unavoidable, keep it small and say "merge #<n> first" in the
