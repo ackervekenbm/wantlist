@@ -1,4 +1,4 @@
-/* Quote Slip design tokens, verbatim from docs/design/quote-slip/mockup.html
+/* Quote Slip design tokens, the source of truth for colour, type and shape
    (the font family adds the name @fontsource-variable registers). New styles
    use these, never hardcoded colours. Light by default, dark from the system
    setting, and `data-theme` on <html> forces either. */
@@ -83,7 +83,7 @@ button{cursor:pointer}
   .shell>.banner{top:calc(var(--bar) + 12px)}
 }
 
-/* ---------- base components (mockup) ---------- */
+/* ---------- base components ---------- */
 
 /* top bar */
 .top{display:flex;align-items:center;gap:8px;padding:10px 0 6px;min-height:60px}

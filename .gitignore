@@ -7,3 +7,5 @@ coverage/
 .env
 .env.local
 .DS_Store
+# Working docs (plans, specs, mockups) stay local
+docs/superpowers/

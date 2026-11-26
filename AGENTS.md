@@ -47,6 +47,13 @@ is then built natively per arch (amd64 + arm64 runners, no QEMU) and combined
 into the multi-arch `ghcr.io/ackervekenbm/wantlist:latest` / `:<sha7>`.
 A green `check` and `smoke` are required to merge. There is no other test suite.
 
+## Working docs stay out of the repo
+
+Plans, specs, design mockups and screenshots are working documents: write them
+locally (`docs/superpowers/` is git-ignored) or in the issue/PR, never commit
+them. What outlives the work goes into the README, this file or
+`docs/deployment.md`.
+
 ## README upkeep (MANDATORY)
 
 `README.md` is the project's public front page, so it has to match the app.
@@ -280,7 +287,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   (`parseGoogleError`: QuotaFailure `quotaId`, RetryInfo `retryDelay`):
   per-day quota → bench until **midnight Pacific** (Gemini's reset), per-minute
   → bench for `retryDelay`. 3.x grounding-with-search is paid-only, 2.5-flash is
-  retired for new users — see `docs/plan.md`.
+  retired for new users (see Platform caveats).
 - `src/server/research/prompts.ts` — prompts, response schemas, user-message
   builders and normalizers for the model steps (plan or learn, candidates,
   verify). Reactions, preference rules and the newest 40 earlier picks (numbered
@@ -319,7 +326,11 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   with a several-word slug first. Explore browses those instead of verifying
   the page, and
   `checkedSupplier` never keeps an offer on one. Never throws.
-- `src/client/` — React UI, the "Quote Slip" design. The app icon (a brass magnifier with a
+- `src/client/` — React UI, the "Quote Slip" design: warm paper and ink, a
+  dotted leader in every row (name, dots, figure) that grows into a perforated
+  slip for a hunt's best offer, keycaps that press down, Bricolage Grotesque with
+  DM Mono for aligned figures only; deep green means act / best / checked, brass
+  means Hunt, rust / ochre / green are the reactions; 16 px gutters. The app icon (a brass magnifier with a
   price tag in its lens) is drawn once in `scripts/gen-icons.mjs`: `npm run icons`
   writes `public/favicon.svg`, `apple-touch-icon.png` and `icons/` (192, 512,
   maskable); commit the output. `public/manifest.webmanifest` names the app for a
@@ -417,7 +428,16 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   from the environment (compose `.env` on the Pi, or `.env`/env var in dev).
   The repo is public.
 - **Free-tier quotas move.** Google does not publish fixed limits; they are
-  per-project and only visible in AI Studio. Backoff on 429s, cap the queue,
+  per-project and only visible in AI Studio (<https://ai.dev/rate-limit>). A
+  brand-new project measured 20 requests/day per model (Sep 2026), growing as
+  the project ages; the fallback chain multiplies that by its length.
+- **No search grounding on the free tier.** Gemini 3.x grounding / search tools
+  answer 429 without a billing account while plain generation on the same model
+  works (re-verified Oct 2026), hence the server-side Serper search and page
+  reading. The 2.5-flash line is retired for new users: it 404s on
+  `generateContent` though the models list still shows it. Serper's free signup
+  is 2,500 one-time credits (6 months; one idea ≈ 2–4 searches); DuckDuckGo HTML
+  scraping was rejected (CAPTCHA for bots). Backoff on 429s, cap the queue,
   surface errors per idea instead of failing the run.
 - research quality is only as good as the pass-1 prompt + acquired page text;
   the parsers deliberately **drop** anything unverifiable (invalid URLs,
