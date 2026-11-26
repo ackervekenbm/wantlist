@@ -32,6 +32,7 @@ interface Props {
 export function IdeaScreen({ idea, status, onBack, actions }: Props) {
   const [sheet, setSheet] = useState<'menu' | 'edit' | null>(null)
   const [editRequest, setEditRequest] = useState(0)
+  const [tab, setTab] = useState<'research' | 'keepers'>('research')
   const { id } = idea
   const busy = idea.status === 'researching'
   const pending = busy || idea.status === 'queued'
@@ -41,6 +42,9 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
   const latest = latestPicks(idea)
   const explore = exploreRounds(idea)
   const earlier = explore.filter((p) => p.round !== latest[0]?.round)
+  const keepers = explore.filter((p) => p.reaction === 'yes' || p.reaction === 'maybe')
+  // The tabs appear with the first keeper; un-keeping the last one goes back to research.
+  const onKeepers = tab === 'keepers' && keepers.length > 0
   const bought = (pick: PickT) => fire(patch({ list: 'bought', boughtPickId: pick.id }))
   const patch = (p: Parameters<typeof actions.patch>[1]) => actions.patch(id, p)
   const rerun = () => fire(actions.rerun(id))
@@ -166,32 +170,43 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
         <HuntView idea={idea} actions={actions} />
       ) : (
         <>
-          <PickDeck key={`${id}-${latest[0]?.round}`} idea={idea} onReact={actions.react} onBought={bought} onHunt={huntPick} />
-
-          {idea.preferences && (
-            <PreferencesPanel
-              preferences={idea.preferences}
-              editable={!pending}
-              editRequest={editRequest}
-              onSave={(preferences) => patch({ preferences })}
-            />
+          {keepers.length > 0 && (
+            <nav className="tabs two" aria-label="Research or keepers">
+              <button type="button" aria-pressed={!onKeepers} onClick={() => setTab('research')}>
+                Research
+              </button>
+              <button type="button" aria-pressed={onKeepers} onClick={() => setTab('keepers')}>
+                Keepers <span className="c">{keepers.length}</span>
+              </button>
+            </nav>
           )}
 
-          <Keepers
-            picks={earlier.filter((p) => p.reaction === 'yes')}
-            onReact={wanted ? actions.react : undefined}
-            onBought={wanted ? bought : undefined}
-            onHunt={huntPick}
-          />
-          <EarlierRounds
-            picks={earlier}
-            onReact={wanted ? actions.react : undefined}
-            onBought={wanted ? bought : undefined}
-          />
+          {onKeepers ? (
+            <Keepers picks={explore} onReact={wanted ? actions.react : undefined} onBought={wanted ? bought : undefined} onHunt={huntPick} />
+          ) : (
+            <>
+              <PickDeck key={`${id}-${latest[0]?.round}`} idea={idea} onReact={actions.react} onBought={bought} onHunt={huntPick} />
 
-          <EarlierHunts idea={idea} />
+              {idea.preferences && (
+                <PreferencesPanel
+                  preferences={idea.preferences}
+                  editable={!pending}
+                  editRequest={editRequest}
+                  onSave={(preferences) => patch({ preferences })}
+                />
+              )}
 
-          {wanted && !pending && explore.length > 0 && (
+              <EarlierRounds
+                picks={earlier}
+                onReact={wanted ? actions.react : undefined}
+                onBought={wanted ? bought : undefined}
+              />
+
+              <EarlierHunts idea={idea} />
+            </>
+          )}
+
+          {wanted && !pending && explore.length > 0 && !onKeepers && (
             <RefineBar
               reactions={latest.filter((p) => p.reaction).length}
               round={idea.round}

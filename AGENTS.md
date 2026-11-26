@@ -353,7 +353,7 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   Yes; `ReactionBar`: No way and Kind of each open their own why box, tapping
   the active one clears it; checked price ✓ vs "≈" search price, stock, rating, caveat, other
   shops, "I bought this"), the `RefineBar` dock (needs a reaction or an
-  edit), and `Keepers` (earlier "yes" picks) and `EarlierRounds` (older
+  edit), and `Keepers` (its own tab: a **Research / Keepers** switch appears above the deck with the first "yes" or "maybe" pick; Keepers lists every "yes" pick of every round as a `PickRow` with `detail`, i.e. photo, why and reason, then the "maybe" picks folded; the Research tab holds the deck, preferences, earlier rounds and the refine dock) and `EarlierRounds` (older
   rounds, folded), both built from `PickRow`. `Sheet` is a native
   `<dialog>` used for the idea menu and edit. `IdeaForm` (capture and edit; Enter
   submits, Shift+Enter is a new line; `parseBudget` mirrors the server's

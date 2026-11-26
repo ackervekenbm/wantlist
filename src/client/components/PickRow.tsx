@@ -12,15 +12,39 @@ interface Props {
   onBought?: (pick: Pick) => void
   /** Hunts this pick's exact product. */
   onHunt?: (pick: Pick) => void
+  /** Keepers: a photo, the why and your reason, to compare on. */
+  detail?: boolean
 }
 
 /** A compact pick: title and price on a dotted leader, the shop, and its own keycaps. */
-export function PickRow({ pick, onReact, onBought, onHunt }: Props) {
+export function PickRow({ pick, onReact, onBought, onHunt, detail }: Props) {
+  const lead = (
+    <Leader fig={pick.price === null ? '–' : priceText(pick.price, pick.suppliers[0]?.checked ?? false)}>{pick.title}</Leader>
+  )
   return (
-    <li className="erow">
-      <Leader fig={pick.price === null ? '–' : priceText(pick.price, pick.suppliers[0]?.checked ?? false)}>
-        {pick.title}
-      </Leader>
+    <li className={detail ? 'erow keeper' : 'erow'}>
+      {detail ? (
+        <div className="keeper-top">
+          {pick.image && (
+            <img
+              className="thumb"
+              src={pick.image}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={(e) => (e.currentTarget.hidden = true)}
+            />
+          )}
+          <div className="keeper-text">
+            {lead}
+            {pick.why && <p className="hint">{pick.why}</p>}
+            {/* With reactions the why box shows it already. */}
+            {!onReact && pick.reason && <p className="hint">You: “{pick.reason}”</p>}
+          </div>
+        </div>
+      ) : (
+        lead
+      )}
       <div className="erow-acts">
         <a className="linkish" href={pick.url} target="_blank" rel="noreferrer noopener">
           {pick.shop || 'Open shop'} <ExternalIcon />

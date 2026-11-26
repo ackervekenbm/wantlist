@@ -70,7 +70,7 @@ included. For Docker Compose and OpenMediaVault, see [Deployment](#deployment).
 
 - Picks come one card at a time, with dots to jump between them. React with **No way** (and say why not), **Kind of** (and say what's missing) or **Yes**; tap the active one again to clear it.
 - **Refine** researches a new round from your reactions and preference edits. **Research again** runs another round without them.
-- Each round adds its own picks; earlier rounds fold away and are never deleted, so a failed round loses nothing. **Keepers** keeps your *Yes* picks in view.
+- Each round adds its own picks; earlier rounds fold away and are never deleted, so a failed round loses nothing. Once you have a *Yes* or *Kind of*, a **Research / Keepers** switch appears above the picks. **Keepers** is your shortlist for the final choice: every *Yes* from every round with its photo, price and why, and your *Kind of* picks folded underneath with your reason. Each one has **I bought this** and **Hunt this one**.
 - A product you've already seen never comes back, at any shop. When a round finds nothing new, it says so and suggests loosening a criterion or rewording the idea.
 
 </details>
