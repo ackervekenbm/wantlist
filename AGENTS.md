@@ -66,7 +66,7 @@ sections, plain user-facing wording, no internal jargon. The banner is
 `scripts/banner.html`, rendered to `docs/banner.png` by `scripts/banner.mjs`
 (Playwright installed with `--no-save`, deliberately not a dependency);
 re-render it when its wording or the icon changes. Anything shown in it is
-invented, never real data. If nothing in the README is affected, say so in the PR description.
+invented, never real data. If nothing in the README is affected, strike it through in the PR checklist.
 AGENTS.md (architecture) and `docs/deploy/` (deployment) follow the
 same rule.
 
@@ -106,6 +106,9 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   → merge once the checks pass. Use `gh pr merge --squash` when asked to merge.
 - **Never merge your own PR.** Ready PRs are handed over to a reviewer to merge;
   if the author merges, the other party reviews the squash only after the fact.
+- Every PR body follows `.github/pull_request_template.md`, also with
+  `gh pr create --body`: tick what is done, tick and ~~strike through~~ what
+  does not apply, and drop the "After merge" section when there is nothing to do.
 - Commit messages are imperative, single-paragraph (plus context lines), and
   reference the fix: `Fixes #<n>`.
 - **Branch hygiene** — keep the workspace tidy:
