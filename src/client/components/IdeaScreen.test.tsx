@@ -321,6 +321,12 @@ describe('Ported from IdeaCard', () => {
   })
 })
 
+/** Switches the idea to its Keepers tab and returns the Yes list. */
+async function openKeepers(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(pane().getByRole('button', { name: /^Keepers/ }))
+  return within(pane().getByRole('list', { name: 'Keepers' }))
+}
+
 describe('Refine dock, keepers and earlier rounds', () => {
   it('is disabled with its reason as text until there is a reaction, then refines once', async () => {
     const { api, user } = await open([idea()])
@@ -358,10 +364,6 @@ describe('Refine dock, keepers and earlier rounds', () => {
         ],
       }),
     ])
-    const keepers = within(pane().getByRole('list', { name: 'Keepers' }))
-    expect(keepers.getByText('Felt mule')).toBeInTheDocument()
-    expect(keepers.getByText(/€\s45/)).toBeInTheDocument()
-    expect(keepers.getByRole('button', { name: 'I bought this' })).toBeInTheDocument()
     // Only round-1 reactions: refine is offered, without a count.
     expect(pane().getByRole('button', { name: 'Refine' })).toBeEnabled()
 
@@ -376,6 +378,11 @@ describe('Refine dock, keepers and earlier rounds', () => {
     expect(rows.getAllByRole('button', { name: 'I bought this' })).toHaveLength(3)
 
     await user.click(within(rows.getByRole('group', { name: 'Your reaction to Honeywell' })).getByRole('button', { name: 'Yes' }))
+    const keepers = await openKeepers(user)
+    expect(keepers.getByText('Felt mule')).toBeInTheDocument()
+    expect(keepers.getByText(/€\s45/)).toBeInTheDocument()
+    expect(keepers.getAllByRole('button', { name: 'I bought this' })).toHaveLength(2)
+    expect(pane().queryByRole('button', { name: /^Refine/ })).not.toBeInTheDocument()
     await user.click(within(keepers.getByRole('group', { name: 'Your reaction to Felt mule' })).getByRole('button', { name: 'Yes' }))
     await waitFor(() =>
       expect(api.writes()).toEqual([
@@ -387,8 +394,8 @@ describe('Refine dock, keepers and earlier rounds', () => {
 })
 
 describe('Keepers overview', () => {
-  it('lists every Yes from all rounds with photo and why, and folds the Kind of picks with your reason', async () => {
-    await open([
+  it('shows a Keepers tab with every Yes from all rounds, photo and why, and the Kind of picks folded with your reason', async () => {
+    const { user } = await open([
       idea({
         round: 2,
         picks: [
@@ -399,20 +406,28 @@ describe('Keepers overview', () => {
         ],
       }),
     ])
-    const keepers = within(pane().getByRole('list', { name: 'Keepers' }))
+    expect(pane().getByRole('button', { name: 'Research' })).toHaveAttribute('aria-pressed', 'true')
+    expect(pane().queryByRole('list', { name: 'Keepers' })).not.toBeInTheDocument()
+    const keepers = await openKeepers(user)
+    expect(pane().getByRole('button', { name: 'Keepers 3' })).toHaveAttribute('aria-pressed', 'true')
+    expect(pane().queryByRole('group', { name: /^Pick/ })).not.toBeInTheDocument()
     expect(keepers.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
       expect.stringContaining('Kobo Libra Colour'),
       expect.stringContaining('Kindle Paperwhite'),
     ])
     expect(keepers.getByText('Page buttons')).toBeInTheDocument()
     expect(pane().getByRole('list', { name: 'Keepers' }).querySelector('img')).toHaveAttribute('src', 'https://shop.be/libra.jpg')
-    // The deck's round is reacted to on the deck; older keepers keep their keycaps.
-    expect(keepers.queryByRole('group', { name: 'Your reaction to Kobo Libra Colour' })).not.toBeInTheDocument()
+    expect(keepers.getByRole('group', { name: 'Your reaction to Kobo Libra Colour' })).toBeInTheDocument()
     expect(keepers.getByRole('group', { name: 'Your reaction to Kindle Paperwhite' })).toBeInTheDocument()
     expect(keepers.getAllByRole('button', { name: 'Hunt this one' })).toHaveLength(2)
     const maybe = within(pane().getByRole('list', { name: 'Kind of' }))
-    expect(maybe.getByText('You: “no buttons”')).toBeInTheDocument()
-    expect(pane().queryByRole('list', { name: 'Keepers' })?.textContent).not.toContain('PocketBook')
+    expect(maybe.getByRole('textbox', { name: /Kobo Clara BW/ })).toHaveValue('no buttons')
+    expect(pane().getByRole('list', { name: 'Keepers' }).textContent).not.toContain('PocketBook')
+  })
+
+  it('has no tabs before the first keeper', async () => {
+    await open([idea()])
+    expect(pane().queryByRole('navigation', { name: 'Research or keepers' })).not.toBeInTheDocument()
   })
 })
 
@@ -424,7 +439,8 @@ describe('IdeaScreen with a hunt round', () => {
       pick({ id: 20, round: 2, title: 'Latest fan' }),
       pick({ id: 10, round: 1, title: 'Old keeper', reaction: 'yes' }),
     ]
-    await open([idea({ round: 3, picks })])
+    const { user } = await open([idea({ round: 3, picks })])
+    await openKeepers(user)
     expect(pane().getByText('Old keeper')).toBeInTheDocument()
     expect(pane().queryByText('Hunt offer shop')).not.toBeInTheDocument()
   })
@@ -445,7 +461,7 @@ describe('IdeaScreen mode switch', () => {
     const { api, user } = await open([
       idea({ round: 2, picks: [pick({ id: 20, round: 2 }), pick({ id: 11, round: 1, title: 'Felt mule', reaction: 'yes' })] }),
     ])
-    const keepers = within(pane().getByRole('list', { name: 'Keepers' }))
+    const keepers = await openKeepers(user)
     await user.click(keepers.getByRole('button', { name: 'Hunt this one' }))
     expect(api.writes()).toEqual([{ method: 'POST', path: '/api/ideas/1/hunt', body: { pickId: 11 } }])
   })

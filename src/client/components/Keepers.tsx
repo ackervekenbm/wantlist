@@ -6,8 +6,6 @@ import { PickRow } from './PickRow'
 interface Props {
   /** Every Explore pick of the idea, newest round first. */
   picks: Pick[]
-  /** The round on the deck: its picks are reacted to there, so they are read-only here. */
-  deckRound?: number
   /** Both absent off the wanted list. */
   onReact?: (pickId: number, patch: PickPatch) => Promise<void>
   onBought?: (pick: Pick) => void
@@ -16,13 +14,13 @@ interface Props {
 }
 
 /** Your shortlist across all rounds: every Yes, then the Kind of picks folded, to make the final choice from. */
-export function Keepers({ picks, deckRound, onReact, onBought, onHunt }: Props) {
+export function Keepers({ picks, onReact, onBought, onHunt }: Props) {
   const yes = picks.filter((p) => p.reaction === 'yes')
   const maybe = picks.filter((p) => p.reaction === 'maybe')
   if (yes.length + maybe.length === 0) return null
-  const row = (pick: Pick) => <PickRow key={pick.id} pick={pick} detail onReact={pick.round === deckRound ? undefined : onReact} onBought={onBought} onHunt={onHunt} />
+  const row = (pick: Pick) => <PickRow key={pick.id} pick={pick} detail onReact={onReact} onBought={onBought} onHunt={onHunt} />
   return (
-    <Section className="panel" title="Keepers" count={yes.length} note="your Yes picks, every round">
+    <Section className="panel" title="Yes" count={yes.length} note="every round">
       {yes.length > 0 && (
         <ul className="card erows" aria-label="Keepers">
           {yes.map(row)}
