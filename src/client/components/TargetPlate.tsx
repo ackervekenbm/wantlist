@@ -1,5 +1,6 @@
 import { useId, useState, type FormEvent } from 'react'
 import type { Condition, HuntTarget } from '../../types'
+import { QUANTITY_MAX } from '../../types/limits'
 import { HuntIcon, PencilIcon } from './icons'
 import { Sheet } from './Sheet'
 
@@ -44,7 +45,10 @@ export function TargetPlate({ target, editable, editRequest, onSave }: Props) {
       </span>
       <span className="plate-text">
         <span className="prod">{name}</span>
-        <small>Exact match only.{exclusions(target.exclude)}</small>
+        <small>
+          Exact match only.{target.quantity ? ` Buying ${target.quantity} at once.` : ''}
+          {exclusions(target.exclude)}
+        </small>
       </span>
     </>
   )
@@ -80,15 +84,19 @@ function TargetForm({ target, onCancel, onSave }: { target: HuntTarget; onCancel
   const [variant, setVariant] = useState(target.variant)
   const [condition, setCondition] = useState(target.condition)
   const [exclude, setExclude] = useState(target.exclude.join('\n'))
+  const [quantity, setQuantity] = useState(target.quantity ? String(target.quantity) : '')
   const [busy, setBusy] = useState(false)
-  const ok = !!product.trim() && !busy
+  const qty = quantity.trim() === '' ? null : Number(quantity)
+  const qtyOk = qty === null || (Number.isInteger(qty) && qty >= 1 && qty <= QUANTITY_MAX)
+  const ok = !!product.trim() && qtyOk && !busy
 
   const save = async (again: boolean) => {
     if (!ok) return
     setBusy(true)
     try {
       const items = exclude.split('\n').map((s) => s.trim()).filter(Boolean)
-      await onSave({ ...target, product: product.trim(), variant: variant.trim(), condition, exclude: items }, again)
+      const n = qty !== null && qty > 1 ? qty : null
+      await onSave({ ...target, product: product.trim(), variant: variant.trim(), condition, exclude: items, quantity: n }, again)
     } catch {
       // The hook shows why in the banner; the sheet stays open.
       setBusy(false)
@@ -133,6 +141,25 @@ function TargetForm({ target, onCancel, onSave }: { target: HuntTarget; onCancel
             onChange={(e) => setVariant(e.target.value)}
           />
         </div>
+      </div>
+      <div className="form-field">
+        <label htmlFor={`${id}-n`} className="form-label">
+          How many at once (optional)
+        </label>
+        <input
+          id={`${id}-n`}
+          className="input"
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="1"
+          aria-describedby={`${id}-nh`}
+          aria-invalid={!qtyOk}
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+        />
+        <p id={`${id}-nh`} className="hint">
+          Every shop is then priced for this many, bulk prices and free delivery included.
+        </p>
       </div>
       <div className="form-field">
         <label htmlFor={`${id}-x`} className="form-label">

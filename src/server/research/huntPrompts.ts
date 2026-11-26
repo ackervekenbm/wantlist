@@ -1,10 +1,10 @@
-import type { Delivery, DeliveryKind, HuntTarget, OfferFacts, ResearchRequest } from '../../types'
+import type { BulkTier, Delivery, DeliveryKind, HuntTarget, OfferFacts, ResearchRequest } from '../../types'
 import { ResearchError } from './errors'
 import { isHttpUrl, normalizeUrl } from './offers'
 import { SHOP_RULES, TARGET_SCHEMA, cleanQueries, cleanTarget, describeIdea, describeProduct } from './prompts'
 import type { ProductData } from './product'
 import type { SearchResult } from './search'
-import { TITLE_MAX } from '../../types/limits'
+import { QUANTITY_MAX, TITLE_MAX } from '../../types/limits'
 
 // Prompts, schemas and normalizers for a hunt: plan the queries, select offer
 // pages from the search results, read the pages into OfferFacts. Like the
@@ -172,6 +172,10 @@ page return the facts of that shop's offer.
 - packs: how many packs or items the offer sells together (1 for a single
   one). unitsPerPack: the count of the target's unit per pack (e.g. 48 ml
   vials per pack), only when stated.
+- bulk: volume prices the page states for buying several ("vanaf 6 stuks
+  -5%", "12 voor € 69", "3+ € 5,99/st"): min is the count the price starts
+  at, with the price each in EUR or the percentage off. Leave out when the
+  page shows none; never invent one.
 - condition: new, refurbished, used, or leave out when the page does not say.
 - delivery: ONLY what the page states: kind free, paid (with cost in EUR),
   free_over (with threshold in EUR, and cost when stated), pickup_only,
@@ -215,6 +219,18 @@ export const OFFER_SCHEMA = {
             },
             required: ['kind'],
           },
+          bulk: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                min: { type: 'number', description: 'From how many items the price applies' },
+                each: { type: 'number', description: 'Price per item in EUR at that count' },
+                percentOff: { type: 'number', description: 'Percentage off per item, when the page gives one instead' },
+              },
+              required: ['min'],
+            },
+          },
           sellerNote: { type: 'string' },
           referral: { type: 'boolean', description: 'The page only sends buyers to another shop' },
           stock: { type: 'string', enum: ['in_stock', 'out_of_stock', 'unknown'] },
@@ -240,6 +256,20 @@ const DELIVERY_KINDS: DeliveryKind[] = ['free', 'paid', 'free_over', 'pickup_onl
 
 const amount = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null
+
+/** Tiers with a count of 2 or more and either a price each or a percentage off below 100; at most 6. */
+function cleanBulk(raw: unknown): BulkTier[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .flatMap((t: Record<string, unknown> | null): BulkTier[] => {
+      const min = typeof t?.min === 'number' && t.min >= 2 && t.min <= QUANTITY_MAX ? Math.round(t.min) : null
+      const each = amount(t?.each) || null
+      const pct = amount(t?.percentOff)
+      const percentOff = each === null && pct !== null && pct > 0 && pct < 100 ? pct : null
+      return min !== null && (each !== null || percentOff !== null) ? [{ min, each, percentOff }] : []
+    })
+    .slice(0, 6)
+}
 
 function cleanDelivery(raw: unknown): Delivery {
   const d = (raw ?? {}) as Record<string, unknown>
@@ -272,6 +302,7 @@ export function normalizeOffers(
       const mismatch = String(o.mismatch ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 4).join(' ')
       const packs = typeof o.packs === 'number' && o.packs >= 1 ? Math.round(o.packs) : 1
       const units = typeof o.unitsPerPack === 'number' && o.unitsPerPack > 0 ? o.unitsPerPack : null
+      const bulk = cleanBulk(o.bulk)
       const condition = ['new', 'refurbished', 'used'].includes(String(o.condition))
         ? (o.condition as 'new' | 'refurbished' | 'used')
         : null
@@ -286,6 +317,7 @@ export function normalizeOffers(
           packs,
           unitsPerPack: units,
           delivery: cleanDelivery(o.delivery),
+          ...(bulk.length ? { bulk } : {}),
           condition,
           sellerNote: String(o.sellerNote ?? '').trim() || null,
         },

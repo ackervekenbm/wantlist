@@ -525,7 +525,8 @@ function insertPurchase(
   now: Date,
 ): void {
   const unit = idea.target?.unit ?? null
-  const perUnit = unit ? round2(p.paid / (p.packs * (p.unitsPerPack ?? 1))) : null
+  const units = p.packs * (p.unitsPerPack ?? 1)
+  const perUnit = unit || units > 1 ? round2(p.paid / units) : null
   db.prepare(
     `INSERT INTO purchases (idea_id, at, shop, url, title, packs, units_per_pack, unit_label, paid, per_unit)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -616,7 +617,7 @@ export function recordPurchase(db: WlDb, id: number, input: NewPurchase, now = n
         title: pick?.title ?? idea.title ?? idea.text,
         shop: pick?.shop ?? null,
         url: pick?.url ?? null,
-        packs: offer?.packs ?? 1,
+        packs: (offer?.packs ?? 1) * (input.quantity ?? 1),
         unitsPerPack: offer?.unitsPerPack ?? null,
         paid: input.paid,
       },
@@ -708,6 +709,20 @@ export function setOfferDelivery(
     const save = db.prepare('UPDATE picks SET rank = ?, offer = ? WHERE id = ?')
     for (const p of rank(round, idea)) save.run(p.rank, JSON.stringify(p.offer), p.id)
     return getIdea(db, row.ideaId)
+  })()
+}
+
+/** Re-ranks the newest hunt round in place, e.g. after the target quantity changed. */
+export function rerankHunt(db: WlDb, id: number, rank: (offers: Pick[], idea: Idea) => Pick[]): Idea | null {
+  return db.transaction(() => {
+    const idea = getIdea(db, id)
+    if (!idea) return null
+    const offers = idea.picks.filter((p) => p.kind === 'offer')
+    const round = offers.filter((p) => p.round === offers[0]?.round)
+    if (round.length === 0) return idea
+    const save = db.prepare('UPDATE picks SET rank = ?, offer = ? WHERE id = ?')
+    for (const p of rank(round, idea)) save.run(p.rank, JSON.stringify(p.offer), p.id)
+    return getIdea(db, id)
   })()
 }
 

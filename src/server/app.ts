@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express'
-import type { ApiKeyState, Condition, HuntTarget, Idea, IdeaList, IdeaMode, IdeaPatch, ModelHealth, NewIdea, PickPatch, Preferences, Reaction, ServerStatus } from '../types'
-import { PREF_ITEMS_MAX, PREF_ITEM_CHARS, PREF_SUMMARY_CHARS, REASON_MAX, TITLE_MAX } from '../types/limits'
+import type { ApiKeyState, Condition, HuntTarget, Idea, IdeaList, IdeaMode, IdeaPatch, ModelHealth, NewIdea, Pick as OfferPick, PickPatch, Preferences, Reaction, ServerStatus } from '../types'
+import { PREF_ITEMS_MAX, PREF_ITEM_CHARS, PREF_SUMMARY_CHARS, QUANTITY_MAX, REASON_MAX, TITLE_MAX } from '../types/limits'
 import type { WlDb } from './db'
 import {
   BusyError,
@@ -15,6 +15,7 @@ import {
   reactToPick,
   setOfferDelivery,
   recordPurchase,
+  rerankHunt,
   requeueIdea,
   moveToPantry,
   runningLow,
@@ -53,6 +54,8 @@ export function createApp(opts: AppOptions): express.Express {
   const app = express()
   app.disable('x-powered-by')
   const show = <T extends Idea | null>(idea: T): T => (idea && opts.partners ? (opts.partners.withPartners(idea) as T) : idea)
+  const saving = (url: string, price: number) => opts.partners?.saving?.(url, price) ?? 0
+  const rankFor = (offers: OfferPick[], idea: Idea) => rankOffers(offers, idea.target ?? ANY_TARGET, saving)
   app.use(express.json({ limit: '16kb' }))
 
   app.get('/api/health', (_req, res) => {
@@ -103,8 +106,10 @@ export function createApp(opts: AppOptions): express.Express {
     const patch = parsePatch(req.body)
     if (typeof patch === 'string') return badRequest(res, patch)
     try {
-      const idea = updateIdea(db, id, patch)
+      let idea = updateIdea(db, id, patch)
       if (!idea) return notFound(res)
+      // A new quantity changes every total: re-rank the offers in hand.
+      if (patch.target !== undefined) idea = rerankHunt(db, id, rankFor) ?? idea
       // Back on the wanted list with research still pending: pick it up.
       if (idea.list === 'wanted' && idea.status === 'queued') worker.kick()
       res.json(show(idea))
@@ -129,8 +134,7 @@ export function createApp(opts: AppOptions): express.Express {
     if (typeof patch === 'string') return badRequest(res, patch)
     const { delivery, ...reaction } = patch
     if (delivery !== undefined) {
-      const saving = (url: string, price: number) => opts.partners?.saving?.(url, price) ?? 0
-      const out = setOfferDelivery(db, id, delivery, (offers, idea) => rankOffers(offers, idea.target ?? ANY_TARGET, saving))
+      const out = setOfferDelivery(db, id, delivery, rankFor)
       if (out === null) return notFound(res)
       if (out === 'not-offer') return badRequest(res, 'delivery is only for hunt offers')
     }
@@ -169,13 +173,14 @@ export function createApp(opts: AppOptions): express.Express {
     const id = ideaId(req, res)
     if (id === null) return
     const b = asBody(req.body)
-    const { pickId, paid, refill } = b
+    const { pickId, paid, refill, quantity = 1 } = b
     if (pickId !== null && !Number.isSafeInteger(pickId)) return badRequest(res, 'pickId must be a pick id or null')
+    if (!isQuantity(quantity)) return badRequest(res, `quantity must be a whole number from 1 to ${QUANTITY_MAX}`)
     if (typeof paid !== 'number' || !Number.isFinite(paid) || paid <= 0 || paid > MAX_BUDGET_EUR) {
       return badRequest(res, `paid must be a number of euros between 0 and ${MAX_BUDGET_EUR}`)
     }
     if (typeof refill !== 'boolean') return badRequest(res, 'refill must be true or false')
-    const idea = recordPurchase(db, id, { pickId: pickId as number | null, paid, refill })
+    const idea = recordPurchase(db, id, { pickId: pickId as number | null, quantity, paid, refill })
     if (idea === null) return notFound(res)
     if (idea === 'bad-pick') return badRequest(res, 'that pick is not part of this idea')
     res.status(201).json(show(idea))
@@ -359,6 +364,8 @@ const DELIVERY_MAX = 1000
 /** Ranking needs only the unit and condition; an idea without a target compares any condition on totals. */
 const ANY_TARGET: HuntTarget = { product: '', variant: '', condition: 'any', exclude: [], unit: null }
 
+const isQuantity = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= QUANTITY_MAX
+
 const MODES: readonly IdeaMode[] = ['explore', 'hunt']
 const CONDITIONS: readonly Condition[] = ['new', 'refurbished', 'used', 'any']
 const TARGET_TEXT_MAX = 120
@@ -369,7 +376,7 @@ const TARGET_UNIT_MAX = 20
 function parseTarget(raw: unknown): HuntTarget | null | string {
   if (raw === null) return null
   const b = asBody(raw)
-  const bad = `target needs a product and variant (up to ${TARGET_TEXT_MAX} characters), a condition, up to ${TARGET_EXCLUDE_MAX} exclude words and a unit or null`
+  const bad = `target needs a product and variant (up to ${TARGET_TEXT_MAX} characters), a condition, up to ${TARGET_EXCLUDE_MAX} exclude words, a unit or null and a quantity (1 to ${QUANTITY_MAX}) or null`
   const text = (v: unknown) => typeof v === 'string' && v.trim().length <= TARGET_TEXT_MAX
   if (!text(b.product) || !text(b.variant) || !(b.product as string).trim()) return bad
   if (!CONDITIONS.includes(b.condition as Condition)) return bad
@@ -384,7 +391,9 @@ function parseTarget(raw: unknown): HuntTarget | null | string {
     if (typeof b.unit !== 'string' || b.unit.trim().length > TARGET_UNIT_MAX) return bad
     unit = b.unit.trim() || null
   }
-  return { product: (b.product as string).trim(), variant: (b.variant as string).trim(), condition: b.condition as Condition, exclude, unit }
+  if (b.quantity != null && !isQuantity(b.quantity)) return bad
+  const quantity = b.quantity == null ? {} : { quantity: b.quantity as number }
+  return { product: (b.product as string).trim(), variant: (b.variant as string).trim(), condition: b.condition as Condition, exclude, unit, ...quantity }
 }
 
 function parsePickPatch(body: unknown): PickPatch | string {

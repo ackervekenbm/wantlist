@@ -1,6 +1,7 @@
 import type { Availability, Idea, Pick } from '../../types'
 import { clockTime, eurTight, perUnitText, shortDate } from '../lib/format'
-import { figureOf, offersOf, packText, versusLast } from '../lib/hunt'
+import { priceEach } from '../../types/bulk'
+import { bulkText, figureOf, freeDeliveryHint, offersOf, packText, quantityOf, versusLast } from '../lib/hunt'
 import { ExternalIcon } from './icons'
 import { Leader } from './Leader'
 import { DeliveryButton, deliveryFig } from './OfferList'
@@ -31,15 +32,21 @@ export function figureText(amount: number, unit: string | null): string {
 export function OfferSlip({ idea, best, unit, onBought, onDelivery }: Props) {
   const f = best.offer
   if (!f) return null
-  const fig = figureOf(best, unit)
-  const pay = f.delivered ?? best.price
+  const qty = quantityOf(idea)
+  const each = best.price === null ? null : priceEach(best.price, f.bulk, qty)
+  const items = each === null ? null : each * qty
+  const fig = figureOf(best, unit, qty)
+  const pay = f.delivered ?? items
   const checkedAt = best.fetchedAt ?? idea.researchedAt
   const vs = versusLast(idea, best)
-  const lastFig = vs && (vs.last.perUnit !== null && f.perUnit !== null ? figureText(vs.last.perUnit, vs.last.unitLabel ?? unit) : eurTight(vs.last.paid))
+  const lastUnit = vs?.last.unitLabel ?? unit
+  const lastFig = vs && (vs.units > 1 ? (lastUnit ? figureText(vs.then, lastUnit) : `${eurTight(vs.then)} each`) : eurTight(vs.last.paid))
+  const hint = freeDeliveryHint(idea, best)
+  const bulk = bulkText(best)
   // A cheaper price seen only in search gets one quiet line, never the slip.
   const cheaper = offersOf(idea)
     .filter((o) => o.offer?.group === 'exact' && !o.suppliers[0]?.checked)
-    .map((o) => ({ o, fig: figureOf(o, unit) }))
+    .map((o) => ({ o, fig: figureOf(o, unit, qty) }))
     .filter((x): x is { o: Pick; fig: number } => x.fig !== null && fig !== null && x.fig < fig)
     .sort((a, b) => a.fig - b.fig)[0]
 
@@ -55,18 +62,22 @@ export function OfferSlip({ idea, best, unit, onBought, onDelivery }: Props) {
           <span className="trust">{STOCK[best.suppliers[0]?.availability ?? 'unknown']}</span>
         </p>
         {f.sellerNote && <p className="trust">{f.sellerNote}</p>}
+        {bulk && <p className="trust">{bulk}</p>}
         <ul className="qlines">
-          {best.price !== null && (
+          {each !== null && items !== null && (
             <li>
-              <Leader fig={eurTight(best.price)}>{f.packs > 1 || unit ? packText(f.packs, idea, 'Price') : 'Price'}</Leader>
+              <Leader fig={eurTight(items)}>
+                {qty > 1 ? `${qty} × ${eurTight(each)}` : f.packs > 1 || unit ? packText(f.packs, idea, 'Price') : 'Price'}
+              </Leader>
             </li>
           )}
           <li>
-            <Leader fig={deliveryFig(f, best.price)}>
+            <Leader fig={deliveryFig(f, items)}>
               <DeliveryButton offer={best} onDelivery={onDelivery} />
             </Leader>
           </li>
         </ul>
+        {hint && <p className="trust">{hint}</p>}
         {fig !== null && (
           <div className="total">
             <span className="lab">
@@ -82,9 +93,15 @@ export function OfferSlip({ idea, best, unit, onBought, onDelivery }: Props) {
                 </>
               ) : (
                 <>
-                  You pay
+                  You pay{qty > 1 && ` for ${qty}`}
                   <br />
                   {f.delivered === null ? 'without delivery' : 'delivery included'}
+                  {qty > 1 && f.perUnit !== null && (
+                    <>
+                      <br />
+                      {eurTight(f.perUnit)} each
+                    </>
+                  )}
                 </>
               )}
             </span>

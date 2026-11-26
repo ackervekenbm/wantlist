@@ -156,9 +156,11 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 - Hunt mode (migration 7). An idea has a `mode` (`explore` / `hunt`, with
   `mode_by_owner` once the owner switches it), a JSON `target` (`HuntTarget`:
   product, variant, condition, exclude, unit; `target_by_owner` once edited)
-  and `refill` (null = unknown, the model's guess, then the owner's answer). A
+  and `refill` (null = unknown, the model's guess, then the owner's answer).
+  The target's optional `quantity` (2–99, `QUANTITY_MAX`; absent = one) is set
+  only by the owner. A
   pick has a `kind` (`pick` / `offer`) and, for offers, `offer` (`OfferFacts`:
-  match, packs, delivery, delivered, perUnit, group...); a hunt offer is one pick
+  match, packs, delivery, `bulk` tiers, delivered, perUnit, group...); a hunt offer is one pick
   row with one supplier and its round is the hunt run. Table `purchases`
   (`ON DELETE CASCADE`): shop, packs, units, `paid` incl. delivery, `per_unit`.
   Covered (the Pantry) is `mode = 'hunt' AND list = 'bought' AND refill = 1`,
@@ -174,7 +176,10 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   also takes `mode` and `target` (409 while researching); `POST
   /api/ideas/:id/hunt` `{pickId}` (202), `POST …/purchases` `{pickId|null, paid,
   refill}` (201), `POST …/running-low` (202; 409 unless covered and idle), `POST …/pantry` (200; 409 unless bought and idle),
-  `DELETE /api/purchases/:id` (the undo).
+  `DELETE /api/purchases/:id` (the undo). A purchase also takes `quantity`
+  (packs × quantity are stored, per item price whenever that is above one).
+  A PATCH with a `target` re-ranks the newest hunt round in place
+  (`rerankHunt`), so a new quantity needs no run.
 - `src/server/worker.ts` — in-process worker with per-instance state. A pass
   researches up to `WORKER_QUEUE_CAP` (default 3) **due** ideas, one at a time.
   It sleeps until the earlier of the next scheduled retry or
@@ -238,14 +243,19 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
   read too (`referralTargets` in `http.ts`, `Page.referrals`; at most 3 per
   hunt; an unreadable one is dropped) → one model call returns `OfferFacts` per
   readable page (only what the page states; delivery `unknown` otherwise;
-  `stock` as the text states it; pages flagged `referral`, which only send
+  `stock` as the text states it; `bulk` volume prices, a count from 2 with a
+  price each or a percentage off; pages flagged `referral`, which only send
   buyers on to another shop, are dropped) → price and stock from the shop's
   product data, stock from the text only when the data has none →
-  `rank.ts`. `rankOffers` is pure code: `deliveredPrice` (free / paid /
-  free-over threshold), per-unit when `target.unit` is set and packs differ,
+  `rank.ts`. `rankOffers` is pure code: with a target `quantity` each offer is
+  priced for that many at its bulk price (`priceEach`), then `deliveredPrice`
+  (free / paid / free-over threshold, judged on that total), per-unit when `target.unit` is set and packs differ,
   eligibility for best (exact match, checked price, in stock, deliverable), and
   groups `best` · `exact` · `unavailable` (pick-up only / no delivery to
   Belgium) · `mismatch`. No eligible offer throws `HUNT_NOTHING` (`no-results`).
+  `src/types/bulk.ts` (`deliveredPrice`, `priceEach`, `freeDeliveryAt`) is
+  shared with the client, which shows the free-delivery count
+  (`freeDeliveryHint`) and fills in `BoughtSheet` from it.
   `huntPrompts.ts` holds the select and offer-facts prompts, schemas and
   normalizers; `shared.ts` the search and page helpers both pipelines use
   (`searchAll`, `checkedSupplier`, `mapLimit`).

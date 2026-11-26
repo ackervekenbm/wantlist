@@ -1,31 +1,20 @@
-import type { Delivery, FinalPick, HuntTarget, OfferFacts, OfferGroup } from '../../types'
+import type { FinalPick, HuntTarget, OfferFacts, OfferGroup } from '../../types'
+import { deliveredPrice, priceEach } from '../../types/bulk'
+
+export { deliveredPrice }
 
 /** EUR a partner program gives back on a price at a shop URL; 0 when none. */
 export type PartnerSaving = (url: string, price: number) => number
 
 const cents = (n: number): number => Math.round(n * 100) / 100
 
-/** Item price plus delivery; null when either is not known. */
-export function deliveredPrice(price: number | null, d: Delivery): number | null {
-  if (price === null) return null
-  switch (d.kind) {
-    case 'free':
-      return cents(price)
-    case 'paid':
-      return d.cost === null ? null : cents(price + d.cost)
-    case 'free_over':
-      if (d.threshold !== null && price >= d.threshold) return cents(price)
-      return d.cost === null ? null : cents(price + d.cost)
-    default:
-      return null
-  }
-}
-
 const GROUP_ORDER: OfferGroup[] = ['best', 'exact', 'unavailable', 'mismatch']
 
 /**
  * Fills delivered / perUnit / group and rank (1..n in display order).
- * Offers compare on what they cost after a partner discount (`saving`).
+ * With a target quantity, every offer is priced for that many: its bulk
+ * price each, delivery judged on the total. Offers compare on what they cost
+ * after a partner discount (`saving`).
  * Pure: returns new objects.
  */
 export function rankOffers<P extends Pick<FinalPick, 'suppliers'> & { offer?: OfferFacts | null; rank: number }>(
@@ -33,12 +22,14 @@ export function rankOffers<P extends Pick<FinalPick, 'suppliers'> & { offer?: Of
   target: HuntTarget,
   saving: PartnerSaving = () => 0,
 ): P[] {
+  const qty = target.quantity ?? 1
   const rows = offers.flatMap((p) => {
     if (!p.offer) return []
     const s = p.suppliers[0]
-    const price = s?.price ?? null
+    const one = s?.price ?? null
+    const price = one === null ? null : cents(priceEach(one, p.offer.bulk, qty) * qty)
     const delivered = deliveredPrice(price, p.offer.delivery)
-    const units = p.offer.packs * (p.offer.unitsPerPack ?? 1)
+    const units = qty * p.offer.packs * (p.offer.unitsPerPack ?? 1)
     const back = s && price !== null ? saving(s.url, price) : 0
     return [{ p, offer: p.offer, price, delivered, back, units, inStock: s?.availability === 'in_stock', checked: !!s?.checked }]
   })
@@ -70,7 +61,7 @@ export function rankOffers<P extends Pick<FinalPick, 'suppliers'> & { offer?: Of
     const offer: OfferFacts = {
       ...r.offer,
       delivered: r.delivered,
-      perUnit: target.unit !== null && r.delivered !== null && r.units > 0 ? cents(r.delivered / r.units) : null,
+      perUnit: (target.unit !== null || qty > 1) && r.delivered !== null && r.units > 0 ? cents(r.delivered / r.units) : null,
       group,
       mismatch: group === 'mismatch' ? (r.offer.mismatch ?? r.offer.condition) : r.offer.mismatch,
     }

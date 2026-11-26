@@ -63,6 +63,18 @@ describe('rankOffers', () => {
     expect(totals[0]?.shop).toBe('24PHARMA')
   })
 
+  it('prices a quantity at its bulk price and judges delivery on the total', () => {
+    const cafe = offer('Cafe', 6.59, freeOver(5.95, 75))
+    const tiered = offer('Tiered', 7.5, paid(6.95))
+    tiered.offer!.bulk = [{ min: 12, each: null, percentOff: 20 }]
+    expect(order(rankOffers([cafe, tiered], target))).toEqual(['Cafe:best', 'Tiered:exact'])
+    const r = rankOffers([cafe, tiered], { ...target, quantity: 12 })
+    expect(r.map((p) => [p.shop, p.offer?.delivered, p.offer?.perUnit])).toEqual([
+      ['Tiered', 78.95, 6.58],
+      ['Cafe', 79.08, 6.59],
+    ])
+  })
+
   it('lets unknown delivery win only below every known delivered price', () => {
     expect(order(rankOffers([offer('X', 100, unknown), offer('Y', 105, free)], target))).toEqual(['X:best', 'Y:exact'])
     expect(order(rankOffers([offer('X', 110, unknown), offer('Y', 105, free)], target))).toEqual(['Y:best', 'X:exact'])

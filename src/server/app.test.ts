@@ -320,7 +320,9 @@ describe('hunt routes', () => {
     const res = await api.post(`/api/ideas/${id}/purchases`).send({ pickId, paid: 59.95, refill: false }).expect(201)
     expect(res.body).toMatchObject({ list: 'bought', purchases: [{ paid: 59.95 }] })
     await api.post(`/api/ideas/${id}/purchases`).send({ pickId: null, paid: 5, refill: false }).expect(201)
-    for (const bad of [{ pickId, paid: 0, refill: true }, { pickId, paid: 2_000_000, refill: true }, { pickId, paid: 5 }, { paid: 5, refill: true }, { pickId: 9999, paid: 5, refill: true }])
+    const dozen = await api.post(`/api/ideas/${id}/purchases`).send({ pickId, quantity: 12, paid: 79.08, refill: true }).expect(201)
+    expect(dozen.body.purchases[0]).toMatchObject({ packs: 12, paid: 79.08, perUnit: 6.59 })
+    for (const bad of [{ pickId, quantity: 0, paid: 5, refill: true }, { pickId, quantity: 100, paid: 5, refill: true }, { pickId, paid: 0, refill: true }, { pickId, paid: 2_000_000, refill: true }, { pickId, paid: 5 }, { paid: 5, refill: true }, { pickId: 9999, paid: 5, refill: true }])
       await api.post(`/api/ideas/${id}/purchases`).send(bad).expect(400)
     await api.post('/api/ideas/99/purchases').send({ pickId: null, paid: 5, refill: true }).expect(404)
     const undone = await api.delete(`/api/purchases/${res.body.purchases[0].id}`).expect(200)
@@ -397,6 +399,13 @@ describe('hunt routes', () => {
     expect(back).not.toHaveProperty('foundDelivery')
 
     for (const bad of [-1, 1001, 'x', 4.951]) await api.patch(`/api/picks/${delta.id}`).send({ delivery: bad }).expect(400)
+
+    // Two of each: delta's 80 clears its free-delivery threshold, mantel costs 86.
+    const two = await api.patch(`/api/ideas/${id}`).send({ target: { ...hunt, quantity: 2 } }).expect(200)
+    const twice = (shop: string) => (two.body as Idea).picks.find((p) => p.shop === shop)!.offer
+    expect(twice('delta')).toMatchObject({ delivered: 80, perUnit: 40, group: 'best' })
+    expect(twice('mantel')).toMatchObject({ delivered: 86, group: 'exact' })
+    for (const quantity of [0, 100, 1.5, '2']) await api.patch(`/api/ideas/${id}`).send({ target: { ...hunt, quantity } }).expect(400)
     const explore = seedDone(db)
     await api.patch(`/api/picks/${pickOf(db, explore)}`).send({ delivery: 5 }).expect(400)
     await api.patch('/api/picks/9999').send({ delivery: 5 }).expect(404)
