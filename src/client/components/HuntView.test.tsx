@@ -107,7 +107,7 @@ describe('Hunt: the target plate', () => {
     await user.click(sheet.getByRole('button', { name: 'Save' }))
     await waitFor(() =>
       expect(api.writes()).toEqual([
-        { method: 'PATCH', path: '/api/ideas/1', body: { target: { ...target, variant: '3 × 48 ml vial' } } },
+        { method: 'PATCH', path: '/api/ideas/1', body: { target: { ...target, variant: '3 × 48 ml vial', quantity: null } } },
       ]),
     )
   })
@@ -222,7 +222,7 @@ describe('Hunt: buying', () => {
     await user.click(sheet.getByRole('button', { name: 'Save purchase' }))
     await waitFor(() =>
       expect(api.writes()).toEqual([
-        { method: 'POST', path: '/api/ideas/1/purchases', body: { pickId: 11, paid: 59.95, refill: true } },
+        { method: 'POST', path: '/api/ideas/1/purchases', body: { pickId: 11, quantity: 1, paid: 59.95, refill: true } },
       ]),
     )
     expect(await pane().findByText('Covered')).toBeInTheDocument()
@@ -302,5 +302,64 @@ describe('Hunt: partner deals', () => {
     expect(slip).toHaveTextContent('≈ € 58,75 after Viking Deals · 2% back on all purchases, until 30 Nov')
     expect(within(slip).getByRole('link', { name: /Open via Viking Deals/ })).toHaveAttribute('href', partner.link)
     expect(pane().getAllByRole('link', { name: /Open via/ })).toHaveLength(1)
+  })
+})
+
+describe('Hunt: buying several at once', () => {
+  const freeOver75 = { kind: 'free_over' as const, cost: 5.95, threshold: 75 }
+  const coffee = (over: Partial<Idea> = {}) =>
+    feliway({
+      purchases: [],
+      target: { product: 'Illy coffee beans', variant: '250g tin', condition: 'new', exclude: [], unit: null },
+      picks: [
+        offer(21, 'Cafe du Jour', 6.59, { delivery: freeOver75, delivered: 12.54, perUnit: null, group: 'best' }),
+        offer(22, 'Bulkshop', 7.5, { delivery: freeOver75, delivered: 13.45, perUnit: null, bulk: [{ min: 6, each: null, percentOff: 10 }] }),
+      ],
+      ...over,
+    })
+
+  it('shows how many make delivery free, and bulk prices', async () => {
+    await open([coffee()])
+    const slip = within(pane().getByRole('group', { name: 'Best real offer' }))
+    expect(slip.getByText('Buy 12 for free delivery · €6,59 each')).toBeInTheDocument()
+    // 6 at €6,75 each is €40,50; 12 is €81.
+    expect(pane().getByText('Buy 12 for free delivery · €6,75 each · Bulk price: 6+ €6,75 each')).toBeInTheDocument()
+  })
+
+  it('prices a set quantity on the slip and drops the hint', async () => {
+    await open([coffee({ target: { ...coffee().target!, quantity: 12 }, picks: [offer(21, 'Cafe du Jour', 6.59, { delivery: freeOver75, delivered: 79.08, perUnit: 6.59, group: 'best' })] })])
+    const slip = within(pane().getByRole('group', { name: 'Best real offer' }))
+    expect(slip.getByText('12 × €6,59')).toBeInTheDocument()
+    expect(slip.getByText(/free over/)).toHaveTextContent('✓')
+    expect(slip.queryByText(/for free delivery/)).not.toBeInTheDocument()
+    expect(pane().getByText(/Buying 12 at once/)).toBeInTheDocument()
+  })
+
+  it('pre-fills the free-delivery quantity in the purchase, and the paid amount follows it', async () => {
+    const { api, user } = await open([coffee()])
+    const slip = pane().getByRole('group', { name: 'Best real offer' })
+    await user.click(within(slip).getByRole('button', { name: 'Bought here' }))
+    const sheet = within(await screen.findByRole('dialog', { name: 'Bought at Cafe du Jour' }))
+    const count = sheet.getByRole('textbox', { name: 'How many you bought' })
+    expect(count).toHaveValue('12')
+    expect(sheet.getByRole('textbox', { name: /You paid/ })).toHaveValue('79,08')
+    await user.clear(count)
+    await user.type(count, '6')
+    expect(sheet.getByRole('textbox', { name: /You paid/ })).toHaveValue('45,49')
+    await user.click(sheet.getByRole('button', { name: 'Save purchase' }))
+    await waitFor(() =>
+      expect(api.writes()).toEqual([
+        { method: 'POST', path: '/api/ideas/1/purchases', body: { pickId: 21, quantity: 6, paid: 45.49, refill: true } },
+      ]),
+    )
+  })
+
+  it('sets the quantity in the target editor', async () => {
+    const { api, user } = await open([coffee()])
+    await user.click(pane().getByRole('button', { name: /Edit target/ }))
+    const sheet = within(await screen.findByRole('dialog', { name: 'Edit target' }))
+    await user.type(sheet.getByRole('textbox', { name: /How many at once/ }), '12')
+    await user.click(sheet.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.writes().at(-1)?.body).toMatchObject({ target: { quantity: 12 } }))
   })
 })

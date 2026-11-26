@@ -244,7 +244,7 @@ export function fakeApi(initial: Idea[] = [], serverStatus: ServerStatus = statu
         shop: chosen?.shop ?? null,
         url: chosen?.url ?? null,
         title: chosen?.title ?? found.title ?? found.text,
-        packs: chosen?.offer?.packs ?? 1,
+        packs: (chosen?.offer?.packs ?? 1) * (b.quantity ?? 1),
         unitsPerPack: chosen?.offer?.unitsPerPack ?? null,
         unitLabel: found.target?.unit ?? null,
         paid: b.paid,

@@ -1,6 +1,7 @@
 import type { Idea, OfferFacts, Pick } from '../../types'
 import { deliveryText, eurTight } from '../lib/format'
-import { figureOf, packText } from '../lib/hunt'
+import { priceEach } from '../../types/bulk'
+import { bulkText, figureOf, freeDeliveryHint, packText, quantityOf } from '../lib/hunt'
 import { ChevronIcon, ExternalIcon } from './icons'
 import { Leader, Section } from './Leader'
 import { figureText, STOCK } from './OfferSlip'
@@ -52,10 +53,15 @@ function OfferRow({
 }) {
   const f = offer.offer
   const s = offer.suppliers[0]
-  const fig = figureOf(offer, unit)
+  const qty = quantityOf(idea)
+  const each = offer.price === null ? null : priceEach(offer.price, f?.bulk, qty)
+  const fig = figureOf(offer, unit, qty)
   const mismatch = f?.group === 'mismatch'
+  const hint = mismatch ? null : freeDeliveryHint(idea, offer)
+  const bulk = mismatch ? null : bulkText(offer)
   const sub = [
-    unit && f && offer.price !== null ? `${packText(f.packs, idea, '')} ${eurTight(offer.price)}`.trim() : null,
+    qty > 1 && each !== null ? `${qty} × ${eurTight(each)}` : null,
+    unit && f && offer.price !== null && qty === 1 ? `${packText(f.packs, idea, '')} ${eurTight(offer.price)}`.trim() : null,
     s ? STOCK[s.availability].toLowerCase() : null,
     f?.sellerNote,
   ].filter(Boolean)
@@ -74,9 +80,10 @@ function OfferRow({
       </p>
       {f && (
         <p className="odel">
-          <Leader fig={deliveryFig(f, offer.price)}>{onDelivery ? <DeliveryButton offer={offer} onDelivery={onDelivery} /> : 'Delivery'}</Leader>
+          <Leader fig={deliveryFig(f, each === null ? null : each * qty)}>{onDelivery ? <DeliveryButton offer={offer} onDelivery={onDelivery} /> : 'Delivery'}</Leader>
         </p>
       )}
+      {(hint || bulk) && <p className="osub">{[hint, bulk].filter(Boolean).join(' · ')}</p>}
       {!mismatch && f?.group !== 'unavailable' && <PartnerNote partner={s?.partner} pay={f?.delivered ?? offer.price} />}
       <div className="erow-acts">
         <a className="linkish" href={offer.url} target="_blank" rel="noreferrer noopener">

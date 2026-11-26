@@ -87,6 +87,21 @@ describe('normalizeOffers', () => {
     expect(stock(undefined)).toBe('unknown')
   })
 
+  it('keeps bulk tiers the page states and drops broken ones', () => {
+    const bulk = [
+      { min: 6, percentOff: 5 },
+      { min: 12, each: 5.75 },
+      { min: 1, each: 6 },
+      { min: 24 },
+      { min: 3, percentOff: 120 },
+    ]
+    expect(one({ bulk }).bulk).toEqual([
+      { min: 6, each: null, percentOff: 5 },
+      { min: 12, each: 5.75, percentOff: null },
+    ])
+    expect(one({}).bulk).toBeUndefined()
+  })
+
   it('drops urls that were not selected', () => {
     expect(normalizeOffers({ offers: [{ url: 'https://z.be', title: 't', match: 'exact' }] }, sel)).toEqual([])
   })

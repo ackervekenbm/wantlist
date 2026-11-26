@@ -94,6 +94,8 @@ export interface HuntTarget {
   exclude: string[]
   /** "vial", "kg"; null when packs never differ. */
   unit: string | null
+  /** How many the owner buys at once; absent or null means one. */
+  quantity?: number | null
 }
 
 export type DeliveryKind = 'free' | 'paid' | 'free_over' | 'pickup_only' | 'no_be' | 'unknown'
@@ -102,6 +104,13 @@ export interface Delivery {
   kind: DeliveryKind
   cost: number | null
   threshold: number | null
+}
+
+/** A volume price the shop page states: from `min` items on, a price each or a percentage off. */
+export interface BulkTier {
+  min: number
+  each: number | null
+  percentOff: number | null
 }
 
 export type OfferGroup = 'best' | 'exact' | 'unavailable' | 'mismatch'
@@ -121,6 +130,8 @@ export interface OfferFacts {
   condition: Condition | null
   sellerNote: string | null
   group: OfferGroup
+  /** Volume prices from the shop page; absent on offers read before they were. */
+  bulk?: BulkTier[]
 }
 
 /** What was paid for an idea, newest first on the idea. */
@@ -143,6 +154,8 @@ export interface Purchase {
 /** Body of the buy action. */
 export interface NewPurchase {
   pickId: number | null
+  /** How many of the offer were bought; one when left out. */
+  quantity?: number
   paid: number
   refill: boolean
 }

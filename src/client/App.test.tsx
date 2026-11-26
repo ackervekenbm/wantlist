@@ -240,7 +240,7 @@ describe('App', () => {
     const user = await renderApp('#/idea/1')
     await user.click(within(screen.getByRole('group', { name: 'Best real offer' })).getByRole('button', { name: 'Bought here' }))
     await user.click(within(await screen.findByRole('dialog', { name: /^Bought at/ })).getByRole('button', { name: 'Save purchase' }))
-    expect(api.writes()).toEqual([{ method: 'POST', path: '/api/ideas/1/purchases', body: { pickId: 5, paid: 59.95, refill: true } }])
+    expect(api.writes()).toEqual([{ method: 'POST', path: '/api/ideas/1/purchases', body: { pickId: 5, quantity: 1, paid: 59.95, refill: true } }])
     expect(await screen.findByText("Covered. Feliway refill sleeps in the Pantry until you're running low.")).toBeInTheDocument()
     expect(api.ideas()[0]).toMatchObject({ list: 'bought', refill: true })
 
