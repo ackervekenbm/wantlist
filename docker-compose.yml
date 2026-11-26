@@ -1,6 +1,6 @@
 # Runs the published image on any Docker host: put a .env with the keys next
 # to this file (see .env.example), then `docker compose up -d`. Settings and the
-# OpenMediaVault route: docs/deployment.md.
+# other routes: docs/deploy/.
 services:
   wantlist:
     image: ghcr.io/ackervekenbm/wantlist:latest
@@ -9,7 +9,7 @@ services:
     environment:
       GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY in .env}
       SERPER_API_KEY: ${SERPER_API_KEY:?set SERPER_API_KEY in .env}
-      # Optional: blank uses the app's default (docs/deployment.md#settings).
+      # Optional: blank uses the app's default (docs/deploy/operations.md#settings).
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       MODEL_CHAIN: ${MODEL_CHAIN:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}

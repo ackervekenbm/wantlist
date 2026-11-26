@@ -52,7 +52,7 @@ A green `check` and `smoke` are required to merge. There is no other test suite.
 Plans, specs, design mockups and screenshots are working documents: write them
 locally (`docs/superpowers/` is git-ignored) or in the issue/PR, never commit
 them. What outlives the work goes into the README, this file or
-`docs/deployment.md`.
+`docs/deploy/`.
 
 ## README upkeep (MANDATORY)
 
@@ -67,7 +67,7 @@ sections, plain user-facing wording, no internal jargon. The banner is
 (Playwright installed with `--no-save`, deliberately not a dependency);
 re-render it when its wording or the icon changes. Anything shown in it is
 invented, never real data. If nothing in the README is affected, say so in the PR description.
-AGENTS.md (architecture) and `docs/deployment.md` (deployment) follow the
+AGENTS.md (architecture) and `docs/deploy/` (deployment) follow the
 same rule.
 
 ## Issue-first workflow (MANDATORY)
@@ -466,10 +466,13 @@ gh issue create --title "<what>" --body "..."   # → gives an issue number
 
 ## Deployment
 
-Any 64-bit Docker host; OpenMediaVault's Compose plugin is the reference route
-(data in the plugin's Data folder, `wantlist-data`), plain Docker Compose
-(`docker-compose.yml`, named volume) the other. Guide and settings table in
-`docs/deployment.md`; keep it generic (no host names, IPs or other apps):
+One guide per route in `docs/deploy/` (`README.md` picks the route and states
+the contract they share): the prebuilt image with plain Docker Compose
+(`docker-compose.yml`, named volume), OpenMediaVault's Compose plugin, the
+reference route (data in the plugin's Data folder, `wantlist-data`), Docker
+built from a checkout, and bare Node under systemd. The settings table,
+updating, rollback and backups are in `operations.md`, next to `https.md` and
+`troubleshooting.md`. Keep the guides generic (no host names, IPs or other apps):
 the owner's actual host setup is tracked outside this repo. Every setting the
 server reads is passed through in both compose files as `${VAR:-}`: blank
 means the app's default, so defaults live only in the code and the settings table.

@@ -82,7 +82,7 @@ included. For Docker Compose and OpenMediaVault, see [Deployment](#deployment).
 - One product at several shops is one pick: **+2 shops** lists the other offers, cheapest in-stock offer first. Picks over your budget are flagged.
 - Known brands with real reviews rank above anonymous marketplace products, without excluding them.
 - Each pick carries one honest caveat, the thing to check before you buy ("loud on the top setting", "check size 36 is in stock").
-- **Discount partners (optional).** If you use a program that gives part of a purchase back on a bill, like Mobile Vikings' *Viking Deals*, turn it on with `PARTNER_PROGRAMS` (see the [settings](docs/deployment.md#settings)). An offer at a partner shop then says "≈ € 126,42 after Viking Deals · 2% back" (with a range when the rate depends on what you buy), and **Open via Viking Deals** starts the purchase on the partner page, which is what makes it count. Hunts rank offers on the price after the discount, so a partner wins a near-tie. The shop price stays the headline.
+- **Discount partners (optional).** If you use a program that gives part of a purchase back on a bill, like Mobile Vikings' *Viking Deals*, turn it on with `PARTNER_PROGRAMS` (see the [settings](docs/deploy/operations.md#settings)). An offer at a partner shop then says "≈ € 126,42 after Viking Deals · 2% back" (with a range when the rate depends on what you buy), and **Open via Viking Deals** starts the purchase on the partner page, which is what makes it count. Hunts rank offers on the price after the discount, so a partner wins a near-tie. The shop price stays the headline.
 
 </details>
 
@@ -135,13 +135,18 @@ never forward a port to it from the internet.
 
 ## Deployment
 
-One container serves the app, the API and the research worker; it needs to
-stay on, because research happens while you're away. The guide in
-[docs/deployment.md](docs/deployment.md) covers:
+One process serves the app, the API and the research worker; it needs to
+stay on, because research happens while you're away. Pick a route in
+[docs/deploy/](docs/deploy/README.md):
 
-- **OpenMediaVault** with its Compose plugin (the reference setup)
-- **Docker Compose** with the repo's [`docker-compose.yml`](docker-compose.yml) and a `.env` (copy [`.env.example`](.env.example))
-- every setting (model chain, fallback keys, worker timing), updating, backups, HTTPS behind a reverse proxy, and troubleshooting
+| Route | Guide |
+|---|---|
+| **Prebuilt image** with Docker Compose (start here) | [docker-image.md](docs/deploy/docker-image.md) |
+| **OpenMediaVault** with its Compose plugin (the reference setup) | [openmediavault.md](docs/deploy/openmediavault.md) |
+| **Docker**, built from a checkout | [from-source-docker.md](docs/deploy/from-source-docker.md) |
+| **Bare Node** with systemd | [from-source-node.md](docs/deploy/from-source-node.md) |
+
+Every setting (model chain, fallback keys, worker timing), updating, rollback and backups are in [operations.md](docs/deploy/operations.md); HTTPS behind a reverse proxy in [https.md](docs/deploy/https.md); fixes in [troubleshooting.md](docs/deploy/troubleshooting.md).
 
 ## Development
 
