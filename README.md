@@ -191,13 +191,12 @@ src/
 │   └── partners/    bill-discount partner programs (Viking Deals)
 └── types/           types shared by client and server
 scripts/             the research spike and the README banner
-docs/                deployment guide, research design notes
+docs/                deployment guide, README banner
 ```
 
 Tech stack: React 19 · TypeScript · Vite · Express 5 · better-sqlite3 ·
-Vitest + Testing Library. Architecture and conventions are in
-[AGENTS.md](AGENTS.md); the research design, free-tier facts and risks in
-[docs/plan.md](docs/plan.md).
+Vitest + Testing Library. Architecture, conventions and free-tier facts are in
+[AGENTS.md](AGENTS.md).
 
 </details>
 
