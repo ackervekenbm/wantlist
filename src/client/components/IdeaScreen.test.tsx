@@ -386,6 +386,36 @@ describe('Refine dock, keepers and earlier rounds', () => {
   })
 })
 
+describe('Keepers overview', () => {
+  it('lists every Yes from all rounds with photo and why, and folds the Kind of picks with your reason', async () => {
+    await open([
+      idea({
+        round: 2,
+        picks: [
+          pick({ id: 20, round: 2, rank: 1, title: 'Kobo Libra Colour', reaction: 'yes', why: 'Page buttons', image: 'https://shop.be/libra.jpg' }),
+          pick({ id: 21, round: 2, rank: 2, title: 'Kobo Clara BW', reaction: 'maybe', reason: 'no buttons' }),
+          pick({ id: 11, round: 1, rank: 1, title: 'Kindle Paperwhite', reaction: 'yes' }),
+          pick({ id: 12, round: 1, rank: 2, title: 'PocketBook Era', reaction: 'no' }),
+        ],
+      }),
+    ])
+    const keepers = within(pane().getByRole('list', { name: 'Keepers' }))
+    expect(keepers.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      expect.stringContaining('Kobo Libra Colour'),
+      expect.stringContaining('Kindle Paperwhite'),
+    ])
+    expect(keepers.getByText('Page buttons')).toBeInTheDocument()
+    expect(pane().getByRole('list', { name: 'Keepers' }).querySelector('img')).toHaveAttribute('src', 'https://shop.be/libra.jpg')
+    // The deck's round is reacted to on the deck; older keepers keep their keycaps.
+    expect(keepers.queryByRole('group', { name: 'Your reaction to Kobo Libra Colour' })).not.toBeInTheDocument()
+    expect(keepers.getByRole('group', { name: 'Your reaction to Kindle Paperwhite' })).toBeInTheDocument()
+    expect(keepers.getAllByRole('button', { name: 'Hunt this one' })).toHaveLength(2)
+    const maybe = within(pane().getByRole('list', { name: 'Kind of' }))
+    expect(maybe.getByText('You: “no buttons”')).toBeInTheDocument()
+    expect(pane().queryByRole('list', { name: 'Keepers' })?.textContent).not.toContain('PocketBook')
+  })
+})
+
 describe('IdeaScreen with a hunt round', () => {
   it('keeps hunt offers out of Keepers and Earlier rounds', async () => {
     const offer = pick({ id: 30, round: 3, kind: 'offer', title: 'Hunt offer shop' })

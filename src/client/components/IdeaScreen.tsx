@@ -168,6 +168,14 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
         <>
           <PickDeck key={`${id}-${latest[0]?.round}`} idea={idea} onReact={actions.react} onBought={bought} onHunt={huntPick} />
 
+          <Keepers
+            picks={explore}
+            deckRound={latest[0]?.round}
+            onReact={wanted ? actions.react : undefined}
+            onBought={wanted ? bought : undefined}
+            onHunt={huntPick}
+          />
+
           {idea.preferences && (
             <PreferencesPanel
               preferences={idea.preferences}
@@ -177,12 +185,6 @@ export function IdeaScreen({ idea, status, onBack, actions }: Props) {
             />
           )}
 
-          <Keepers
-            picks={earlier.filter((p) => p.reaction === 'yes')}
-            onReact={wanted ? actions.react : undefined}
-            onBought={wanted ? bought : undefined}
-            onHunt={huntPick}
-          />
           <EarlierRounds
             picks={earlier}
             onReact={wanted ? actions.react : undefined}
